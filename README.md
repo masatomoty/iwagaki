@@ -25,8 +25,9 @@ PLATEAUの粗い地形表現（5m格子TIN）では捉えられない微地形�
 - [x] データ調査（`docs/DATA.md`）— 舞鶴・吉原で必要データが揃うことを実測確認
 - [x] 設計・実装計画（`docs/DESIGN.md`）
 - [x] 最小 vertical slice — **go/no-go は GO**（`docs/RESULTS.md`）
+- [x] Web 配信・描画・ネットワーク設計（`docs/WEB_DESIGN.md`）と最小 viewer（`web/`）
 - [ ] LAS/LAZ 点群パス（PDAL ground filter → DTM → COPC）※ 点群データは別途提供予定、スクリプトは用意済み・未検証
-- [ ] Webアプリ
+- [ ] Cloudflare へのデプロイと LAS アップロード経路
 
 ### 第一段階の結果 → **GO**
 
@@ -65,15 +66,23 @@ PLATEAUの粗い地形表現（5m格子TIN）では捉えられない微地形�
 ```
 docs/
   DATA.md        データ棚卸し（出典・CRS・解像度・ライセンス・未確認事項）
-  DESIGN.md      設計と実装計画
-  RESULTS.md     第一段階の結果と go/no-go
+  DESIGN.md      解析の設計と実装計画
+  RESULTS.md     第一段階（解析）の結果と go/no-go
+  WEB_DESIGN.md  Web 配信・描画・ネットワーク設計
+  WEB_RESULTS.md ネットワーク実測の結果
 src/iwagaki/     解析ライブラリ
 scripts/         前処理パイプライン（番号順に実行）
 data/
   raw/           取得した原データ（git管理外）
   interim/       中間生成物（git管理外）
   out/           成果物: DTM, 浸水深, 差分, 地物別テーブル（git管理外）
-web/             ブラウザ可視化（解析成立後に着手）
+web/             ブラウザ可視化
+  src/domain/    純ロジック（描画ライブラリに依存しない）
+  src/net/       リクエストスケジューラ（優先度・帯域・キャンセル・coalescing）
+  src/pointcloud/ COPC index / LOD / decode / renderer（差し替え可能）
+  src/view/      MapLibre + deck.gl
+  serve.mjs      production 相当の静的配信（HTTP/2・Range・事前圧縮）
+  perf/run.mjs   ネットワークプロファイル別の実測ハーネス
 ```
 
 ## セットアップ
@@ -89,6 +98,7 @@ python3 -m venv .venv
 
 ```bash
 scripts/run_all.sh          # 取得 → 地形生成 → 浸水計算 → 比較 → 地物結合 → 図
+scripts/build_web.sh        # → Web 配信アセット（タイル・COPC・3D Tiles・catalog）
 ```
 
 初回は京都府DEMタイル4枚（各12MB）とPLATEAU CityGML 4メンバー（計1.25GB）を取得する。

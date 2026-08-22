@@ -1,0 +1,5052 @@
+{
+ "h_step": 0.05,
+ "road_depth_classes_m": [
+  0.1,
+  0.3,
+  0.5
+ ],
+ "packing": [
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 26,
+   "a": 26,
+   "elev": 1.101562,
+   "h_conn": 1.25
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 205,
+   "a": 37,
+   "elev": 1.800781,
+   "h_conn": 1.8
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 179,
+   "a": 36,
+   "elev": 1.699219,
+   "h_conn": 1.75
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 205,
+   "a": 37,
+   "elev": 1.800781,
+   "h_conn": 1.8
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 2,
+   "b": 0,
+   "a": 41,
+   "elev": 2.0,
+   "h_conn": 2.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 128,
+   "a": 36,
+   "elev": 1.5,
+   "h_conn": 1.75
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 102,
+   "a": 31,
+   "elev": 1.398438,
+   "h_conn": 1.5
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 230,
+   "a": 39,
+   "elev": 1.898438,
+   "h_conn": 1.9
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 2,
+   "b": 0,
+   "a": 41,
+   "elev": 2.0,
+   "h_conn": 2.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 128,
+   "a": 31,
+   "elev": 1.5,
+   "h_conn": 1.5
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 2,
+   "b": 0,
+   "a": 41,
+   "elev": 2.0,
+   "h_conn": 2.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 128,
+   "a": 31,
+   "elev": 1.5,
+   "h_conn": 1.5
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 0,
+   "elev": null,
+   "h_conn": null
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 0,
+   "g": 0,
+   "b": 0,
+   "a": 1,
+   "elev": null,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 128,
+   "a": 11,
+   "elev": 0.5,
+   "h_conn": 0.5
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 3,
+   "b": 102,
+   "a": 0,
+   "elev": 3.398438,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 19,
+   "elev": 0.898438,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 19,
+   "elev": 0.898438,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 26,
+   "a": 24,
+   "elev": 1.101562,
+   "h_conn": 1.15
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 51,
+   "a": 26,
+   "elev": 1.199219,
+   "h_conn": 1.25
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 0,
+   "a": 21,
+   "elev": 1.0,
+   "h_conn": 1.0
+  },
+  {
+   "r": 128,
+   "g": 2,
+   "b": 0,
+   "a": 41,
+   "elev": 2.0,
+   "h_conn": 2.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 0,
+   "a": 21,
+   "elev": 1.0,
+   "h_conn": 1.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 19,
+   "elev": 0.800781,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 19,
+   "elev": 0.898438,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 19,
+   "elev": 0.898438,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 19,
+   "elev": 0.898438,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 51,
+   "a": 26,
+   "elev": 1.199219,
+   "h_conn": 1.25
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 19,
+   "elev": 0.898438,
+   "h_conn": 0.9
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 230,
+   "a": 21,
+   "elev": 0.898438,
+   "h_conn": 1.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 51,
+   "a": 26,
+   "elev": 1.199219,
+   "h_conn": 1.25
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 26,
+   "a": 1,
+   "elev": 0.101562,
+   "h_conn": 0.0
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 179,
+   "a": 15,
+   "elev": 0.699219,
+   "h_conn": 0.7
+  },
+  {
+   "r": 128,
+   "g": 0,
+   "b": 205,
+   "a": 18,
+   "elev": 0.800781,
+   "h_conn": 0.85
+  },
+  {
+   "r": 128,
+   "g": 1,
+   "b": 26,
+   "a": 24,
+   "elev": 1.101562,
+   "h_conn": 1.15
+  },
+  {
+   "r": 128,
+   "g": 21,
+   "b": 100,
+   "a": 0,
+   "elev": 21.390625,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 30,
+   "b": 96,
+   "a": 0,
+   "elev": 30.375,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 20,
+   "b": 109,
+   "a": 0,
+   "elev": 20.425781,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 52,
+   "b": 194,
+   "a": 0,
+   "elev": 52.757812,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 28,
+   "b": 12,
+   "a": 0,
+   "elev": 28.046875,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 43,
+   "b": 114,
+   "a": 0,
+   "elev": 43.445312,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 51,
+   "b": 22,
+   "a": 0,
+   "elev": 51.085938,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 14,
+   "b": 214,
+   "a": 0,
+   "elev": 14.835938,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 53,
+   "b": 1,
+   "a": 0,
+   "elev": 53.003906,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 21,
+   "b": 207,
+   "a": 0,
+   "elev": 21.808594,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 30,
+   "b": 55,
+   "a": 0,
+   "elev": 30.214844,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 70,
+   "b": 129,
+   "a": 0,
+   "elev": 70.503906,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 41,
+   "b": 53,
+   "a": 0,
+   "elev": 41.207031,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 44,
+   "b": 189,
+   "a": 0,
+   "elev": 44.738281,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 59,
+   "b": 154,
+   "a": 0,
+   "elev": 59.601562,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 27,
+   "b": 107,
+   "a": 0,
+   "elev": 27.417969,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 21,
+   "b": 133,
+   "a": 0,
+   "elev": 21.519531,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 55,
+   "b": 62,
+   "a": 0,
+   "elev": 55.242188,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 44,
+   "b": 107,
+   "a": 0,
+   "elev": 44.417969,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 43,
+   "b": 70,
+   "a": 0,
+   "elev": 43.273438,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 32,
+   "b": 115,
+   "a": 0,
+   "elev": 32.449219,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 70,
+   "b": 78,
+   "a": 0,
+   "elev": 70.304688,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 27,
+   "b": 36,
+   "a": 0,
+   "elev": 27.140625,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 36,
+   "b": 32,
+   "a": 0,
+   "elev": 36.125,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 48,
+   "b": 140,
+   "a": 0,
+   "elev": 48.546875,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 50,
+   "b": 44,
+   "a": 0,
+   "elev": 50.171875,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 22,
+   "b": 251,
+   "a": 0,
+   "elev": 22.980469,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 20,
+   "b": 75,
+   "a": 0,
+   "elev": 20.292969,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 33,
+   "b": 201,
+   "a": 0,
+   "elev": 33.785156,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 41,
+   "b": 106,
+   "a": 0,
+   "elev": 41.414062,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 49,
+   "b": 40,
+   "a": 0,
+   "elev": 49.15625,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 37,
+   "b": 110,
+   "a": 0,
+   "elev": 37.429688,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 36,
+   "b": 217,
+   "a": 0,
+   "elev": 36.847656,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 44,
+   "b": 227,
+   "a": 0,
+   "elev": 44.886719,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 13,
+   "b": 254,
+   "a": 0,
+   "elev": 13.992188,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 58,
+   "b": 127,
+   "a": 0,
+   "elev": 58.496094,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 45,
+   "b": 15,
+   "a": 0,
+   "elev": 45.058594,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 54,
+   "b": 247,
+   "a": 0,
+   "elev": 54.964844,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 27,
+   "b": 240,
+   "a": 0,
+   "elev": 27.9375,
+   "h_conn": null
+  },
+  {
+   "r": 128,
+   "g": 26,
+   "b": 3,
+   "a": 0,
+   "elev": 26.011719,
+   "h_conn": null
+  }
+ ],
+ "features": [
+  {
+   "gml_id": "bldg_83130198-c50c-4f2e-aaf4-9a4a706840c5",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.857,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 0.9,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.143,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.643,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.143,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_11bd55a6-6f3d-41c1-9759-79924c975759",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.941,
+   "ground_elev_highres": 0.91,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.059,
+     "depth_highres": 0.09,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.559,
+     "depth_highres": 0.59,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.059,
+     "depth_highres": 1.09,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_20f6007f-0950-482d-8c93-75c808d75143",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.102,
+   "ground_elev_highres": 2.1,
+   "h_conn_baseline": 2.15,
+   "h_conn_highres": 2.1,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_38128ffe-ee63-4abf-937f-75a95cb644c1",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.684,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.316,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.816,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.316,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_37a3be1f-2100-4593-826c-a00926dec005",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.675,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.325,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.825,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.325,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_cde777c2-8bf8-4520-9b50-fe17a09cd176",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.665,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.7,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.335,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.835,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.335,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_1694429c-a643-4640-8d27-c4bd2fd95208",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 2.238,
+   "ground_elev_highres": 1.7,
+   "h_conn_baseline": 1.85,
+   "h_conn_highres": 1.5,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.3,
+     "decision_changed": true
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_53a5bbed-9129-4100-962a-77178ef67020",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.847,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.153,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.653,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.153,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_38fb7e99-8a2f-4198-9422-e922716f0582",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.495,
+   "ground_elev_highres": 2.6,
+   "h_conn_baseline": 2.5,
+   "h_conn_highres": 2.75,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_123de9a0-da5f-471b-8bd0-3ba8048f0607",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.841,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.159,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.659,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.159,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_1114687f-860b-4e01-8987-97f4ccdda1dd",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.961,
+   "ground_elev_highres": 1.15,
+   "h_conn_baseline": 1.0,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.039,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.539,
+     "depth_highres": 0.35,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.039,
+     "depth_highres": 0.85,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9625d42e-94d3-4e36-bbc6-fd45e42c6864",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.841,
+   "ground_elev_highres": 0.97,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.159,
+     "depth_highres": 0.03,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.659,
+     "depth_highres": 0.53,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.159,
+     "depth_highres": 1.03,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_fe43ef54-9aec-432b-bc95-2c6c3043965f",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.669,
+   "ground_elev_highres": 1.7,
+   "h_conn_baseline": 1.65,
+   "h_conn_highres": 1.75,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.331,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_a06e7a06-ca0e-4216-8339-b1e4abbfc86c",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.109,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.15,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.391,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.891,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_c077bf9b-8be2-4bcb-8c76-c01ee2f08993",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.166,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.334,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.834,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_29c811e8-5e33-4f6d-bfc3-bcdc65f0a6ff",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.439,
+   "ground_elev_highres": 1.4,
+   "h_conn_baseline": 1.85,
+   "h_conn_highres": 1.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.561,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_4e313c40-43be-4025-810e-5bf829c032dc",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.772,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.228,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.728,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.228,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_988fa55c-f2ba-47b9-81ff-6fef6cb5dc56",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.921,
+   "ground_elev_highres": 2.1,
+   "h_conn_baseline": 1.95,
+   "h_conn_highres": 2.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.079,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_e0733baf-fd4b-484f-95a6-f997cac40b9e",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.188,
+   "ground_elev_highres": 2.1,
+   "h_conn_baseline": 2.2,
+   "h_conn_highres": 2.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_f87aebb7-329a-4717-a980-4cd737ebd362",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.827,
+   "ground_elev_highres": 1.7,
+   "h_conn_baseline": 1.6,
+   "h_conn_highres": 1.65,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.173,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_7e81c723-2cb4-4a63-8eea-dbcf755e90e4",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.59,
+   "ground_elev_highres": 0.3,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.41,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.91,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.41,
+     "depth_highres": 1.7,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_ea9d9206-c4f1-4fff-a1a6-e3c0d15e4d67",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.961,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.039,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.539,
+     "depth_highres": 0.4,
+     "decision_changed": true
+    },
+    "2.00": {
+     "depth_baseline": 1.039,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_64950cb5-4402-4f30-bf43-8374c259008a",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.266,
+   "ground_elev_highres": 1.3,
+   "h_conn_baseline": 1.3,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.234,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.734,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_f4e4778c-09f4-4612-9b87-c69123c595e6",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.809,
+   "ground_elev_highres": 0.84,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.191,
+     "depth_highres": 0.16,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.691,
+     "depth_highres": 0.66,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.191,
+     "depth_highres": 1.16,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_60474910-7495-4886-84c0-4143ad5d8605",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.205,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.25,
+   "h_conn_highres": 1.3,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.295,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.795,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_2e146113-2b44-4ef9-8a45-eca4a9e995c0",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.859,
+   "ground_elev_highres": 0.91,
+   "h_conn_baseline": 0.9,
+   "h_conn_highres": 0.5,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.141,
+     "depth_highres": 0.09,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.641,
+     "depth_highres": 0.59,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.141,
+     "depth_highres": 1.09,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_e64b3cc2-d0b3-41f3-a968-f7d0ae53b5c1",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.936,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 1.15,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.564,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.064,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_305224c0-7e87-4041-a181-cadec201b409",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.695,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.305,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.805,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.305,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_29579670-5c0c-4c98-be52-54272eb5eed7",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.606,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.394,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.894,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.394,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9f2e5a21-3769-44e2-a893-3077028ebdea",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.886,
+   "ground_elev_highres": 0.3,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.114,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.614,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.114,
+     "depth_highres": 1.7,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_713d8ca5-56a0-4e7f-a1de-3e1227eab4bb",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.057,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 1.85,
+   "h_conn_highres": 1.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.943,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_90bb812a-3d9d-4e41-9d3e-0583858ba0a8",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 3.45,
+   "ground_elev_highres": 3.41,
+   "h_conn_baseline": null,
+   "h_conn_highres": null,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_2fd23ce5-51ec-4e29-b079-427b50bce20e",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.164,
+   "ground_elev_highres": 2.2,
+   "h_conn_baseline": 2.2,
+   "h_conn_highres": 2.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_8a41a2ce-f90c-42fc-b3d0-931a04e9ecff",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.555,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.5,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.445,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.945,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.445,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_551634c5-d806-4594-a79b-69e5369fa46b",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.014,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.486,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.986,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9ce0ac43-4526-48a1-85d3-113f77b09517",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.717,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.7,
+   "h_conn_highres": 0.7,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.283,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.783,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.283,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_8a2b1875-edf6-41ec-82ec-f176aa4316ae",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 5.716,
+   "ground_elev_highres": 5.8,
+   "h_conn_baseline": null,
+   "h_conn_highres": null,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_a0d30801-4686-456a-b00d-f9b8fc6fcca4",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.398,
+   "ground_elev_highres": 1.5,
+   "h_conn_baseline": 1.85,
+   "h_conn_highres": 1.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.602,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_92b15b98-e21d-410f-9c20-a31608422ab6",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.858,
+   "ground_elev_highres": 0.5,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.5,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.142,
+     "depth_highres": 0.5,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.642,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.142,
+     "depth_highres": 1.5,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_6d91246b-d0fd-4e51-9460-e141162bd813",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.133,
+   "ground_elev_highres": 2.2,
+   "h_conn_baseline": 1.95,
+   "h_conn_highres": 2.1,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_35fb24f3-57e6-4e91-a024-d01ed3f9c468",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.457,
+   "ground_elev_highres": 1.56,
+   "h_conn_baseline": 1.5,
+   "h_conn_highres": 1.5,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.043,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "2.00": {
+     "depth_baseline": 0.543,
+     "depth_highres": 0.44,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_03b36a98-9732-455a-96f0-15474d21b96b",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.846,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.154,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.654,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.154,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_81effce0-10ef-4f8e-b4df-dbf35997c986",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.704,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.296,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.796,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.296,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9d79401e-d943-4df4-9a84-37da4d8a54c7",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.768,
+   "ground_elev_highres": 1.9,
+   "h_conn_baseline": 1.85,
+   "h_conn_highres": 1.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.232,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_c0e21fb8-c471-4825-9533-4d9906af7ab0",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.131,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.1,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.369,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.869,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_1db931e8-2afe-45a8-98b8-ecd29488d375",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 12.726,
+   "ground_elev_highres": 12.9,
+   "h_conn_baseline": null,
+   "h_conn_highres": null,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_a5af060f-a28b-4025-b046-95dc4733b921",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.305,
+   "ground_elev_highres": 1.28,
+   "h_conn_baseline": 1.15,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.195,
+     "depth_highres": 0.22,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.695,
+     "depth_highres": 0.72,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_b5ce0e1f-7b46-42e3-bac8-e7ed4cb7c7df",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.844,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.156,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.656,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.156,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_b6ca21ee-d0bc-4ca5-825b-ed5754f829e8",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.994,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 1.0,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.006,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.506,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.006,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_0e27ff2d-73d2-4aec-ba5b-2fd4c02284cf",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.945,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.055,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.555,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.055,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_731d9cc1-4674-4a28-831c-923a99cc2bb1",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.878,
+   "ground_elev_highres": 2.0,
+   "h_conn_baseline": 1.9,
+   "h_conn_highres": 1.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.122,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_755714d3-c38f-4260-a3bb-927b78793cb2",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.265,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.3,
+   "h_conn_highres": 1.3,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.235,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.735,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_2fec5afd-c38b-46b9-abf3-a127318c7c1e",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.72,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.28,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.78,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.28,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_3d3d2b4c-862c-4e2e-8fa0-c970bafca6d3",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.71,
+   "ground_elev_highres": 2.3,
+   "h_conn_baseline": 2.75,
+   "h_conn_highres": 2.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_bb596cfd-72bf-4d37-8095-ec77cba2e958",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.785,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.65,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.215,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.715,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.215,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_7008dcce-83d9-4ca8-a2db-defce3adebc2",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.022,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.478,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.978,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_09909bee-6cd7-4f3b-8cdc-c4ec734180f0",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.752,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.248,
+     "depth_highres": 0.3,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.748,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.248,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_768f5839-3c65-4f29-ac0b-5991a62b5320",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.806,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.194,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.694,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.194,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_4c3757c5-e1f4-4c12-9572-168fe05ca2f7",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.762,
+   "ground_elev_highres": 1.9,
+   "h_conn_baseline": 1.8,
+   "h_conn_highres": 1.8,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.238,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_58ba2fd7-5cb1-44d3-aeb0-cc291d83e77a",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.277,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.3,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.223,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.723,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_eabfc2d8-ad30-43c8-965c-31bc1942aa3a",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.872,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.128,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.628,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.128,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_ad497035-e63a-48b9-add3-76ffee8c7f4c",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.986,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 1.0,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.014,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.514,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.014,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_d8ca2c88-656e-4c3e-a291-f32559594754",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.449,
+   "ground_elev_highres": 0.4,
+   "h_conn_baseline": 1.25,
+   "h_conn_highres": 0.35,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.6,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.051,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.551,
+     "depth_highres": 1.6,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_1cc65e61-e9b3-43e7-aaea-a6d0eec0c0f8",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.563,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.437,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.937,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.437,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_23b861ce-ee48-49d2-a3c7-40af3d217d6e",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.743,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.257,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.757,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.257,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_45335715-e079-4005-a2e7-f0ef735d6a77",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.886,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.614,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.114,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_b1945fcd-3e03-4e5f-9aca-932ccc52993c",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.631,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.65,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.369,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.869,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.369,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_1c8fe9a9-6460-4605-8f3a-e4bd8b55b81f",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.672,
+   "ground_elev_highres": 0.6,
+   "h_conn_baseline": 0.7,
+   "h_conn_highres": 0.65,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.328,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.828,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.328,
+     "depth_highres": 1.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_226e01fe-85a6-40d4-a816-745347ed2b3a",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.893,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.107,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.607,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.107,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_3aa4090c-eb50-47fa-8f9d-6c69835caaaa",
+   "feature_type": "tran:Road",
+   "unreliable": true,
+   "ground_elev_baseline": 0.662,
+   "ground_elev_highres": 0.5,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.338,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.838,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.338,
+     "depth_highres": 1.5,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_613a5933-a853-4576-b17f-a9ef557a2bd1",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.8,
+   "ground_elev_highres": 0.92,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.2,
+     "depth_highres": 0.08,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.7,
+     "depth_highres": 0.58,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.2,
+     "depth_highres": 1.08,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_61f04f21-0055-4342-8b7a-f371af05cc8f",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.044,
+   "ground_elev_highres": 1.12,
+   "h_conn_baseline": 1.1,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.456,
+     "depth_highres": 0.38,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.956,
+     "depth_highres": 0.88,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_7a0f23b3-0835-43b4-b790-e751f26f0817",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.916,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.084,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.584,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.084,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_ba8f34b9-8254-4c9c-b44c-3ebb419ddc88",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.757,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.243,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.743,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.243,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_170e8b4c-ec7b-4001-80c0-09f997f51516",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.257,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.3,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.243,
+     "depth_highres": 0.3,
+     "decision_changed": true
+    },
+    "2.00": {
+     "depth_baseline": 0.743,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_04823917-7ef7-4fc1-91d2-a5d1f6baab9f",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.64,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.7,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.36,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.86,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.36,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_b97f9483-e077-4776-9d94-6ae284e19b80",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.866,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.85,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.134,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.634,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.134,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9e5b270b-c428-4f07-8a93-1b92d3ce6b9d",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.196,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 1.2,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.304,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.804,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_5cecc0d5-322b-4704-91e2-639bc78aa630",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.837,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.163,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.663,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.163,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_b6898123-8d09-4a69-9225-eadad01ef86a",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.06,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 1.0,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.44,
+     "depth_highres": 0.5,
+     "decision_changed": true
+    },
+    "2.00": {
+     "depth_baseline": 0.94,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_81e4ad84-5e46-4622-b3f7-6bff01b1b399",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.643,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.357,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.857,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.357,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_f1883f4a-1ab4-428f-9866-7a7c0fab0f6f",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.073,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.427,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.927,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_faa2fe4b-7900-4716-89b5-14a0cfda7389",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.019,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 1.0,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.481,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.981,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_5f18e1b7-8370-4175-b070-96fff6487376",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.163,
+   "ground_elev_highres": 1.2,
+   "h_conn_baseline": 1.2,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.337,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.837,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_156b30c7-565a-4284-ba03-1f11b1f0854a",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.895,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.9,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.105,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.605,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.105,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_5c6cb3f8-c7ba-486a-b186-300302c594fc",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.673,
+   "ground_elev_highres": 0.4,
+   "h_conn_baseline": 1.25,
+   "h_conn_highres": 0.45,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.6,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.827,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.327,
+     "depth_highres": 1.6,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_038e8e10-4d70-4a5d-ac11-1b99eb98965c",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.908,
+   "ground_elev_highres": 1.8,
+   "h_conn_baseline": 1.95,
+   "h_conn_highres": 1.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.092,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_3b42b8b9-163a-43b6-8d3d-c3d317411ec3",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.92,
+   "ground_elev_highres": 1.09,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.08,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.58,
+     "depth_highres": 0.41,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.08,
+     "depth_highres": 0.91,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_e21fd2c8-be6d-47ad-b9f4-820a33615494",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.793,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.207,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.707,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.207,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_5617c7a6-d993-4db3-acda-50761631a572",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.964,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 1.0,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.036,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.536,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.036,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_3043965e-97b8-4661-b8fe-f3ffeca9dc78",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.742,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.7,
+   "h_conn_highres": 0.7,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.258,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.758,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.258,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9ce5a667-027e-4d9a-8c22-798836f87b14",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.27,
+   "ground_elev_highres": 0.3,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.73,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 1.23,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.73,
+     "depth_highres": 1.7,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_5954569c-5f81-44aa-8153-073081adf56b",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.929,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.071,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.571,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.071,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_3e80f76d-e3b9-46e4-be99-7b53fa3b0c6a",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 2.173,
+   "ground_elev_highres": 2.2,
+   "h_conn_baseline": 2.15,
+   "h_conn_highres": 2.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_bfa8cbbb-4379-42b8-b48e-f3990b7c39cd",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.943,
+   "ground_elev_highres": 1.1,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.057,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.557,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.057,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_dc3b2384-a49d-4009-8fab-95d8848686a5",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.183,
+   "ground_elev_highres": 1.3,
+   "h_conn_baseline": 1.2,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.317,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.817,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_f64dc4de-1c40-4172-baf5-61542a102e6b",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.758,
+   "ground_elev_highres": 0.62,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.242,
+     "depth_highres": 0.38,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.742,
+     "depth_highres": 0.88,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.242,
+     "depth_highres": 1.38,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_acd35950-52f2-4629-91d0-838a8dc5c9d6",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.729,
+   "ground_elev_highres": 0.8,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.271,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.771,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.271,
+     "depth_highres": 1.2,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_a5d45087-21c1-4a3d-8d49-e1a4c41779c6",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.85,
+   "ground_elev_highres": 0.6,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.85,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.15,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.65,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.15,
+     "depth_highres": 1.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_9d977544-a70c-4649-a582-56c62da3edb3",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 2.207,
+   "ground_elev_highres": 2.3,
+   "h_conn_baseline": 2.2,
+   "h_conn_highres": 2.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_e2893040-38b2-43b6-b584-6a3a2a3fee09",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.527,
+   "ground_elev_highres": 0.4,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.473,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.973,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.473,
+     "depth_highres": 1.6,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_c68626c5-90bc-448f-94f2-eed70871a7e9",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.194,
+   "ground_elev_highres": 1.15,
+   "h_conn_baseline": 1.15,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.306,
+     "depth_highres": 0.35,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.806,
+     "depth_highres": 0.85,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_86c70b0f-9c84-411b-9a62-9180352d0e66",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.042,
+   "ground_elev_highres": 0.92,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 1.15,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.458,
+     "depth_highres": 0.58,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.958,
+     "depth_highres": 1.08,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_6ec8e80f-6595-4559-99cf-c8a74f7e0f5c",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.672,
+   "ground_elev_highres": 0.7,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.328,
+     "depth_highres": 0.3,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.828,
+     "depth_highres": 0.8,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.328,
+     "depth_highres": 1.3,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_c90bffd7-fd0f-4463-87d9-228fd4bdeccc",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.556,
+   "ground_elev_highres": 1.6,
+   "h_conn_baseline": 1.45,
+   "h_conn_highres": 1.65,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.444,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_c520c964-5672-41f7-b48d-468dc5d13908",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.664,
+   "ground_elev_highres": 1.4,
+   "h_conn_baseline": 1.7,
+   "h_conn_highres": 1.4,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.1,
+     "decision_changed": true
+    },
+    "2.00": {
+     "depth_baseline": 0.336,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_33d81ef7-9e72-4b84-a38c-a50f28b0badf",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.916,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.084,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.584,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.084,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_efea45d5-0a5b-4aa7-9144-08bcecf6d2f7",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 1.15,
+   "ground_elev_highres": 1.3,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.35,
+     "depth_highres": 0.2,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 0.85,
+     "depth_highres": 0.7,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_f8ddd129-9540-4d5d-992a-b8caff7e0aa5",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.725,
+   "ground_elev_highres": 0.6,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.275,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.775,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.275,
+     "depth_highres": 1.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_2df1075a-f602-4241-9659-0fad9cac6b4f",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.893,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.107,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.607,
+     "depth_highres": 0.5,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.107,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_f0bba701-97bb-4fb5-b92c-2ce9f9731fc3",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.791,
+   "ground_elev_highres": 0.6,
+   "h_conn_baseline": 0.8,
+   "h_conn_highres": 0.45,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.209,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.709,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.209,
+     "depth_highres": 1.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_fc611820-6833-4f1f-895e-98df67f101a9",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.88,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.9,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.12,
+     "depth_highres": 0.1,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.62,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.12,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_e596e8dc-f012-42b4-9729-adf42c168fd6",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.758,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.75,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.242,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.742,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.242,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_b9a4ec2c-d330-4e3a-b479-104e4e4f2a05",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.644,
+   "ground_elev_highres": 0.6,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.356,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.856,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.356,
+     "depth_highres": 1.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_4e1b57b7-b5f3-44d8-8d6f-a5252b24c66a",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.901,
+   "ground_elev_highres": 0.6,
+   "h_conn_baseline": 0.9,
+   "h_conn_highres": 0.65,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.099,
+     "depth_highres": 0.4,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.599,
+     "depth_highres": 0.9,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.099,
+     "depth_highres": 1.4,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_48203057-4925-42e7-bfd8-b70c6858a15e",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 1.091,
+   "ground_elev_highres": 1.0,
+   "h_conn_baseline": 1.1,
+   "h_conn_highres": 1.0,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.0,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.409,
+     "depth_highres": 0.5,
+     "decision_changed": true
+    },
+    "2.00": {
+     "depth_baseline": 0.909,
+     "depth_highres": 1.0,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_99f59df3-7b75-4334-8d82-d6710f78b030",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.993,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 1.05,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.0,
+     "depth_highres": 0.1,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.507,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.007,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_65b0182d-021c-400c-9d7f-032912b09079",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.911,
+   "ground_elev_highres": 1.4,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 1.25,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.089,
+     "depth_highres": 0.0,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.589,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.089,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "bldg_17597c08-33fd-4042-9633-37e890ee34b0",
+   "feature_type": "bldg:Building",
+   "unreliable": false,
+   "ground_elev_baseline": 0.553,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.0,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.447,
+     "depth_highres": 0.1,
+     "decision_changed": false
+    },
+    "1.50": {
+     "depth_baseline": 0.947,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.447,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  },
+  {
+   "gml_id": "tran_ba5319f1-9192-4d7f-b5de-83cc6c7cb3ea",
+   "feature_type": "tran:Road",
+   "unreliable": false,
+   "ground_elev_baseline": 0.879,
+   "ground_elev_highres": 0.9,
+   "h_conn_baseline": 0.95,
+   "h_conn_highres": 0.9,
+   "at": {
+    "1.00": {
+     "depth_baseline": 0.121,
+     "depth_highres": 0.1,
+     "decision_changed": true
+    },
+    "1.50": {
+     "depth_baseline": 0.621,
+     "depth_highres": 0.6,
+     "decision_changed": false
+    },
+    "2.00": {
+     "depth_baseline": 1.121,
+     "depth_highres": 1.1,
+     "decision_changed": false
+    }
+   }
+  }
+ ]
+}

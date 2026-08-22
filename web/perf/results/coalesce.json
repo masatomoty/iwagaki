@@ -1,0 +1,803 @@
+[
+  {
+    "profile": "fast4g/coalesce=1",
+    "profile_settings": {
+      "offline": false,
+      "downloadThroughput": 500000,
+      "uploadThroughput": 375000,
+      "latency": 70
+    },
+    "url": "https://localhost:8443/?coalesce=1",
+    "load": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 111,
+        "semantics_loaded": 852,
+        "first_meaningful_render": 946,
+        "pc_module_loaded": 1433,
+        "plateau_module_loaded": 2440,
+        "time_to_terrain": 2727,
+        "pc_index_loaded": 2790
+      },
+      "bytes": {
+        "initial_to_fmr": 726693,
+        "at_5s": 2110454,
+        "at_10s": 3695967,
+        "total_now": 3946695
+      },
+      "scheduler": {
+        "issued": 54,
+        "completed": 54,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 3736241,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 5,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 25,
+            "bytes": 743074,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 15,
+            "bytes": 1400124,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcIndex": {
+            "issued": 3,
+            "bytes": 68188,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcCoarse": {
+            "issued": 5,
+            "bytes": 878170,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 3,
+          "members": 11,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 80464,
+        "protocol": "h2"
+      },
+      "decode_ms": {
+        "p50": 30,
+        "p95": 1417.4,
+        "n": 9
+      },
+      "gpu_upload_ms": {
+        "p50": 0.4,
+        "p95": 0.4,
+        "n": 5
+      },
+      "camera": {
+        "events": 0,
+        "settle_latency_ms": []
+      },
+      "pointcloud": {
+        "nodes": 81,
+        "resident": 9,
+        "inFlight": 5,
+        "residentPoints": 188432,
+        "drawCalls": 9,
+        "gpuBytes": 2826480
+      },
+      "plateau": {
+        "loaded": 14,
+        "failed": 0,
+        "expected": 22
+      }
+    },
+    "water_level_sweep": {
+      "steps": 31,
+      "duration_ms": 551,
+      "requests_issued": null,
+      "quiescent": false
+    },
+    "after_camera_move": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 111,
+        "semantics_loaded": 852,
+        "first_meaningful_render": 946,
+        "pc_module_loaded": 1433,
+        "plateau_module_loaded": 2440,
+        "time_to_terrain": 2727,
+        "pc_index_loaded": 2790,
+        "time_to_first_useful_pc": 15284
+      },
+      "scheduler": {
+        "issued": 62,
+        "completed": 62,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 11773101,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 1,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 25,
+            "bytes": 743074,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 22,
+            "bytes": 8317420,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcIndex": {
+            "issued": 3,
+            "bytes": 68188,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcCoarse": {
+            "issued": 6,
+            "bytes": 1997734,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 3,
+          "members": 11,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 259552,
+        "protocol": "h2"
+      },
+      "camera": {
+        "events": 1,
+        "settle_latency_ms": [
+          253
+        ]
+      },
+      "pointcloud": {
+        "nodes": 81,
+        "resident": 14,
+        "inFlight": 0,
+        "residentPoints": 394212,
+        "drawCalls": 14,
+        "gpuBytes": 5913180
+      }
+    },
+    "page_errors": []
+  },
+  {
+    "profile": "slow-highrtt/coalesce=1",
+    "profile_settings": {
+      "offline": false,
+      "downloadThroughput": 125000,
+      "uploadThroughput": 62500,
+      "latency": 400
+    },
+    "url": "https://localhost:8443/?coalesce=1",
+    "load": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 449,
+        "first_meaningful_render": 3097,
+        "pc_module_loaded": 5321,
+        "semantics_loaded": 5431
+      },
+      "bytes": {
+        "initial_to_fmr": 639460,
+        "at_5s": 762984,
+        "at_10s": 973570,
+        "total_now": 973570
+      },
+      "scheduler": {
+        "issued": 23,
+        "completed": 23,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 948295,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 6,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 17,
+            "bytes": 301610,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 0,
+          "members": 0,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 34854,
+        "protocol": "h2"
+      },
+      "decode_ms": {
+        "p50": null,
+        "p95": null,
+        "n": 0
+      },
+      "gpu_upload_ms": {
+        "p50": null,
+        "p95": null,
+        "n": 0
+      },
+      "camera": {
+        "events": 0,
+        "settle_latency_ms": []
+      },
+      "pointcloud": {
+        "nodes": 0,
+        "resident": 0,
+        "inFlight": 0,
+        "residentPoints": 0,
+        "drawCalls": 0,
+        "gpuBytes": 0
+      },
+      "plateau": {
+        "loaded": 0,
+        "failed": 0,
+        "expected": 22
+      }
+    },
+    "water_level_sweep": {
+      "steps": 31,
+      "duration_ms": 529,
+      "requests_issued": null,
+      "quiescent": false
+    },
+    "after_camera_move": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 449,
+        "first_meaningful_render": 3097,
+        "pc_module_loaded": 5321,
+        "semantics_loaded": 5431,
+        "plateau_module_loaded": 9262,
+        "time_to_terrain": 11150,
+        "pc_index_loaded": 11416
+      },
+      "scheduler": {
+        "issued": 43,
+        "completed": 43,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 1999788,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 8,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 25,
+            "bytes": 743074,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 7,
+            "bytes": 502800,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcIndex": {
+            "issued": 3,
+            "bytes": 68188,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcCoarse": {
+            "issued": 2,
+            "bytes": 39041,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 3,
+          "members": 11,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 15250,
+        "protocol": "h2"
+      },
+      "camera": {
+        "events": 1,
+        "settle_latency_ms": [
+          302
+        ]
+      },
+      "pointcloud": {
+        "nodes": 81,
+        "resident": 3,
+        "inFlight": 11,
+        "residentPoints": 11510,
+        "drawCalls": 3,
+        "gpuBytes": 172650
+      }
+    },
+    "page_errors": []
+  },
+  {
+    "profile": "fast4g/coalesce=0",
+    "profile_settings": {
+      "offline": false,
+      "downloadThroughput": 500000,
+      "uploadThroughput": 375000,
+      "latency": 70
+    },
+    "url": "https://localhost:8443/?coalesce=0",
+    "load": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 107,
+        "first_meaningful_render": 891,
+        "semantics_loaded": 1031,
+        "pc_module_loaded": 1378,
+        "plateau_module_loaded": 2394,
+        "time_to_terrain": 2727,
+        "pc_index_loaded": 2783,
+        "time_to_first_useful_pc": 8357
+      },
+      "bytes": {
+        "initial_to_fmr": 639460,
+        "at_5s": 2198236,
+        "at_10s": 3987196,
+        "total_now": 4410751
+      },
+      "scheduler": {
+        "issued": 61,
+        "completed": 61,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 4198506,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 5,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 25,
+            "bytes": 743074,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 14,
+            "bytes": 1149696,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcIndex": {
+            "issued": 3,
+            "bytes": 68188,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcCoarse": {
+            "issued": 13,
+            "bytes": 1590863,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 0,
+          "members": 0,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 65926,
+        "protocol": "h2"
+      },
+      "decode_ms": {
+        "p50": 40.7,
+        "p95": 1560.2,
+        "n": 13
+      },
+      "gpu_upload_ms": {
+        "p50": 0.3,
+        "p95": 0.4,
+        "n": 13
+      },
+      "camera": {
+        "events": 0,
+        "settle_latency_ms": []
+      },
+      "pointcloud": {
+        "nodes": 81,
+        "resident": 13,
+        "inFlight": 1,
+        "residentPoints": 324093,
+        "drawCalls": 13,
+        "gpuBytes": 4861395
+      },
+      "plateau": {
+        "loaded": 13,
+        "failed": 0,
+        "expected": 22
+      }
+    },
+    "water_level_sweep": {
+      "steps": 31,
+      "duration_ms": 540,
+      "requests_issued": null,
+      "quiescent": false
+    },
+    "after_camera_move": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 107,
+        "first_meaningful_render": 891,
+        "semantics_loaded": 1031,
+        "pc_module_loaded": 1378,
+        "plateau_module_loaded": 2394,
+        "time_to_terrain": 2727,
+        "pc_index_loaded": 2783,
+        "time_to_first_useful_pc": 8357
+      },
+      "scheduler": {
+        "issued": 70,
+        "completed": 70,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 11773101,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 1,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 25,
+            "bytes": 743074,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 22,
+            "bytes": 8317420,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcIndex": {
+            "issued": 3,
+            "bytes": 68188,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcCoarse": {
+            "issued": 14,
+            "bytes": 1997734,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 0,
+          "members": 0,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 272757,
+        "protocol": "h2"
+      },
+      "camera": {
+        "events": 1,
+        "settle_latency_ms": [
+          253
+        ]
+      },
+      "pointcloud": {
+        "nodes": 81,
+        "resident": 14,
+        "inFlight": 0,
+        "residentPoints": 394212,
+        "drawCalls": 14,
+        "gpuBytes": 5913180
+      }
+    },
+    "page_errors": []
+  },
+  {
+    "profile": "slow-highrtt/coalesce=0",
+    "profile_settings": {
+      "offline": false,
+      "downloadThroughput": 125000,
+      "uploadThroughput": 62500,
+      "latency": 400
+    },
+    "url": "https://localhost:8443/?coalesce=0",
+    "load": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 458,
+        "first_meaningful_render": 3157,
+        "pc_module_loaded": 5360,
+        "semantics_loaded": 5538
+      },
+      "bytes": {
+        "initial_to_fmr": 639460,
+        "at_5s": 762984,
+        "at_10s": 973570,
+        "total_now": 973570
+      },
+      "scheduler": {
+        "issued": 23,
+        "completed": 23,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 948295,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 6,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 17,
+            "bytes": 301610,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 0,
+          "members": 0,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 34408,
+        "protocol": "h2"
+      },
+      "decode_ms": {
+        "p50": null,
+        "p95": null,
+        "n": 0
+      },
+      "gpu_upload_ms": {
+        "p50": null,
+        "p95": null,
+        "n": 0
+      },
+      "camera": {
+        "events": 0,
+        "settle_latency_ms": []
+      },
+      "pointcloud": {
+        "nodes": 0,
+        "resident": 0,
+        "inFlight": 0,
+        "residentPoints": 0,
+        "drawCalls": 0,
+        "gpuBytes": 0
+      },
+      "plateau": {
+        "loaded": 0,
+        "failed": 0,
+        "expected": 22
+      }
+    },
+    "water_level_sweep": {
+      "steps": 31,
+      "duration_ms": 533,
+      "requests_issued": null,
+      "quiescent": false
+    },
+    "after_camera_move": {
+      "milestones": {
+        "app_start": 0,
+        "catalog_loaded": 458,
+        "first_meaningful_render": 3157,
+        "pc_module_loaded": 5360,
+        "semantics_loaded": 5538,
+        "plateau_module_loaded": 9314,
+        "time_to_terrain": 11107,
+        "pc_index_loaded": 11437
+      },
+      "scheduler": {
+        "issued": 44,
+        "completed": 44,
+        "cancelled": 0,
+        "failed": 0,
+        "bytes": 2387904,
+        "wastedBytes": 0,
+        "peakConcurrent": 11,
+        "concurrentNow": 10,
+        "byClass": {
+          "catalog": {
+            "issued": 1,
+            "bytes": 4269,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainFine": {
+            "issued": 25,
+            "bytes": 743074,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "terrainCoarse": {
+            "issued": 4,
+            "bytes": 72717,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 569699,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 7,
+            "bytes": 502800,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcIndex": {
+            "issued": 3,
+            "bytes": 68188,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "pcCoarse": {
+            "issued": 3,
+            "bytes": 427157,
+            "cancelled": 0,
+            "wasted": 0
+          }
+        },
+        "coalesced": {
+          "groups": 0,
+          "members": 0,
+          "extraBytes": 0
+        },
+        "bandwidthBps": 13946,
+        "protocol": "h2"
+      },
+      "camera": {
+        "events": 1,
+        "settle_latency_ms": [
+          236
+        ]
+      },
+      "pointcloud": {
+        "nodes": 81,
+        "resident": 0,
+        "inFlight": 14,
+        "residentPoints": 0,
+        "drawCalls": 0,
+        "gpuBytes": 0
+      }
+    },
+    "page_errors": []
+  }
+]

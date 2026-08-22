@@ -1,0 +1,7 @@
+dist/
+node_modules/
+.certs/
+public/data/
+perf/*.png
+perf/shots/
+perf/results/*.png
