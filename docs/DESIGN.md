@@ -335,8 +335,8 @@ CesiumJSも候補（3D Tilesと quantized-mesh 地形が素直）。
 | 7 | `scripts/40_compare.py`: 差分指標と changed ポリゴン | **完了** |
 | 8 | `scripts/50_join_semantics.py`: bldg/tran パース + 地物別 assertion | **完了**（911地物） |
 | 9 | `scripts/60_report.py` **go/no-go 判定** | **完了 → GO**（`docs/RESULTS.md`） |
-| 10 | `scripts/15_pointcloud_dtm.py` 点群パス（PDAL smrf → DTM → COPC） | 実装済み・**未検証**（LAS未入手） |
-| 11 | Webアプリ | 未着手 |
+| 10 | 点群パス（PDAL → DTM 融合 → COPC） | **完了**。実 LAS 10 本（20.0 GB / 4.98 億点）で検証（`scripts/17`〜`19`, `22`, `24`。`docs/RESULTS.md`） |
+| 11 | Webアプリ | **完了**（`docs/WEB_DESIGN.md` / `docs/WEB_RESULTS.md`）。Cloudflare に配信済み。ただし **`control` と `pointcloud` の 2 条件が viewer に載っていない**（`docs/TODO.md` A1・A4） |
 
 ### 設計から変わった点（実装して分かったこと）
 

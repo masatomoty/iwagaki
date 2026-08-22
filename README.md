@@ -66,6 +66,7 @@ PLATEAUの粗い地形表現（5m格子TIN）では捉えられない微地形�
 
 ```
 docs/
+  TODO.md        生きているタスクの索引（機能 / ネットワーク）
   DATA.md        データ棚卸し（出典・CRS・解像度・ライセンス・未確認事項）
   DESIGN.md      解析の設計と実装計画
   RESULTS.md     第一段階（解析）の結果と go/no-go
