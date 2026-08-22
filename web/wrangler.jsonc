@@ -1,34 +1,41 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-
-  // viewer と生成済みアセットの配信。設計は docs/WEB_DESIGN.md §6、手順は docs/INFRA.md。
-  //
-  // 静的アセット（html / js / wasm / catalog / タイル / 3D Tiles / geojson）は Workers Assets、
-  // COPC だけ Worker 経由で R2 から Range 配信する。Pages / Workers Assets の Range 挙動に
-  // 依存せず 206 を保証するため（docs/WEB_DESIGN.md §6.1）。
-  // 同一オリジンに揃えるのは PerformanceResourceTiming.transferSize が
-  // クロスオリジンで 0 になるため（同 §8.3）。
-  "name": "iwagaki-viewer",
-  "main": "deploy/worker.js",
-  "compatibility_date": "2026-08-01",
-
-  "assets": {
-    "directory": "./dist",
-    // COPC のパスだけは「アセットが無いから Worker に落ちてきた」ではなく
-    // 「最初から Worker が処理する」を明示する。取りこぼしを設定で防ぐ。
-    "run_worker_first": ["/data/pointcloud/*"]
-  },
-
-  // raw LAS（将来）と COPC を同じバケットに置く。キー空間は URL パスと一致させる:
-  //   data/pointcloud/*.copc.laz   配信対象（= https://<host>/data/pointcloud/...）
-  //   raw/las/*                    将来のアップロード置き場（docs/WEB_DESIGN.md §7）
-  "r2_buckets": [
-    { "binding": "BUCKET", "bucket_name": "iwagaki-assets" }
-  ],
-
-  "observability": { "enabled": true },
-
-  // 独自ドメインに載せる時はここを使う（Range も transferSize も同一オリジンのままで済む）
-  // "routes": [{ "pattern": "iwagaki.example.jp", "custom_domain": true }]
-  "workers_dev": true
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	// viewer と生成済みアセットの配信。設計は docs/WEB_DESIGN.md §6、手順は docs/INFRA.md。
+	//
+	// 静的アセット（html / js / wasm / catalog / タイル / 3D Tiles / geojson）は Workers Assets、
+	// COPC だけ Worker 経由で R2 から Range 配信する。Pages / Workers Assets の Range 挙動に
+	// 依存せず 206 を保証するため（docs/WEB_DESIGN.md §6.1）。
+	// 同一オリジンに揃えるのは PerformanceResourceTiming.transferSize が
+	// クロスオリジンで 0 になるため（同 §8.3）。
+	"name": "iwagaki-viewer",
+	"main": "deploy/worker.js",
+	"compatibility_date": "2026-08-01",
+	"assets": {
+		"directory": "./dist",
+		// COPC のパスだけは「アセットが無いから Worker に落ちてきた」ではなく
+		// 「最初から Worker が処理する」を明示する。取りこぼしを設定で防ぐ。
+		"run_worker_first": [
+			"/data/pointcloud/*"
+		]
+	},
+	// raw LAS（将来）と COPC を同じバケットに置く。キー空間は URL パスと一致させる:
+	//   data/pointcloud/*.copc.laz   配信対象（= https://<host>/data/pointcloud/...）
+	//   raw/las/*                    将来のアップロード置き場（docs/WEB_DESIGN.md §7）
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "iwagaki-assets"
+		},
+		{
+			"bucket_name": "iwagaki-assets",
+			"binding": "iwagaki_assets",
+			"remote": true
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	// 独自ドメインに載せる時はここを使う（Range も transferSize も同一オリジンのままで済む）
+	// "routes": [{ "pattern": "iwagaki.example.jp", "custom_domain": true }]
+	"workers_dev": true
 }

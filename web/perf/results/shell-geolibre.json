@@ -1,0 +1,79 @@
+{
+  "label": "geolibre",
+  "url": "https://web.geolibre.app/",
+  "window_ms": 30000,
+  "results": [
+    {
+      "profile": "normal",
+      "profile_settings": {
+        "offline": false,
+        "downloadThroughput": -1,
+        "uploadThroughput": -1,
+        "latency": 0
+      },
+      "first_paint_ms": 592,
+      "first_contentful_paint_ms": 3328,
+      "time_to_canvas_ms": 3883,
+      "first_meaningful_render_ms": null,
+      "bytes": {
+        "code_total": 7340642,
+        "data_total": 4743055,
+        "at_3s": 5198490,
+        "at_10s": 12235004,
+        "total": 12235004
+      },
+      "requests_at_10s": 217,
+      "page_errors": [
+        "Failed to get ServiceWorkerRegistration objects: The document is in an invalid state."
+      ]
+    },
+    {
+      "profile": "fast4g",
+      "profile_settings": {
+        "offline": false,
+        "downloadThroughput": 500000,
+        "uploadThroughput": 375000,
+        "latency": 70
+      },
+      "first_paint_ms": 1972,
+      "first_contentful_paint_ms": 15988,
+      "time_to_canvas_ms": 15978,
+      "first_meaningful_render_ms": null,
+      "bytes": {
+        "code_total": 7314025,
+        "data_total": 3900483,
+        "at_3s": 466281,
+        "at_10s": 1816957,
+        "total": 11365812
+      },
+      "requests_at_10s": 21,
+      "page_errors": [
+        "Failed to get ServiceWorkerRegistration objects: The document is in an invalid state."
+      ]
+    },
+    {
+      "profile": "slow-highrtt",
+      "profile_settings": {
+        "offline": false,
+        "downloadThroughput": 125000,
+        "uploadThroughput": 62500,
+        "latency": 400
+      },
+      "first_paint_ms": 7180,
+      "first_contentful_paint_ms": null,
+      "time_to_canvas_ms": null,
+      "first_meaningful_render_ms": null,
+      "bytes": {
+        "code_total": 1802712,
+        "data_total": 0,
+        "at_3s": 67146,
+        "at_10s": 466451,
+        "total": 1817141
+      },
+      "requests_at_10s": 20,
+      "page_errors": [
+        "Failed to get ServiceWorkerRegistration objects: The document is in an invalid state."
+      ]
+    }
+  ]
+}

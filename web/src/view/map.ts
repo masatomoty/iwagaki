@@ -37,7 +37,8 @@ export function createMap(container: HTMLElement, catalog: Catalog): MlMap {
     attributionControl: false,
 
   })
-  map.addControl(new NavigationControl({ visualizePitch: true }), 'bottom-right')
+  // ギズモは右上。左上の操作パネルと下辺の凡例・実測パネルから離す
+  map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
   map.addControl(new AttributionControl({
     compact: true,
     customAttribution: catalog.attribution.join(' / '),

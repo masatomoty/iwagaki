@@ -1,0 +1,506 @@
+# WEB_ARCH_REVIEW — GeoLibre を Web shell に採用するかの判断
+
+`docs/WEB_DESIGN.md`（設計）と `docs/WEB_RESULTS.md`（実測）の上に立つ。
+問いは 1 つだけ:
+
+> **GIS shell を再発明しているのか。GeoLibre に寄せれば iwagaki 固有の価値に時間を回せるのか。**
+
+根拠区分は他の文書と同じ（**[実測]** / **[既知]** / **[仮説]** / **[未確認]**）。
+
+調査対象: **GeoLibre v2.7.0**（`opengeos/GeoLibre` @ `9ce647b`, 2026-08-22, MIT）と
+その点群実装 `maplibre-gl-lidar@0.16.2`、3D Tiles 実装 `maplibre-gl-3d-tiles@0.5.6`。
+計測日: 2026-08-22。
+
+---
+
+## 0. 結論（先に書く）
+
+**採用案は A（現行実装を継続）。決定済み**（2026-08-22、本レビューの実測をもって確定）。
+ただし「何も採らない」ではなく、次の 3 つを伴う。
+
+1. **GeoLibre から 1 ファイルだけ移植する** — maplibre-gl 6 の `map.transform` 互換シム。
+   これは iwagaki が `docs/WEB_DESIGN.md` §11 #1 で「組み合わせられない」と結論した
+   ブロッカーそのものの解であり、30 行で済む（§4.1）。
+2. **汎用 GIS 機能は今後も作らない** — レイヤマネージャ、データ追加ダイアログ、
+   ベースマップカタログ、スタイル編集、プロジェクト保存、地理演算。
+   これらが必要になった日には作らずに **iwagaki を GeoLibre の external plugin として
+   出す**（§10.2）。プラグイン機構は実在し、その道は開いている。
+3. **shell のバイト数を回帰指標として常設する**（`web/perf/shellcost.mjs`、本レビューで追加）。
+
+C（GeoLibre + 自前 point-cloud runtime）が有力仮説として提示されたが、**実測で否定された。**
+理由は 1 行で言える:
+
+> **C が GeoLibre に任せようとしている「shell」の部分こそが、このプロジェクトで
+> 一番高くついている部分だった。** iwagaki の JS は wire 0.56 MB、GeoLibre は 7.3 MB。
+> `slow-highrtt`(1 Mbps/400 ms) で GeoLibre は **30 秒待っても一度も描画されなかった**。
+> それは iwagaki が `docs/WEB_RESULTS.md` §1 で脱出したのと同じ失敗そのものである。
+
+C は B のコスト（shell）を丸ごと引き受けたうえで、B の利得（点群・3D Tiles・解析描画を
+任せる）を最初から放棄する案なので、B より条件が悪い。
+
+---
+
+## 1. 現在の Web 実装状況
+
+`web/src` は 2,100 行程度。層は `docs/WEB_DESIGN.md` §1 の一方向依存を守っている。
+
+### 1.1 実装済み **[実測]**
+
+| 領域 | 実体 | 状態 |
+|---|---|---|
+| ドメイン（`domain/`） | `wet` / `depth` / `decisionChanged` / `changeBand` / `roadClass` | 描画ライブラリ非依存。node でテスト（`test/parity.test.mjs`、1,564 チェック 0 失敗） |
+| ネットワーク（`net/`） | `Scheduler`（優先度 9 クラス / グループ別並列上限 / h1・h2 切替 / epoch + `stillNeeded` キャンセル / メモリ LRU 96 MB / 帯域 EWMA）、`rangeFetch`（ストリーム受信バイト計測 + Range 206 検証）、`coalesce` | 全ての HTTP がここを通る。renderer は `fetch` を持たない |
+| 地形・浸水 | `FloodMeshLayer`（自作 deck.gl `Layer`。頂点シェーダで RGBA タイルから標高を読んで 128×128 格子を変位、法線を近傍差分、nodata を varying で discard、鉛直強調 uniform、差分は 2 テクスチャ） | 完成。TS/GLSL の式一致をテストで担保 |
+| 3D Tiles | `Tile3DLayer` + `loadOptions.fetch` で Scheduler に一本化、`throttleRequests:false` | 完成。加えて b3dm の glTF を **属性色で primitive 分割**する自作パス（`view/plateau.ts` + `view/buildingColor.ts`） |
+| 点群 | `CopcIndex`（copc.js の `Getter` を Scheduler に差し込み）→ `selectNodes`（純関数の SSE + 予算）→ Scheduler（coalescing 可）→ **Worker プールでデコード** → `DeckPointCloudRenderer` | 完成。`PointCloudRenderer` は差し替え可能なインターフェース越し |
+| 地物 | `objects.geojson` → `GeoJsonLayer`（picking）+ インスペクタ | 完成 |
+| UI | 地形 3 択 / 水位スライダ / 潮位基準ボタン / レイヤ ON-OFF / 視点プリセット 6 / 鉛直強調 5 段 / 建物色分け / 凡例 | 完成 |
+| 計測 | `PerfRecorder`（マイルストーン・転送量・decode/GPU p50/p95・カメラ応答）+ Playwright ハーネス 3〜4 プロファイル × h1/h2 | 完成 |
+| 配信 | `serve.mjs`（h2/h1・206・br 事前圧縮・immutable）、Cloudflare Workers Assets + R2（`docs/INFRA.md`） | 完成 |
+
+### 1.2 未実装 **[実測]**
+
+> **訂正（2026-08-22）**: 本レビューの初稿は「1 リクエスト内のストリーミングデコード
+> 未実装」「実 LAS 未入手」と書いていた。**どちらも誤り。** 初稿を書いている間、
+> 作業ツリーが一時的に `2f568d4` の状態にあり、その時点のコードと文書を読んでいた。
+> 実際には `5419e7a` でストリーミングデコードが実装済み（かつ coalescing の結論が
+> 反転している）、`36a393c` で実点群が解析側に投入済みだった。以下は訂正後の状態。
+
+| 項目 | 状態 |
+|---|---|
+| LAS/LAZ アップロード（Worker + D1 + R2 multipart）とジョブ実行 | 未着手（`docs/WEB_DESIGN.md` §7 に設計のみ） |
+| partial cache（中断分の再利用） | 未実装 |
+| custom point-cloud renderer（`gl.POINTS` + バッファプール） | 未実装。移行条件は §10 |
+| `objects.geojson` のストリーミング化 / PMTiles 化 | 未実装。560 kB を一括 `JSON.parse`（`docs/WEB_RESULTS.md` §4.2） |
+| **viewer に載せる点群が実点群になっていない** | 解析側には実 LAS（吉原バックパック SLAM 4.98 億点）が入っている（`36a393c`, `docs/RESULTS.md`）が、`catalog.json` が指す COPC は依然 `yoshiwara-synthetic-from-dtm.copc.laz`（`synthetic: true` / 325 万点）。**network / LOD / decode の結論は合成点群のまま** |
+| 点群のキャンセル経路の検証 | 未発火のまま（`docs/WEB_RESULTS.md` §5） |
+| 実配信での `perf/run.mjs` 再測 | 未実施 |
+
+### 1.3 MapLibre / deck.gl への依存箇所 **[実測]**
+
+**MapLibre の依存は驚くほど薄い。**
+
+| ファイル | maplibre への依存 |
+|---|---|
+| `view/map.ts` | `Map` / `NavigationControl` / `AttributionControl` / `StyleSpecification`。スタイルは背景色 1 レイヤのみで**ソースが 1 つも無い** |
+| `main.ts` | `map.getZoom/getBounds/getCanvas/on('move')/addControl`、`map.transform.cameraToCenterDistance` |
+| その他 | 無し |
+
+deck.gl の依存はもっと深い（ここが本体）:
+
+| ファイル | 依存 |
+|---|---|
+| `view/floodMeshLayer.ts` | `@deck.gl/core` の `Layer` / `project32` / `picking`、`@luma.gl/engine` の `Model`/`Geometry`、`ShaderModule` |
+| `view/floodTileLayer.ts` | `@deck.gl/geo-layers` `TileLayer` |
+| `view/plateau.ts` | `Tile3DLayer` + `@loaders.gl/3d-tiles`、および glTF 構造の直接書き換え |
+| `view/semanticsLayer.ts` | `GeoJsonLayer` |
+| `pointcloud/deckRenderer.ts` | `PointCloudLayer` + `COORDINATE_SYSTEM.METER_OFFSETS` |
+| `main.ts` | `MapboxOverlay({ interleaved: true })` |
+
+→ **「MapLibre をやめる」コストは小さく、「deck.gl をやめる」コストは大きい。**
+これは `docs/WEB_RESULTS.md` §8.1 の観察（初期チャンクの 31% が maplibre-gl で、
+使っているのはカメラだけ）と一致する。
+
+### 1.4 network fetch / cache / cancellation の実装状況 **[実測]**
+
+| 責務 | 実装 | 実測での効き |
+|---|---|---|
+| 優先度 | 9 クラス、`first_meaningful_render` まで点群クラスを完全停止 | FMR までの転送が全プロファイルでほぼ一定（0.64〜0.74 MB） |
+| 並列上限 | `nextHopProtocol` で h1/h2 判定、グループ別 + 全体 | h1 で terrain が 1.2 秒遅い差を再現 |
+| キャンセル | epoch + `stillNeeded` + 受信 80% ガード | 26〜31 件発火、terrain 完了 2.5 s → 1.1 s |
+| coalescing | 連続 1 レンジのみ（R2 はマルチレンジ 400） | リクエスト 14 → 6。**時間の利得なし**。既定 OFF |
+| キャッシュ | L0 in-flight 合流 / L1 メモリ LRU / L3 HTTP immutable | L2（Cache API）は未実装 |
+| 帯域推定 | 完了リクエストの EWMA → LOD 予算に反映 | 遅い回線で LOD が浅く止まる |
+| Range 検証 | 206 以外はエラー（`RangeNotHonoured`） | Pages/Workers Assets の 200 事故を検出できる |
+
+---
+
+## 2. GeoLibre の内部構成 **[実測: ソース読み]**
+
+```
+GeoLibre v2.7.0 (MIT)  npm workspaces / 約 325k 行 TS
+├─ apps/geolibre-desktop   170k 行   React 19 + Vite + Tauri v2 の本体アプリ
+├─ packages/plugins         81k 行   プラグイン 109 本 + PluginManager + 公開 API 型
+├─ packages/map             19k 行   MapLibre ラッパ、layer-sync、PMTiles、compat シム
+├─ packages/core            18k 行   ストア・プロジェクトファイル・レイヤモデル
+├─ packages/processing      16k 行   WASM 地理演算（1,000+ ツール）
+├─ packages/ui / collab-core / embed
+├─ workers/                 20k 行   Cloudflare Workers（viewer / collab / tiles / ai-proxy）
+└─ backend/                          Python サーバ（任意）
+```
+
+要点:
+
+- **`private: true` が全パッケージに付いている。**`@geolibre/embed`（iframe postMessage
+  クライアント、222 行）だけが例外。**npm install して部品として使うことはできない。**
+  採用するとは「本体アプリを fork するか、その中でプラグインとして生きるか」を意味する。
+- 依存は約 100 パッケージ。cesium / three.js / duckdb-wasm / gdal3.js / pglite /
+  openai / @anthropic-ai/sdk / mapillary / 30 本超の `maplibre-gl-*` プラグインを含む。
+- **maplibre-gl は root `overrides` で 6.3 に固定**（iwagaki は 5.24 固定）。
+
+### 2.1 GIS / Viewer
+
+| 項目 | 実装 |
+|---|---|
+| MapLibre | 6.x。カメラ・スタイル・basemap を所有 |
+| deck.gl | 9.3.10。**マップにつき interleaved オーバーレイは 1 つだけ**（`packages/plugins/src/plugins/shared-deck-overlay.ts`）。描画順は `SOURCE_DRAW_ORDER = ["raster","stac-search","google-3d-tiles","deckviz","route-anim"]` という**閉じた列挙** |
+| 3D Tiles（一般） | `maplibre-gl-3d-tiles` = **three.js + 3d-tiles-renderer** を MapLibre `CustomLayerInterface` で描く。注入できるのは `requestHeaders` のみ（**custom fetch は無い**） |
+| 3D Tiles（I3S / Google） | deck.gl `Tile3DLayer` 経路が別にある |
+| COG / raster | `maplibre-gl-raster` + `@developmentseed/deck.gl-raster` / geotiff.js。band 選択・rescale・colormap・nodata |
+| 点群 / COPC | `maplibre-gl-lidar`（詳細は §2.3） |
+| vector | GeoJSON / FlatGeobuf / PMTiles / MVT / GeoParquet / OSM PBF / DuckDB / PostgreSQL |
+| terrain | MapLibre ネイティブ terrain（`setTerrain`） |
+| picking | MapLibre `queryRenderedFeatures` + deck.gl picking |
+
+### 2.2 UI / Workspace
+
+レイヤマネージャ、Add Data ダイアログ（XYZ/WMS/WFS/WMTS/ArcGIS/STAC/…）、スタイルパネル、
+プロジェクトファイル（`.geolibre`）、i18n 16 言語、右サイドパネル / フローティングパネル /
+ツールバーメニューの登録 API、プラグインマーケットプレイス、共同編集、AI アシスタント。
+
+**プラグイン API は本物である** **[実測]**:
+
+- `GeoLibrePlugin`（`activate` / `deactivate` / URL パラメータ / プロジェクト状態の保存復元）
+- `app.getDeckGL()` — **ホストの deck.gl モジュールを借りられる**（二重バンドルを避けられる）
+- `app.registerExternalNativeLayer({ paintMode: "plugin", paintBridge })` —
+  自前 WebGL レイヤをレイヤパネルに載せられる
+- `registerRightPanel` / `registerFloatingPanel` / `registerToolbarMenu`
+- external plugin は **fork 不要**。`plugin.json` + 自己完結 ESM を zip / ディレクトリ /
+  HTTPS マニフェスト URL / `public/plugins/` 同梱で読み込める
+
+### 2.3 点群 — **ここが判断の核心** **[実測: `maplibre-gl-lidar@0.16.2` の dist を読解]**
+
+`CopcStreamingLoader` は「viewport ベースのストリーミング」を確かに実装している。
+
+**持っているもの**: 八分木の遅延階層読み込み、viewport 交差判定、
+中心優先の priority、point budget（既定 **5,000,000**）、同時リクエスト上限（既定 4）、
+viewport デバウンス 150 ms、viewport 外ノードの eviction とバッファ compaction、
+レイヤ更新のバッチ化、progress イベント、EPT 経路のリトライ。
+
+**持っていないもの（iwagaki の要件に対して致命的）**:
+
+| 欠けているもの | 実体 | iwagaki への影響 |
+|---|---|---|
+| **IO の注入口** | `StreamingSource = string \| File \| ArrayBuffer`。copc.js の `Getter` を渡す口が無い | `Copc.loadPointDataView(url, …)` が copc.js 内蔵の `getHttpGetter`（cross-fetch で `Range: bytes=b-e` して `.arrayBuffer()`）を呼ぶ。**iwagaki の Scheduler を通せない**。terrain / 3D Tiles / 点群の帯域配分という設計の根幹が消える |
+| **キャンセル** | ノード取得に `AbortController` が無い。`pruneQueueForViewport` は**キュー段階のみ** | 受信中のキャンセルが原理的に不可能。`docs/WEB_RESULTS.md` §5 で terrain 完了を 2.5 s → 1.1 s にした効果が失われる |
+| **206 の検証** | 無い | Range を無視して 200 を返す配信（Cloudflare Pages / Workers Assets）で、1 ノードごとに全ファイルが落ちても気付けない。`docs/WEB_DESIGN.md` §4.7 で明示的に潰した事故 |
+| **デコードの Worker 化** | `_loadNode` は fetch と decode を main thread で行い、`_extractPointData` は**1 点ずつの JS ループを main thread で回す**（EPT 経路は `worker: false` を明示） | iwagaki は Worker プール（`min(4, cores-2)`）で decode p50 34 ms を逃がしている。main thread に戻すと long task が復活する |
+| **バイト予算・帯域推定** | 無い。並列は固定 4 | 遅い回線で「浅い LOD で止める」制御ができない |
+| **LOD の基準** | priority = viewport 中心からの距離、`targetDepth` は zoom/pitch のヒューリスティック | iwagaki は screen-space error。0.5 m 微地形が主題なので、深さの決め方は結論に直結する |
+
+**良い点も正直に書く**: 連続した 1 本のバッファに point budget 分を先に確保し、
+eviction 時に compaction するので **draw call がノード数に比例しない**。
+iwagaki は「ノード = 1 レイヤ」で draw call がノード数と 1:1（`docs/WEB_RESULTS.md` §6）。
+`docs/WEB_DESIGN.md` §10 の移行条件 2 に当たったとき、この設計は参考になる。
+
+> **「GeoLibre が点群を表示できること」と「ネットワーク性能が十分であること」は
+> 別だった。** 表示はできる。iwagaki が実測で必要と判断した機構は入っていない。
+
+---
+
+## 3. 現行コードとの重複
+
+| iwagaki の資産 | GeoLibre 側に相当物 | 重複か |
+|---|---|---|
+| `net/scheduler.ts`（249 行） | 無い（各プラグインが自前で fetch する） | **重複しない** |
+| `pointcloud/`（一式） | `maplibre-gl-lidar` | 機能は重なるが**責務境界が違う**（§2.3） |
+| `view/floodMeshLayer.ts`（299 行） | 無い。raster は colormap の枠 | **重複しない** |
+| `view/plateau.ts` の属性色分け | 無い（three.js 経路には注入口が無い） | **重複しない** |
+| `domain/`（浸水判定） | 無い | **重複しない** |
+| `view/map.ts`（75 行） | ある（比較にならないほど高機能） | **重複する** |
+| `ui/controls.ts`（143 行）+ `inspector.ts`（51 行） | レイヤパネル・スタイルパネル | **部分的に重複**。ただし水位スライダ・潮位基準・鉛直強調・差分は無い |
+| `ui/perfPanel.ts` | 無い | 重複しない |
+| catalog / タイル生成（Python） | Add Data / processing | 重複しない（前処理は別物） |
+
+**重複しているのは合計で 270 行程度**（`map.ts` + `controls.ts` + `inspector.ts`）であり、
+そのうち再利用できるのは「レイヤの ON/OFF」くらいである。
+**GIS shell を再発明してはいない。** 作っているのは汎用 GIS ではなく、
+「水位 1 本と地形条件 3 つを動かして判定差を読む計器」である。
+
+---
+
+## 4. 性能 baseline とバンドルの実測 **[実測]**
+
+計測日 2026-08-22 / macOS / Chromium (Playwright 1.62, headless) / ビューポート 1100×750 /
+cold cache（HTTP キャッシュ + Cache API + ServiceWorker 登録を消去）/
+プロファイルは `docs/WEB_DESIGN.md` §8.5 と同じ値。
+ハーネス: `web/perf/shellcost.mjs`（本レビューで追加）。生データ: `web/perf/results/shell-*.json`。
+
+対象:
+- **iwagaki** = `https://localhost:8477/`（`serve.mjs`, HTTP/2 + TLS, br 事前圧縮, 206）
+- **GeoLibre** = `https://web.geolibre.app/`（公式 web 配信。GitHub Pages, gzip）
+
+### 4.1 「地理データを 1 バイトも見る前に」払うコード量
+
+| | iwagaki | GeoLibre | 比 |
+|---|---:|---:|---:|
+| JS/CSS/WASM の転送量（wire, 20〜30 s 窓） | **0.56 MB** | **7.34 MB** | **13×** |
+| 初期チャンク（build 出力） | 1,866 kB raw / 523 kB gzip / **464 kB br** | — | |
+| `modulepreload` される資産（HTML から） | 1 本 | 19 本 = **5.01 MB gzip** | |
+| うち最大のチャンク | — | `maplibre-*.js` **3.22 MB gzip**（展開 12.75 MB） | |
+| 次点 | — | `cesium-*.js` 1.35 MB gzip | |
+| CSS | 10 kB gzip | 151 kB gzip | |
+
+`maplibre` チャンクが巨大なのは `vite.config.ts` の `manualChunks` が
+`id.includes("maplibre-gl")` で **maplibre-gl 本体と 30 本超の `maplibre-gl-*` プラグインを
+1 つの eager チャンクに束ねている**ため。lidar も 3d-tiles も splat も raster も、
+使うかどうかに関係なく起動時に落ちてくる。
+
+### 4.2 プロファイル別
+
+| | | iwagaki | GeoLibre |
+|---|---|---:|---:|
+| `normal`（無制限 / 0 ms） | FCP | **168 ms** | 3,328 ms |
+| | canvas 出現 | **348 ms** | 3,883 ms |
+| | 10 s 転送 | 3.94 MB | 12.24 MB |
+| | 10 s リクエスト数 | 59 | 217 |
+| `fast4g`（4 Mbps / 70 ms） | FCP | **1,312 ms** | 15,988 ms |
+| | canvas 出現 | **1,434 ms** | 15,978 ms |
+| `slow-highrtt`（1 Mbps / 400 ms） | FCP | **5,228 ms** | **30 s 以内に描画されず** |
+| | canvas 出現 | **5,219 ms** | — |
+
+7.34 MB を 1 Mbps で運べば理論下限で 59 秒。**設計や実装の巧拙以前に物量で決まる。**
+
+> これは `docs/WEB_RESULTS.md` §1 で iwagaki 自身が踏み抜いた穴とまったく同じ形である。
+> あのときの教訓は「配信するデータだけでなく、それを描くためのコードも優先度設計の
+> 対象である」だった。GeoLibre を shell にすることは、その教訓を捨てることを意味する。
+
+**この計測の限界（正直に）**:
+
+1. GeoLibre 側は**公開ビルドそのもの**であり、109 本のプラグインと cesium を含む。
+   fork して `manualChunks` を割り直し不要プラグインを外せば減らせる。
+   ただしそれは「GeoLibre を使う」ではなく「GeoLibre を保守する」作業になる。
+2. 配信条件が違う（自前 h2 + br vs GitHub Pages gzip）。br にすれば GeoLibre 側も 1〜2 割は縮む。
+   **13 倍という差はその補正では埋まらない。**
+3. 1 プロファイル 1 試行。分散は取っていない。
+4. 計測中、同一マシンで別の headed ブラウザ計測が走っていた時間帯がある。
+   バイト数は帯域律速なので影響を受けないが、**時刻の値は数百 ms 単位で悲観側に振れうる**。
+   結論を変える幅ではない。
+
+### 4.3 副産物 — iwagaki 自身の計測に穴があった **[実測]**
+
+`PerfRecorder` は `t0 = performance.now()`（= **コンストラクタが走った時刻**）を基準に
+マイルストーンを記録している。`docs/WEB_DESIGN.md` §8.2 は
+`app_start = performance.timeOrigin` と書いているが、実装はそうなっていない。
+
+つまり **公表している `first_meaningful_render` は「アプリが起動してから」であって、
+「ナビゲーションが始まってから」ではない。バンドルを落として実行し終えるまでの時間が
+まるごと入っていない。**
+
+`docs/WEB_RESULTS.md` §1 の「バンドルが FMR を決めていた」という結論はそれでも正しい
+（分割前は計測窓の中で FMR が立たなかった）。しかし**指標そのものが shell のコストに
+盲目である**のは、まさに今回の判断軸なので直す（§10.1）。
+
+---
+
+## 5. GeoLibre に任せられる部分 / iwagaki に残す部分
+
+### 5.1 任せられる（が、いま必要ではない）
+
+レイヤマネージャ、データ追加 UI（XYZ/WMS/WFS/STAC/GeoParquet/PMTiles/…）、
+ベースマップ切替、スタイル編集、プロジェクトの保存復元、i18n、
+共同編集、印刷/エクスポート、汎用の計測ツール、1,000+ の地理演算。
+
+**吉原 1 km 四方の浸水比較には、このうち 1 つも要らない。**
+必要な UI は「地形 3 択 / 水位スライダ / レイヤ ON-OFF / 差分」であり、
+そこに汎用 GIS の抽象（データソース、スタイル、プロジェクト）を挟むと
+操作は増えこそすれ減らない。
+
+### 5.2 残す（GeoLibre では代替できない）
+
+| 機能 | なぜ代替できないか |
+|---|---|
+| `h_conn` による浸水判定 | ドメイン固有。GLSL とも TS とも二重実装してテストで一致を担保している |
+| `FloodMeshLayer` | RGBA パッキング（RGB=標高 / A=h_conn）を頂点シェーダで読み、格子を変位し、鉛直強調を掛け、nodata を discard し、差分は 2 テクスチャを取る。GeoLibre の raster 経路は band/rescale/colormap の枠であり、この式は書けない |
+| baseline / highres / 差分の切替 | 同上 |
+| PLATEAU 建物の属性色分け | b3dm の glTF を primitive 分割して material を与える。GeoLibre の一般 3D Tiles 経路（three.js）には注入口が無い |
+| 地物インスペクタ（gml_id / 地盤高 / h_conn / 判定が割れる水位帯） | ドメイン固有 |
+| **点群の配信ランタイム** | §2.3。GeoLibre 側の実装は Scheduler に載らない |
+| `net/scheduler.ts` | GeoLibre には対応物が無い |
+
+---
+
+## 6. point-cloud runtime の境界（採用案に依らず維持する）
+
+```
+入力:  camera / viewport / selected area / network budget
+        ↓
+PointCloudRuntime            ← ここから外に deck.gl も GeoLibre も出さない
+  ├─ CopcIndex          hierarchy / metadata      （IO は Getter 経由 = 差し替え可能）
+  ├─ LodSelector        visibility / LOD          （純関数。node でテスト可能）
+  ├─ Scheduler          priority / byte budget / concurrency / cancellation / cache
+  ├─ DecodePool         Worker + laz-perf         （main thread を止めない）
+  └─ PointCloudRenderer upsert / evict / setStyle / stats
+        ↓
+出力:  描画されたバッファ + stats
+```
+
+現行実装はこの境界を既に満たしている（`pointcloud/controller.ts` が唯一 4 者を知る場所）。
+**この境界があるからこそ、GeoLibre 側の点群実装を「採らない」判断が安全に下せる。**
+将来 GeoLibre に載せるとしても、載せるのは `PointCloudRenderer` の下だけで済む。
+
+守るべき不変条件:
+
+1. `net/` は描画を知らない。renderer は `fetch` を呼ばない。
+2. LOD 選択は純関数。カメラと予算を引数で受ける。
+3. デコードは必ず Worker。main thread で点をループしない。
+4. Range を要求して 200 が返ったらエラーにする。
+
+---
+
+## 7. ネットワーク性能上の懸念（GeoLibre 採用時に発生するもの）
+
+| # | 懸念 | 区分 | 影響 |
+|---|---|---|---|
+| 1 | shell が 7.3 MB | **[実測]** | `slow-highrtt` で描画に到達しない。プロジェクトの主要成果が消える |
+| 2 | 点群 IO が Scheduler を通らない | **[実測]** | 優先度・バイト予算・キャンセルが全部効かなくなる |
+| 3 | 点群 decode が main thread | **[実測]** | long task の復活。`docs/WEB_RESULTS.md` §6.2 で 300 ms → 101 ms にした改善が戻る |
+| 4 | 206 検証が無い | **[実測]** | Range 非対応の配信で全ファイル取得が黙って起きる |
+| 5 | point budget 既定 5 M 点 | **[実測]** | iwagaki の実測では 3 M 点でドラッグ中 68〜82 ms/frame（12〜15 fps）。既定値がそのまま破綻域 |
+| 6 | interleaved deck オーバーレイが 1 つ・描画順が閉じた列挙 | **[実測]** | external plugin は非 interleaved（別 canvas）に逃げるしかない。iwagaki のレイヤ同士は同一オーバーレイに収まるので実害は小さいが、ホスト側 3D Tiles との前後関係は制御できない |
+| 7 | maplibre-gl 6 固定 | **[実測]** | iwagaki は 5.24 固定。§4.1 のシムで解けるが、移行作業が発生する |
+
+---
+
+## 8. A / B / C の比較
+
+| 観点 | A: 現行継続 | B: GeoLibre 全面 | C: GeoLibre + 自前点群 |
+|---|---|---|---|
+| shell の転送量 | **0.56 MB** | 7.3 MB＋ | 7.3 MB＋（自前ランタイム分がさらに乗る） |
+| `slow-highrtt` で描画されるか | **される（5.2 s）** | されない | されない |
+| 点群のネットワーク品質 | **現状維持**（優先度・キャンセル・Worker decode） | 大きく後退 | 維持できる（自前なので） |
+| 浸水シェーダ | そのまま | 移植先が無い → plugin として自前 deck レイヤを持ち込む | 同左 |
+| 建物属性色分け | そのまま | three.js 経路では不可 → deck.gl 経路を自前で持ち込む | 同左 |
+| 得られる汎用 GIS 機能 | 無し | 大きい（が現時点で不要） | 大きい（同上） |
+| 依存の重さ | deck.gl + maplibre 5 | 100 パッケージ、325k 行、cesium/duckdb/three | 同左 |
+| 採用形態 | — | fork か external plugin | 同左 |
+| 実装の削減量 | — | 重複していたのは 270 行程度（§3） | さらに少ない |
+| 新たに必要になる作業 | 無し | maplibre 6 移行、plugin 化、shell の減量 fork、点群の作り直し | maplibre 6 移行、plugin 化、shell の減量 fork |
+
+**C が「有力仮説」から落ちる理由**を明示しておく。
+C は「GIS shell は GeoLibre、点群は自前」という分担だが、実測すると
+
+- GeoLibre から受け取るもの = 汎用 GIS UI（現時点で不要）+ **7.3 MB の shell**
+- GeoLibre に渡せないもの = 点群ランタイム、浸水シェーダ、建物色分け、地物インスペクタ、Scheduler
+
+となり、**渡せるものがほとんど無いのに、コストだけが全額かかる。**
+分担として成立していない。
+
+---
+
+## 9. 採用案 — **A（現行実装を継続）**
+
+条件付き。以下が起きたら再評価する **[判断条件]**:
+
+| # | 条件 | そのとき採る案 |
+|---|---|---|
+| 1 | AOI が市域全体に広がり、任意のデータソース（STAC / COG / WMS / 他都市 PLATEAU）を **ユーザーが追加**する要求が出た | C を再評価。ただし「iwagaki 本体」ではなく**別成果物**として（§10.2） |
+| 2 | 「GIS の中の 1 機能」として配りたい要求が出た | **iwagaki を GeoLibre external plugin として出す**。本体は残す |
+| 3 | GeoLibre 側が `maplibre-gl-lidar` に **Getter/AbortSignal の注入口**を入れた | 点群を任せる余地が生まれる。§2.3 の表を測り直す |
+| 4 | GeoLibre の shell が **1 MB 台**まで落ちた | B/C の前提が変わる。§4 を測り直す |
+
+**逆に、A を選んでも「GIS shell を再発明しない」を守る。**
+レイヤマネージャ・データ追加ダイアログ・スタイル編集・プロジェクト保存・地理演算は
+**作らない**。必要になったら §10.2 の道を通る。
+
+---
+
+## 10. 移行手順（= これからやること）
+
+### 10.1 いますぐ（本レビューに直結する最小差分）
+
+| # | 内容 | 状態 |
+|---|---|---|
+| 1 | `web/perf/shellcost.mjs` を追加。任意 URL の「コード転送量 / FCP / canvas 出現」を 3 プロファイルで測る | **完了**（本レビューの §4 はこれで測った） |
+| 2 | `PerfRecorder` に **ナビゲーション基準**のマイルストーンを併記する（§4.3 の穴） | **完了**（`boot_offset_ms` と `milestones_navigation` を snapshot に追加） |
+| 3 | GeoLibre の `map-transform-compat.ts` 相当を移植し、maplibre-gl 6 のブロッカーを外す | 未（§4.1 の判断材料が揃った段階。**急がない**） |
+| 4 | shell のバイト数を回帰指標として `docs/WEB_RESULTS.md` に載せる | 未 |
+
+### 10.2 将来 GeoLibre に載せる場合の手順（設計を今から縛らないためのメモ）
+
+fork せずに済む道が実在する **[実測: `docs/plugin-api.md`]**。
+
+1. `web/src` を 2 つに割る。**割れ目は既にある**（`docs/WEB_DESIGN.md` §1 の層）。
+   - `domain/` + `net/` + `pointcloud/` + `view/*Layer.ts` = **plugin の中身**
+   - `main.ts` + `ui/` + `view/map.ts` = **shell への接続部**（差し替える）
+2. GeoLibre plugin として `activate(app)` を書く。
+   - `app.getDeckGL()` でホストの deck.gl を借りる（**二重バンドルを避ける**）
+   - `MapboxOverlay({ interleaved: false })` を `app.addMapControl` で載せる
+     （interleaved は 1 つしか無く、描画順は閉じた列挙なので触らない）
+   - `app.registerExternalNativeLayer({ paintMode: "plugin", paintBridge })` で
+     レイヤパネルに出す
+   - 水位スライダ・地形切替・インスペクタは `registerRightPanel` / `registerFloatingPanel`
+3. `plugin.json` + 自己完結 ESM にして配る（zip / マニフェスト URL / `public/plugins/` 同梱）。
+4. **本体（`web/`）は残す。** 「軽い単体 viewer」と「GIS の中の 1 機能」は別の成果物であり、
+   §4 の実測がある以上、前者を後者に統合してはいけない。
+
+この手順が成り立つのは、`domain/` が描画ライブラリを import しない規約と、
+`PointCloudRenderer` / `Scheduler` の境界を最初から守っているからである。
+**その規約は今後も守る。**
+
+### 10.3 A のまま進める実装の優先順（`docs/WEB_RESULTS.md` §8 を引き継ぐ）
+
+| # | 優先 | 内容 | 根拠 |
+|---|---|---|---|
+| ① | 高 | 初期チャンクをさらに削る（現状 464 kB br） | FMR を決めているのは依然としてバンドル。§4.2 の `slow-highrtt` 5.2 s の大半がこれ |
+| ~~②~~ | — | ~~1 リクエスト内のストリーミングデコード~~ | **実装済み**（`5419e7a`）。`docs/WEB_RESULTS.md` §4.1–4.2。coalescing の符号が反転し、on が速い側になった → 「ノード数が桁で増える条件での再評価」が代わりに残る |
+| ③ | 高 | 点群キャンセル経路の検証シナリオ | `docs/WEB_RESULTS.md` §5 のとおり未発火 |
+| ④ | 高 | **実 LAS を viewer に載せて network / LOD / decode を再計測** | 下記 |
+| ⑤ | 中 | LAS アップロード経路（Worker + D1 + R2 multipart） | ④ の結果を見てから作る |
+| ⑥ | 低 | custom point-cloud renderer | §10 の移行条件にまだ届かない。ただし `maplibre-gl-lidar` の「連続バッファ + compaction」は設計の参考になる（§2.3） |
+
+**④ を ⑤ より先にする**（当初は逆に置いていた。判断を変えた）。
+
+現在の点群は `synthetic-from-dtm`（0.5 m DTM の格子を 1 点に変換したもの）であり、
+**密度分布もノイズもオクツリーのノード分布も LAZ の圧縮率も、実測点群とは違う**
+（`docs/WEB_RESULTS.md` §6 / §9）。つまり LOD 選択・decode コスト・
+ノード数（= coalescing の再評価条件）のいずれも、いま出ている数字は本番分布を踏んでいない。
+
+**実 LAS は既に手元にある**（吉原バックパック SLAM 4.98 億点、`36a393c`）。
+ただし入っているのは**解析側だけ**で、viewer が配信しているのは今も
+`yoshiwara-synthetic-from-dtm.copc.laz`（325 万点）である。したがって次は
+
+```
+実 LAS(4.98 億点) --ローカル CLI (PDAL)--> COPC --> catalog 差し替え --> viewer で再計測
+```
+
+を通す。4.98 億点は合成点群の **153 倍**なので、ノード数・階層の深さ・LAZ 圧縮率が
+桁で変わる。`docs/WEB_RESULTS.md` §8 の「ノード数が桁で増える条件で coalescing を
+再評価」は、この差し替えと同じ作業で観測できる。
+**アップロード経路は viewer 側の結論が出てから作る。**
+upload infrastructure（Worker + D1 + R2 multipart + Queue + 外部 compute）は
+`docs/WEB_DESIGN.md` §7 のとおり最も面積が大きく、かつ
+「どんな COPC が出てくれば viewer が耐えるか」が決まっていない状態で作ると、
+パートサイズ・ジョブ分割・生成パラメータをやり直すことになる。
+ローカル CLI での COPC 化は既にスクリプトがあるので、この順なら追加コストはほぼゼロ。
+
+---
+
+## 11. GeoLibre から実際に持ち帰るもの
+
+「採用しない」と「学ばない」は違う。
+
+| # | 持ち帰るもの | 出典 | 効用 |
+|---|---|---|---|
+| 1 | **maplibre-gl 6 の `map.transform` 互換シム** | `packages/map/src/map-transform-compat.ts`（MIT, 約 30 行） | `docs/WEB_DESIGN.md` §11 #1 の「maplibre-gl 6 と deck.gl 9.3 は組み合わせられない」を解消する。`_nearZ`/`_farZ` のエイリアスまで面倒を見ている点も含めて正しい |
+| 2 | **point budget を 1 本の連続バッファで持ち、eviction 時に compaction する** | `maplibre-gl-lidar` `CopcStreamingLoader` | draw call をノード数から切り離す。§10 移行条件 2 への回答になりうる |
+| 3 | **interleaved オーバーレイは 1 つに集約する規律** | `shared-deck-overlay.ts` | iwagaki は既に 1 つだが、根拠（`map.__deck` は 1 つで、後勝ちで消える）を明文化しておく価値がある |
+| 4 | 断面ツール / 標高プロファイルチャート / classification 凡例 | `maplibre-gl-lidar` の GUI | iwagaki は視点プリセット + 鉛直強調で断面を見ているが、**標高プロファイルの折れ線**は無い。浸水深の読み取りに効く可能性がある |
+| 5 | external plugin のローダ設計（zip / dir / マニフェスト URL / 同梱） | `docs/plugin-api.md` | §10.2 の道そのもの |
+
+---
+
+## 12. この判断の限界
+
+1. **GeoLibre 側は公開ビルドを測った。** 減量 fork の下限は測っていない **[未確認]**。
+   ただし `manualChunks` が `maplibre-gl*` を 1 チャンクに束ねている構造上、
+   減量は「設定を書き換える」ではなく「fork を保守する」作業になる。
+2. **点群の評価はソース読解であり、実データでの実測ではない** **[実測: コード]** / **[未確認: 挙動]**。
+   `maplibre-gl-lidar` を吉原の COPC に当てて `slow-highrtt` で測れば、より強い根拠になる。
+   ただし §2.3 の「Getter を注入できない」は API の形の問題で、計測しても変わらない。
+3. **プラグインとして載せた場合の shell コストは測っていない** **[未確認]**。
+   §4 の 7.3 MB はホスト側の値であり、plugin 自身のバイトはそれに加算される。
+4. **1 試行・分散なし。** 時刻の値は数百 ms 単位で信用しない。
+   バイト数（13 倍）と「30 秒以内に描画されない」は、その粒度を超えて成立する。
+5. GeoLibre は 2026-08-22 に v2.7.0 が出たばかりで**開発が速い**。
+   §9 の再評価条件 3・4 は現実に起こりうる。本書は日付つきの判断である。

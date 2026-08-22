@@ -14,7 +14,9 @@
   .panel { position: absolute; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line);
            border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(8px); }
   #controls { top: 12px; left: 12px; width: 268px; max-height: 56%; overflow: auto; }
-  #inspector { top: 12px; right: 12px; width: 300px; max-height: calc(100% - 24px); overflow: auto; display: none; }
+  #inspector { top: 12px; right: 53px; width: 300px; max-height: calc(100% - 24px); overflow: auto; display: none; }
+  /* 右上のギズモも 12px 基準に揃える（MapLibre の既定は 10px） */
+  .maplibregl-ctrl-top-right .maplibregl-ctrl { margin: 12px 12px 0 0; }
   #perf { bottom: 12px; left: 12px; width: 268px; max-height: 40%; overflow: auto;
            font-variant-numeric: tabular-nums; }
   h1 { font-size: 13px; margin: 0 0 2px; letter-spacing: .02em; }

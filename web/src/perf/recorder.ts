@@ -79,12 +79,30 @@ export class PerfRecorder {
     return Math.round(s[Math.min(s.length - 1, Math.floor((s.length - 1) * p))] * 100) / 100
   }
 
+  /**
+   * ナビゲーション開始（`performance.timeOrigin`）から、この recorder が
+   * 作られるまでの時間。= **アプリの JS を落として実行し終えるまで**。
+   *
+   * マイルストーンはすべて `t0` 基準（アプリ起動から）で記録している。
+   * `docs/WEB_DESIGN.md` §8.2 は `app_start = performance.timeOrigin` と書いていたが、
+   * 実装はそうなっていなかった。つまり公表していた `first_meaningful_render` は
+   * **バンドルの取得と実行にかかった時間を含んでいない**。
+   * shell のコストを比較する土俵ではそこが本体なので（`docs/WEB_ARCH_REVIEW.md` §4）、
+   * 既存の値はそのまま残したうえで、ナビゲーション基準の値を併記する。
+   */
+  get bootOffsetMs() { return this.t0 }
+
   snapshot() {
     const fmr = this.marks.get('first_meaningful_render')
     const st = this.scheduler.stats()
+    const milestones = Object.fromEntries(
+      [...this.marks].map(([k, v]) => [k, Math.round(v)]))
     return {
-      milestones: Object.fromEntries(
-        [...this.marks].map(([k, v]) => [k, Math.round(v)])),
+      milestones,
+      boot_offset_ms: Math.round(this.t0),
+      /** 同じマイルストーンをナビゲーション開始基準に直したもの */
+      milestones_navigation: Object.fromEntries(
+        [...this.marks].map(([k, v]) => [k, Math.round(v + this.t0)])),
       bytes: {
         initial_to_fmr: fmr !== undefined ? this.bytesAt(fmr) : null,
         at_5s: this.bytesAt(5000),

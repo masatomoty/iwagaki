@@ -1,0 +1,73 @@
+{
+  "label": "iwagaki",
+  "url": "https://localhost:8477/",
+  "window_ms": 20000,
+  "results": [
+    {
+      "profile": "normal",
+      "profile_settings": {
+        "offline": false,
+        "downloadThroughput": -1,
+        "uploadThroughput": -1,
+        "latency": 0
+      },
+      "first_paint_ms": 56,
+      "first_contentful_paint_ms": 168,
+      "time_to_canvas_ms": 348,
+      "first_meaningful_render_ms": 892,
+      "bytes": {
+        "code_total": 564159,
+        "data_total": 4064446,
+        "at_3s": 1475717,
+        "at_10s": 3941948,
+        "total": 4630229
+      },
+      "requests_at_10s": 59,
+      "page_errors": []
+    },
+    {
+      "profile": "fast4g",
+      "profile_settings": {
+        "offline": false,
+        "downloadThroughput": 500000,
+        "uploadThroughput": 375000,
+        "latency": 70
+      },
+      "first_paint_ms": 224,
+      "first_contentful_paint_ms": 1312,
+      "time_to_canvas_ms": 1434,
+      "first_meaningful_render_ms": 940,
+      "bytes": {
+        "code_total": 564159,
+        "data_total": 4064492,
+        "at_3s": 963746,
+        "at_10s": 3284474,
+        "total": 4630275
+      },
+      "requests_at_10s": 58,
+      "page_errors": []
+    },
+    {
+      "profile": "slow-highrtt",
+      "profile_settings": {
+        "offline": false,
+        "downloadThroughput": 125000,
+        "uploadThroughput": 62500,
+        "latency": 400
+      },
+      "first_paint_ms": 1056,
+      "first_contentful_paint_ms": 5228,
+      "time_to_canvas_ms": 5219,
+      "first_meaningful_render_ms": 3611,
+      "bytes": {
+        "code_total": 564159,
+        "data_total": 1120663,
+        "at_3s": 10679,
+        "at_10s": 873425,
+        "total": 1686446
+      },
+      "requests_at_10s": 26,
+      "page_errors": []
+    }
+  ]
+}
