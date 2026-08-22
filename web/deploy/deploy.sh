@@ -13,6 +13,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 WRANGLER="${WRANGLER:-./node_modules/.bin/wrangler}"
+# wrangler r2 object put の上限（Cloudflare docs: 315 MB）。これを超えたら S3 API 経路に回す
+WRANGLER_PUT_LIMIT="${WRANGLER_PUT_LIMIT:-330000000}"
 BUILD=1
 UPLOAD_R2=1
 DRY_RUN=0
@@ -56,9 +58,48 @@ if [ "$UPLOAD_R2" -eq 1 ]; then
   fi
   for f in "${COPC_FILES[@]}"; do
     key="data/pointcloud/$(basename "$f")"   # キーは URL パスと 1:1（deploy/worker.js と同じ規則）
+    size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f")
     echo "==> R2 put $BUCKET/$key  ($(du -h "$f" | cut -f1))"
-    "$WRANGLER" r2 object put "$BUCKET/$key" --file "$f" \
-      --remote --content-type application/octet-stream
+
+    # wrangler r2 object put は 315 MB までしか扱えない。
+    # https://developers.cloudflare.com/r2/objects/upload-objects/
+    #   "Wrangler supports uploading files up to 315 MB and only allows one object at a time."
+    #   "For large files or bulk uploads, use rclone or another S3-compatible tool."
+    # 実際に 490 MB の COPC を上げようとして、R2 に 277 MB の壊れたオブジェクト
+    # （先頭 1 KB が全ゼロ、LASF 無し）が残った。**黙って壊れる**ので必ず分岐する。
+    if [ "$size" -gt "$WRANGLER_PUT_LIMIT" ]; then
+      echo "    $size バイト > ${WRANGLER_PUT_LIMIT} — wrangler では上げられないので S3 API (multipart) を使う"
+      command -v aws >/dev/null || { echo "aws CLI が無い。rclone 等でも可" >&2; exit 1; }
+      # 認証は deploy/r2put.sh が .env.deploy から読む。aws CLI は 8 MB 超を自動で multipart にする。
+      # 実測 1 MB/s 程度しか出ないので 490 MB で 8 分ほどかかる。途中で止めても
+      # aws CLI が multipart を abort するので、壊れたオブジェクトは残らない。
+      deploy/r2put.sh s3 cp "$f" "s3://$BUCKET/$key" \
+        --content-type application/octet-stream --only-show-errors
+    else
+      "$WRANGLER" r2 object put "$BUCKET/$key" --file "$f" \
+        --remote --content-type application/octet-stream
+    fi
+
+    # 上げたものが本当に読めるか確認する。壊れた put を検知できずに deploy まで進むと、
+    # viewer が壊れたオブジェクトを指す（実際に 277 MB の全ゼロオブジェクトで起きた）。
+    # サイズと先頭 4 バイトの両方を見る。片方だけでは足りない：
+    #   - サイズだけ → 中身が全ゼロでも通る
+    #   - 先頭だけ   → 途中で切れていても通る
+    tmp="$(mktemp)"
+    if deploy/r2put.sh s3api get-object --bucket "$BUCKET" --key "$key" \
+         --range bytes=0-3 "$tmp" >/dev/null 2>&1; then
+      head4=$(head -c 4 "$tmp")
+    else
+      head4="(取得失敗)"
+    fi
+    rm -f "$tmp"
+    remote_size=$(deploy/r2put.sh s3api head-object --bucket "$BUCKET" --key "$key" \
+                    --query ContentLength --output text 2>/dev/null || echo "?")
+    if [ "$head4" != "LASF" ] || [ "$remote_size" != "$size" ]; then
+      echo "    検証失敗: 先頭4B='$head4'（期待 LASF）, サイズ=$remote_size（期待 $size）。中断する" >&2
+      exit 1
+    fi
+    echo "    OK: 先頭 4 バイト = LASF, サイズ = $remote_size"
   done
 fi
 

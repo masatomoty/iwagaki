@@ -5,3 +5,6 @@ data/raw/
 data/interim/
 data/out/
 .DS_Store
+
+# デプロイ用の R2 API トークン（絶対にコミットしない）
+.env.deploy

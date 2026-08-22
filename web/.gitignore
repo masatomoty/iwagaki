@@ -6,3 +6,6 @@ perf/*.png
 perf/shots/
 perf/results/*.png
 .wrangler/
+
+# デプロイ用の R2 API トークン（絶対にコミットしない）
+.env.deploy
