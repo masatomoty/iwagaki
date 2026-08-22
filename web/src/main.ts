@@ -371,11 +371,28 @@ async function boot() {
     refresh()
   })
 
+  // PerfRecorder は常時走らせるが、パネルは既定で隠す。内訳を読むのは開発者だけで、
+  // 浸水を見に来た人には要らない。?perf=1 か P キーで出す（docs/WEB_DESIGN.md §8.1）
   const perfEl = document.getElementById('perf')!
-  const drawPerf = () => renderPerf(perfEl, perf, scheduler, pcb?.controller, store)
+  let perfVisible = new URLSearchParams(location.search).get('perf') === '1'
+  const drawPerf = () => {
+    if (!perfVisible) return
+    renderPerf(perfEl, perf, scheduler, pcb?.controller, store)
+  }
+  const setPerfVisible = (v: boolean) => {
+    perfVisible = v
+    perfEl.style.display = v ? 'block' : 'none'
+    drawPerf()
+  }
   perf.onChange(drawPerf)
   setInterval(drawPerf, 500)
-  drawPerf()
+  setPerfVisible(perfVisible)
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement) return
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key !== 'p' && e.key !== 'P') return
+    setPerfVisible(!perfVisible)
+  })
 
   // 計測ハーネスからの取り出し口
   ;(window as unknown as Record<string, unknown>).__iwagaki = {
@@ -397,6 +414,7 @@ async function boot() {
     setCamera: (id: string) => applyPreset(map, id as never),
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),
     setBuildingColor: (v: BuildingColorMode) => store.set({ buildingColor: v }),
+    setPerfVisible,
   }
 }
 
