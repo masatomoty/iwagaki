@@ -131,7 +131,8 @@ export class Scheduler {
     this.inflightPromise.delete(w.task.key)
     const rec: RequestRecord = {
       key: w.task.key, cls: w.task.cls, url: w.task.url, ranged: !!w.task.range,
-      startedAt: performance.now(), bytes: 0, cancelled: true, wastedBytes: 0, retries: 0,
+      startedAt: performance.now(), bytes: 0, wireBytes: 0, cancelled: true,
+      wastedBytes: 0, retries: 0,
     }
     this.pushRecord(rec)
     w.reject(new DOMException('cancelled before start', 'AbortError'))
@@ -169,7 +170,8 @@ export class Scheduler {
     if (w.task.signal) w.task.signal.addEventListener('abort', () => ctrl.abort(), { once: true })
     const rec: RequestRecord = {
       key: w.task.key, cls: w.task.cls, url: w.task.url, ranged: !!w.task.range,
-      startedAt: performance.now(), bytes: 0, cancelled: false, wastedBytes: 0, retries: attempt,
+      startedAt: performance.now(), bytes: 0, wireBytes: 0, cancelled: false,
+      wastedBytes: 0, retries: attempt,
     }
     const live: Live = { ctrl, task: w.task, rec, received: 0 }
     this.live.set(w.task.key, live)
@@ -199,6 +201,8 @@ export class Scheduler {
       rec.endedAt = performance.now()
       rec.ttfbMs = r.ttfbMs
       rec.bytes = r.bytes.byteLength
+      // 圧縮されていなければデコード後 = wire。されていれば stats() で引き当て直す
+      rec.wireBytes = r.encoded ? -1 : r.bytes.byteLength
       rec.status = r.status
       this.live.delete(w.task.key)
       this.noteBandwidth(rec)
@@ -228,8 +232,14 @@ export class Scheduler {
 
   private noteBandwidth(rec: RequestRecord) {
     const dt = (rec.endedAt! - rec.startedAt) / 1000
-    if (dt <= 0.005 || rec.bytes < 4096) return
-    const bps = rec.bytes / dt
+    // **デコード後ではなく wire で測る。** br が効く geojson/json を
+    // デコード後で数えると帯域を 6 倍に見積もり、点群の LOD 予算
+    // （maxBytes = bw * 6）がその分だけ甘くなる
+    // wire が未確定（圧縮応答）ならデコード後で代用する。帯域を過大に見積もる側だが、
+    // 完了直後に PerformanceResourceTiming が揃っているとは限らない
+    const w = rec.wireBytes < 0 ? rec.bytes : rec.wireBytes
+    if (dt <= 0.005 || w < 4096) return
+    const bps = w / dt
     this.bwBps = this.bwBps === 0 ? bps : this.bwBps * 0.7 + bps * 0.3
   }
 
@@ -250,14 +260,52 @@ export class Scheduler {
   get bandwidthBps() { return this.bwBps }
   get allRecords(): readonly RequestRecord[] { return this.records }
 
+  /**
+   * 圧縮された応答の wire バイト数を PerformanceResourceTiming から引き当てる。
+   *
+   * Cloudflare は br 応答に content-length を付けないので、fetch のヘッダからは
+   * 符号化後の長さが取れない。`encodedBodySize` は content-coding 適用後の
+   * ボディ長そのもので、これが欲しい値。同一オリジン配信が前提（§8.3）。
+   *
+   * 同じ URL に複数回（Range で）投げることがあるので、開始時刻が近いものを選ぶ。
+   * 引き当てられなければ -1 のままにせず、デコード後の値に戻す
+   * （**過大に出る方に倒す**。ネットワーク費用を小さく見せる方に倒すと判断を誤る）。
+   */
+  private resolveWireBytes() {
+    const pending = this.records.filter((r) => r.wireBytes < 0)
+    if (pending.length === 0 || typeof performance.getEntriesByType !== 'function') return
+    const byUrl = new Map<string, PerformanceResourceTiming[]>()
+    for (const e of performance.getEntriesByType('resource') as PerformanceResourceTiming[]) {
+      const list = byUrl.get(e.name)
+      if (list) list.push(e)
+      else byUrl.set(e.name, [e])
+    }
+    for (const r of pending) {
+      const cands = byUrl.get(new URL(r.url, location.href).href)
+      if (!cands?.length) { r.wireBytes = r.bytes; continue }
+      let best: PerformanceResourceTiming | undefined
+      let bestDt = Infinity
+      for (const e of cands) {
+        const dt = Math.abs(e.startTime - r.startedAt)
+        if (dt < bestDt) { bestDt = dt; best = e }
+      }
+      // encodedBodySize は cross-origin だと 0。その場合は諦めてデコード後を使う
+      r.wireBytes = best && best.encodedBodySize > 0 ? best.encodedBodySize : r.bytes
+    }
+  }
+
   stats(): SchedulerStats {
+    this.resolveWireBytes()
     const byClass: SchedulerStats['byClass'] = {}
-    let bytes = 0, wasted = 0, cancelled = 0, failed = 0, completed = 0
+    let bytes = 0, wire = 0, wasted = 0, cancelled = 0, failed = 0, completed = 0
     for (const r of this.records) {
-      const b = (byClass[r.cls] ??= { issued: 0, bytes: 0, cancelled: 0, wasted: 0 })
+      const b = (byClass[r.cls] ??= { issued: 0, bytes: 0, wireBytes: 0, cancelled: 0, wasted: 0 })
       b.issued++
       b.bytes += r.bytes
       bytes += r.bytes
+      const w = r.wireBytes < 0 ? r.bytes : r.wireBytes
+      b.wireBytes += w
+      wire += w
       wasted += r.wastedBytes
       b.wasted += r.wastedBytes
       if (r.cancelled) { cancelled++; b.cancelled++ }
@@ -266,7 +314,7 @@ export class Scheduler {
     }
     return {
       issued: this.records.length, completed, cancelled, failed,
-      bytes, wastedBytes: wasted,
+      bytes, wireBytes: wire, wastedBytes: wasted,
       peakConcurrent: this.peak, concurrentNow: this.live.size,
       byClass, coalesced: { ...this.coalesceStats },
       bandwidthBps: Math.round(this.bwBps), protocol: this.protocol,

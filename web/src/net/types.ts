@@ -48,7 +48,14 @@ export interface RequestRecord {
   startedAt: number
   endedAt?: number
   ttfbMs?: number
+  /** デコード後のバイト数 */
   bytes: number
+  /**
+   * 回線を流れたバイト数。圧縮が効くアセットでは bytes と大きくずれる
+   * （objects.geojson: decode 569,699 B / wire 92,301 B）。
+   * **ネットワークの話をするときはこちらを使う。**
+   */
+  wireBytes: number
   status?: number
   cancelled: boolean
   /** キャンセル時に既に受信していたバイト。捨てた分だけを数える */
@@ -63,11 +70,15 @@ export interface SchedulerStats {
   completed: number
   cancelled: number
   failed: number
+  /** デコード後の合計 */
   bytes: number
+  /** 回線を流れた合計。圧縮を戻さない、比較に使ってよい方の値 */
+  wireBytes: number
   wastedBytes: number
   peakConcurrent: number
   concurrentNow: number
-  byClass: Record<string, { issued: number; bytes: number; cancelled: number; wasted: number }>
+  byClass: Record<string, { issued: number; bytes: number; wireBytes: number
+                            cancelled: number; wasted: number }>
   coalesced: { groups: number; members: number; extraBytes: number }
   bandwidthBps: number
   protocol: string

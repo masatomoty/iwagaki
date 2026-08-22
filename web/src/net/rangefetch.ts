@@ -5,7 +5,14 @@ export interface RawResult {
   bytes: Uint8Array
   status: number
   ttfbMs: number
+  /** デコード後のバイト数。呼び出し側が実際に受け取る長さ */
   received: number
+  /**
+   * 応答が content-encoding で圧縮されていたか。
+   * 圧縮されていれば received（デコード後）は wire の長さではないので、
+   * Scheduler が PerformanceResourceTiming から引き当て直す。
+   */
+  encoded: boolean
 }
 
 export class RangeNotHonoured extends Error {
@@ -39,13 +46,18 @@ export async function rangeFetch(
   const ttfbMs = performance.now() - t0
   if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`)
   if (range && res.status !== 206) throw new RangeNotHonoured(url)
+  // Cloudflare は br 応答に content-length を付けないので、ここでは
+  // 「圧縮されていたか」だけ分かる。wire の長さは Scheduler が
+  // PerformanceResourceTiming.encodedBodySize から引き当てる
+  const encoded = !!res.headers.get('content-encoding')
 
   const reader = res.body?.getReader()
   if (!reader) {
     const buf = new Uint8Array(await res.arrayBuffer())
     onProgress?.(buf.length)
     onData?.(buf, buf.length)
-    return { bytes: buf, status: res.status, ttfbMs, received: buf.length }
+    return { bytes: buf, status: res.status, ttfbMs, received: buf.length,
+             encoded }
   }
 
   // Range 要求なら長さが確定しているので事前確保できる。
@@ -81,11 +93,13 @@ export async function rangeFetch(
   }
   if (out) {
     const bytes = received === out.length ? out : out.subarray(0, received)
-    return { bytes, status: res.status, ttfbMs, received }
+    return { bytes, status: res.status, ttfbMs, received, encoded }
   }
-  if (chunks.length === 1) return { bytes: chunks[0], status: res.status, ttfbMs, received }
+  if (chunks.length === 1) {
+    return { bytes: chunks[0], status: res.status, ttfbMs, received, encoded }
+  }
   const merged = new Uint8Array(received)
   let o = 0
   for (const c of chunks) { merged.set(c, o); o += c.length }
-  return { bytes: merged, status: res.status, ttfbMs, received }
+  return { bytes: merged, status: res.status, ttfbMs, received, encoded }
 }

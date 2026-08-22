@@ -25,6 +25,7 @@ import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
 
 const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_meaningful_render の対象）
+
 /**
  * 「点群が見えた」とみなす、LOD が選んだ点数に対する割合。
  * 絶対値（旧: 20 万点）は合成点群向けの値で、実点群では LOD の選択が
