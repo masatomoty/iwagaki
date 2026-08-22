@@ -67,7 +67,7 @@ export function renderControls(
     return
   }
   const wl = catalog.water_level
-  const msl = catalog.water_level.reference_levels_m_tp.MSL_maizuru
+  const refs = Object.entries(wl.reference_levels_m_tp).sort((a, b) => a[1] - b[1])
   const pcNote = catalog.pointcloud.synthetic
     ? '<div class="note">点群は <b>DTM から生成した合成データ</b>（配信検証用）。観測値ではない。</div>'
     : ''
@@ -97,7 +97,13 @@ export function renderControls(
     <fieldset><legend>Water level</legend>
       <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
       <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}" value="${s.waterLevel}" />
-      <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>MSL ${msl.toFixed(2)}</span><span>${wl.max.toFixed(1)}</span></div>
+      <div class="tickbar">${refs.map(([, v]) =>
+        `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%"></i>`).join('')}</div>
+      <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
+      <div class="seg wrap" id="refs">${refs.map(([k, v]) =>
+        `<button data-h="${v}" title="T.P. ${v.toFixed(3)} m">${k}<br><span class="sub">${v.toFixed(2)}</span></button>`).join('')}</div>
+      <div class="note">舞鶴の実際の潮位。既往最高潮位は 1998-09-22 の台風7号（京都府 丹後沿岸海岸保全基本計画）。
+        天文潮は気象庁の推算潮位表から計算（年平均が公表 MSL と一致することで検算）。</div>
     </fieldset>
 
     <fieldset><legend>Layers</legend>
@@ -110,6 +116,10 @@ export function renderControls(
   `
   el.dataset.built = '1'
 
+  el.querySelector('#refs')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) store.set({ waterLevel: Number(b.dataset.h) })
+  })
   el.querySelector('#cam')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) onPreset(b.dataset.c as CameraPresetId)

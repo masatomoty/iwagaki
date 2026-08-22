@@ -4,12 +4,10 @@
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import { MapboxOverlay } from '@deck.gl/mapbox'
-import { GeoJsonLayer } from '@deck.gl/layers'
 import type { Layer } from '@deck.gl/core'
 
 import type { Catalog } from './domain/catalog'
-import { decisionChanged, featureDepth } from './domain/flood'
-import type { FeatureAssertion } from './domain/types'
+import type { FeatureAssertion, TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
@@ -19,6 +17,7 @@ import { createFloodTileLayer, FLOOD_MODE } from './view/floodTileLayer'
 import type { FloodMeshUniforms } from './view/floodMeshLayer'
 import { applyPreset, bindCameraKeys, createMap } from './view/map'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
+import type { createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
@@ -65,6 +64,7 @@ async function boot() {
   // ---- 地物 -------------------------------------------------------------
   let rawFeatures: RawFeature[] = []
   let features: RawFeature[] = []
+  let makeSemantics: typeof CreateSemanticsLayer | undefined
   const assertions = new Map<string, FeatureAssertion>()
   let featureExaggeration = -1
   /** 地物ポリゴンを地面の高さに載せる。鉛直強調を変えたら作り直す */
@@ -91,6 +91,9 @@ async function boot() {
     }
     rebuildFeatureGeometry()
     perf.mark('semantics_loaded')
+    // GeoJsonLayer もここで初めて読む
+    makeSemantics = (await import('./view/semanticsLayer')).createSemanticsLayer
+    perf.mark('semantics_module_loaded')
     refresh()
   })()
 
@@ -114,6 +117,28 @@ async function boot() {
     }
   }
 
+  /**
+   * そのタイルがいまも視野に必要か。scheduler のキャンセル判定に渡す。
+   * これが無いと「epoch が古い」だけでは切らない規則（§4.5）に引っかかって
+   * 地形タイルは一度もキャンセルされない。
+   */
+  function isTileNeeded(z: number, x: number, y: number): boolean {
+    const zc = Math.floor(map.getZoom())
+    if (z < zc - 2 || z > zc + 1) return false
+    const b = map.getBounds()
+    const n = 2 ** z
+    const west = (x / n) * 360 - 180
+    const east = ((x + 1) / n) * 360 - 180
+    const lat = (yy: number) => {
+      const t = Math.PI - (2 * Math.PI * yy) / n
+      return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t)))
+    }
+    const north = lat(y)
+    const south = lat(y + 1)
+    return !(east < b.getWest() || west > b.getEast() ||
+             north < b.getSouth() || south > b.getNorth())
+  }
+
   function terrainLayers() {
     const s = store.state
     if (!s.layers.flood) return []
@@ -124,7 +149,7 @@ async function boot() {
     const diffUrl = s.surface === 'diff' ? catalog.terrain.diff?.url : undefined
     const common = {
       urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl, extent, scheduler,
-      uniforms: floodProps(), opacity: 1,
+      uniforms: floodProps(), opacity: 1, isTileNeeded,
     }
     const asset = geomAsset
     return [
@@ -175,10 +200,8 @@ async function boot() {
     plateauLayer = createPlateauLayer({
       url: asset.url,
       scheduler,
-      onTileLoad: () => {
-        plateauLoaded++
-        if (plateauLoaded >= asset.b3dm_count) perf.mark('time_to_plateau')
-      },
+      onTileLoad: () => { plateauLoaded++ },
+      onViewportLoaded: () => perf.mark('time_to_plateau'),
       onTileError: (t, e) => { plateauFailed++; console.warn('b3dm failed', t, e) },
     })
     perf.mark('plateau_module_loaded')
@@ -194,39 +217,14 @@ async function boot() {
 
   function semanticsLayer() {
     const s = store.state
-    if (!s.layers.semantics || features.length === 0) return []
-    const th = catalog.semantics.road_depth_classes_m
-    return [new GeoJsonLayer({
-      id: 'semantics',
-      data: features as unknown as never,
-      pickable: true,
-      stroked: true,
-      filled: true,
-      lineWidthUnits: 'pixels',
-      getLineWidth: 1,
-      updateTriggers: {
-        getFillColor: [s.waterLevel, s.layers.changedOnly, s.surface],
-        getLineColor: [s.waterLevel, s.layers.changedOnly],
-      },
-      getFillColor: (f: unknown) => {
-        const a = (f as RawFeature).properties.__a as FeatureAssertion
-        const changed = decisionChanged(a, s.waterLevel, th)
-        if (s.layers.changedOnly && !changed) return [0, 0, 0, 0]
-        if (a.unreliable) return [110, 110, 120, 70]
-        if (changed) return [242, 68, 52, 190]
-        const cond = s.surface === 'diff' ? 'highres' : s.surface
-        return featureDepth(a, cond, s.waterLevel) > 0
-          ? [70, 130, 200, 120]
-          : [190, 195, 205, 55]
-      },
-      getLineColor: (f: unknown) => {
-        const a = (f as RawFeature).properties.__a as FeatureAssertion
-        return decisionChanged(a, s.waterLevel, th) ? [255, 220, 120, 230] : [20, 24, 32, 140]
-      },
-      onClick: (info: { object?: unknown }) => {
-        const o = info.object as RawFeature | undefined
-        store.set({ selected: o ? (o.properties.__a as FeatureAssertion) : undefined })
-      },
+    if (!s.layers.semantics || features.length === 0 || !makeSemantics) return []
+    return [makeSemantics({
+      features,
+      waterLevel: s.waterLevel,
+      condition: (s.surface === 'diff' ? 'highres' : s.surface) as TerrainCondition,
+      roadThresholds: catalog.semantics.road_depth_classes_m,
+      changedOnly: s.layers.changedOnly,
+      onClick: (a) => store.set({ selected: a }),
     })]
   }
 
@@ -336,7 +334,7 @@ async function boot() {
 
   // 計測ハーネスからの取り出し口
   ;(window as unknown as Record<string, unknown>).__iwagaki = {
-    perf, scheduler, store,
+    perf, scheduler, store, map,
     get pc() { return pcb?.controller },
     snapshot: () => ({
       ...perf.snapshot(),

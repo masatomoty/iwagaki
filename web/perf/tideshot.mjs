@@ -1,0 +1,11 @@
+import { chromium } from '@playwright/test'
+const b = await chromium.launch({ headless: false, args: ['--ignore-certificate-errors'] })
+const p = await (await b.newContext({ ignoreHTTPSErrors: true, viewport: {width:1400,height:1000} })).newPage()
+await p.goto('http://localhost:8080/', { waitUntil: 'load' })
+await p.waitForFunction(() => globalThis.__iwagaki?.snapshot?.().milestones?.time_to_plateau !== undefined, null, {timeout:40000}).catch(()=>{})
+await p.waitForTimeout(2500)
+await p.evaluate(() => { globalThis.__iwagaki.setSurface('diff'); globalThis.__iwagaki.setWaterLevel(0.93) })
+await p.waitForTimeout(2500)
+await p.screenshot({ path: 'perf/shots/tide-record-high.png' })
+console.log('ok')
+await b.close()

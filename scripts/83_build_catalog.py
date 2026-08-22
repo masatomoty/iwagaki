@@ -124,6 +124,8 @@ def main() -> int:
     tiles3d = load("3dtiles_report.json")
     pc = load("pointcloud_report.json")
     summary = json.loads((OUT / "summary.json").read_text())
+    tide_path = OUT / "tide_levels.json"
+    tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
 
     def dir_bytes(rel: str) -> int:
         d = WEB_DATA / rel
@@ -149,7 +151,11 @@ def main() -> int:
         "water_level": {
             "min": H_MIN, "max": H_MAX, "step": H_STEP,
             "representative": list(REPRESENTATIVE_H),
-            "reference_levels_m_tp": {"MSL_maizuru": TP_OF_MSL},
+            # scripts/86_tide_levels.py が求めた実際の潮位。水位 H を
+            # 根拠のないパラメータのままにしないための目盛り
+            "reference_levels_m_tp": (tide["reference_levels_m_tp"] if tide
+                                      else {"MSL": TP_OF_MSL}),
+            "reference_levels_detail": tide,
         },
         "packing": {
             "scheme": "rgba-terrarium-hconn",

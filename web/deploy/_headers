@@ -1,0 +1,24 @@
+# Workers Assets のレスポンスヘッダ。deploy/deploy.sh が dist/_headers にコピーする。
+# 既定は `public, max-age=0, must-revalidate` なので、
+# 内容不変のものだけ immutable にする（web/serve.mjs の cacheControl() と同じ方針）。
+#
+# index.html / data/catalog.json / data/*_report.json は既定のまま（毎回再検証）。
+# catalog.json が入口なので、ここが再検証されればアセット差し替えに追従できる。
+#
+# 注意: data/tiles と data/3dtiles のパスは内容ハッシュを含まない。
+# データを作り直したら immutable キャッシュを持つブラウザは古いタイルを見続ける。
+# 差し替える時は URL を変える（catalog.json の url にバージョンを入れる）か、
+# Cloudflare 側のキャッシュを purge して index.html を跨いだ再訪を待つ。
+# ルールは 100 件・1行 2000 文字まで。
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/tiles/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/3dtiles/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/objects.geojson
+  Cache-Control: public, max-age=31536000, immutable

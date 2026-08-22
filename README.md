@@ -27,7 +27,8 @@ PLATEAUの粗い地形表現（5m格子TIN）では捉えられない微地形�
 - [x] 最小 vertical slice — **go/no-go は GO**（`docs/RESULTS.md`）
 - [x] Web 配信・描画・ネットワーク設計（`docs/WEB_DESIGN.md`）と最小 viewer（`web/`）
 - [ ] LAS/LAZ 点群パス（PDAL ground filter → DTM → COPC）※ 点群データは別途提供予定、スクリプトは用意済み・未検証
-- [ ] Cloudflare へのデプロイと LAS アップロード経路
+- [x] Cloudflare 配信インフラ（`docs/INFRA.md`）— 静的配信 + COPC の R2 Range 配信。ローカル workerd で検証済み、**実配信での再測は未**
+- [ ] LAS アップロード経路（Worker + D1 + R2 multipart）とジョブ実行
 
 ### 第一段階の結果 → **GO**
 
@@ -70,6 +71,7 @@ docs/
   RESULTS.md     第一段階（解析）の結果と go/no-go
   WEB_DESIGN.md  Web 配信・描画・ネットワーク設計
   WEB_RESULTS.md ネットワーク実測の結果
+  INFRA.md       Cloudflare 配信インフラ（構成・手順・ローカル配信との差分）
 src/iwagaki/     解析ライブラリ
 scripts/         前処理パイプライン（番号順に実行）
 data/
@@ -83,6 +85,7 @@ web/             ブラウザ可視化
   src/view/      MapLibre + deck.gl
   serve.mjs      production 相当の静的配信（HTTP/2・Range・事前圧縮）
   perf/run.mjs   ネットワークプロファイル別の実測ハーネス
+  deploy/        Cloudflare 配信（Worker + wrangler 設定 + デプロイ後の検証）
 ```
 
 ## セットアップ
@@ -124,6 +127,19 @@ scripts/build_web.sh        # → Web 配信アセット（タイル・COPC・3D
 .venv/bin/python scripts/15_pointcloud_dtm.py path/to/input.laz            # DTM + COPC 生成
 scripts/run_all.sh --source pointcloud
 ```
+
+### Cloudflare に配信する
+
+```bash
+cd web
+npx wrangler login       # 初回のみ
+npm run deploy:dry       # 設定の検証だけ（Cloudflare に何も作らない）
+npm run deploy           # build → COPC を R2 → Worker をデプロイ
+npm run deploy:check <配信URL>   # 206 / 圧縮 / キャッシュを実測して合否を出す
+```
+
+静的アセットは Workers Assets、COPC だけ Worker 経由で R2 から Range 配信する
+（Workers Assets は Range に 200 を返すため）。詳細と限界は `docs/INFRA.md`。
 
 ## 出典・ライセンス
 

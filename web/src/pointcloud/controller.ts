@@ -29,6 +29,8 @@ export class PointCloudController {
   private pool = new DecodePool()
   private inFlight = new Set<string>()
   private resident = new Set<string>()
+  /** いま必要としているノード。stillNeeded はここを見る（発行時の集合ではなく） */
+  private wanted = new Set<string>()
   private epoch = 0
   private opened = false
 
@@ -65,7 +67,8 @@ export class PointCloudController {
       view, budget,
       toLocal: this.toLocal,
     })
-    const wantedKeys = new Set(wanted.map((w) => w.key))
+    this.wanted = new Set(wanted.map((w) => w.key))
+    const wantedKeys = this.wanted
 
     // 不要になったものを GPU から降ろす
     const drop = [...this.resident].filter((k) => !wantedKeys.has(k))
@@ -88,13 +91,12 @@ export class PointCloudController {
     for (const g of groups) {
       if (g.members.length > 1) this.o.scheduler.noteCoalesce(g.members.length, g.extraBytes)
       for (const m of g.members) this.inFlight.add(m.item.key)
-      void this.fetchGroup(g, wantedKeys)
+      void this.fetchGroup(g)
     }
   }
 
   private async fetchGroup(
     g: { begin: number; end: number; members: RangeMember<NodeRequest>[]; extraBytes: number },
-    wantedKeys: Set<string>,
   ) {
     const anyCoarse = g.members.some((m) => m.item.coarse)
     const epochAtIssue = this.epoch
@@ -107,7 +109,9 @@ export class PointCloudController {
         rank: Math.min(...g.members.map((m) => m.item.depth)),
         epoch: epochAtIssue,
         estBytes: g.end - g.begin,
-        stillNeeded: () => g.members.some((m) => wantedKeys.has(m.item.key)),
+        // 発行時の集合を閉じ込めると永久に true になり、キャンセルが一度も発火しない。
+        // 常に「いま必要なノード」を見る
+        stillNeeded: () => g.members.some((m) => this.wanted.has(m.item.key)),
       })
       const chunks = await Promise.all(g.members.map(async (m) => {
         const slice = bytes.slice(m.begin - g.begin, m.end - g.begin)

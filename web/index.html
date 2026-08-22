@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
+<link rel="icon" href="data:," />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>iwagaki — 舞鶴・吉原 高潮浸水ビューア</title>
 <style>
@@ -26,6 +27,11 @@
   .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600; }
   label.row { display: flex; align-items: center; gap: 7px; padding: 2px 0; font-size: 12px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
+  .tickbar { position: relative; height: 6px; margin: -4px 0 2px; }
+  .tickbar i { position: absolute; top: 0; width: 1px; height: 6px; background: var(--muted); }
+  .seg.wrap { flex-wrap: wrap; gap: 3px; }
+  .seg.wrap button { flex: 1 1 46%; line-height: 1.25; padding: 4px 2px; }
+  .seg.wrap button .sub { font-size: 10px; }
   .wl { display: flex; justify-content: space-between; align-items: baseline; }
   .wl b { font-size: 17px; font-variant-numeric: tabular-nums; }
   .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }

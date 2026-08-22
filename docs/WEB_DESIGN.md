@@ -533,6 +533,11 @@ R2 カスタムドメインを同一ゾーンに置いて `Timing-Allow-Origin` 
 `catalog.json` の URL を差し替えるだけで Cloudflare に載る形にしておく。
 **境界は「catalog.json が指す URL」1点**。
 
+> **実装済み（`docs/INFRA.md`）**: 静的配信は Workers Assets、`/data/pointcloud/*.copc.laz` だけ
+> Worker → R2 binding。結果として catalog.json の URL は相対のまま変えずに済んだ。
+> なお **Workers Assets も Range に 200 を返す** ことをローカル workerd で実測しており、
+> ここで Pages について書いた条件は Workers Assets にも当てはまる。
+
 ---
 
 ## 7. Upload lifecycle

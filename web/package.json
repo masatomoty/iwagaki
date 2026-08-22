@@ -9,7 +9,10 @@
     "typecheck": "tsc --noEmit",
     "serve": "node serve.mjs",
     "serve:h1": "node serve.mjs --http1",
-    "perf": "node perf/run.mjs"
+    "perf": "node perf/run.mjs",
+    "deploy": "deploy/deploy.sh",
+    "deploy:dry": "deploy/deploy.sh --dry-run",
+    "deploy:check": "node deploy/check.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",
@@ -23,6 +26,7 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "typescript": "^5.9.0",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "wrangler": "^4.125.0"
   }
 }

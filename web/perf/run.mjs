@@ -136,6 +136,53 @@ if (SCENARIO === 'profiles') {
     out.push(await measure(browser, p, `${BASE}/${SUFFIX}`))
     console.log('done')
   }
+} else if (SCENARIO === 'cancel') {
+  // キャンセル経路の検証。これまでのカメラ操作（中心から 260px パン）では
+  // 可視集合がほとんど変わらず、キャンセルが 1 件も出ていなかった。
+  // 大きくズームアウト / 対角へ飛ぶ / すぐ引き返す、を読み込み中にぶつける。
+  for (const p of ['fast4g', 'fatpipe-highrtt']) {
+    process.stdout.write(`measuring cancel ${p} ... `)
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: VIEWPORT })
+    const page = await ctx.newPage()
+    const cdp = await ctx.newCDPSession(page)
+    await cdp.send('Network.enable')
+    await cdp.send('Network.clearBrowserCache')
+    await cdp.send('Network.emulateNetworkConditions', PROFILES[p])
+    await page.goto(`${BASE}/?pc=1`, { waitUntil: 'commit' })
+    await page.waitForFunction(
+      () => globalThis.__iwagaki?.snapshot?.().milestones?.first_meaningful_render !== undefined,
+      null, { timeout: 20_000 }).catch(() => {})
+
+    // 読み込みが走っている最中に、視野を大きく変える操作を連続で当てる
+    const moves = [
+      { zoom: 13.2, bearing: 0, pitch: 0 },
+      { zoom: 17.5, bearing: 120, pitch: 70, dx: 0.004, dy: 0.003 },
+      { zoom: 13.5, bearing: -60, pitch: 20, dx: -0.005, dy: -0.004 },
+      { zoom: 17.8, bearing: 200, pitch: 80, dx: 0.003, dy: -0.003 },
+      { zoom: 15.6, bearing: -28, pitch: 52 },
+    ]
+    for (const m of moves) {
+      await page.evaluate((mv) => {
+        const map = globalThis.__iwagaki.map
+        const c = map.getCenter()
+        map.jumpTo({
+          center: [c.lng + (mv.dx ?? 0), c.lat + (mv.dy ?? 0)],
+          zoom: mv.zoom, bearing: mv.bearing, pitch: mv.pitch,
+        })
+      }, m)
+      await page.waitForTimeout(700)
+    }
+    await page.waitForTimeout(4000)
+    const snap = await page.evaluate(() => globalThis.__iwagaki.snapshot())
+    out.push({ profile: `${p}/cancel`, load: snap,
+               water_level_sweep: { requests_issued: null, quiescent: false },
+               after_camera_move: { milestones: snap.milestones, scheduler: snap.scheduler,
+                                    camera: snap.camera, pointcloud: snap.pointcloud },
+               page_errors: [] })
+    await page.screenshot({ path: path.join(HERE, 'results', `cancel-${p}.png`) })
+    await ctx.close()
+    console.log('done')
+  }
 } else if (SCENARIO === 'coalesce') {
   const only = opt('profiles', undefined)
   const list = only ? only.split(',') : ['fast4g', 'slow-highrtt']

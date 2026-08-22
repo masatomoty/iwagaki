@@ -1,6 +1,9 @@
 // 浸水・地形・差分のタイルレイヤ。描画実体は FloodMeshLayer（板ではなくメッシュ）。
 // タイル取得は必ず net/Scheduler を通す（renderer は fetch を持たない: docs/WEB_DESIGN.md §1）。
 
+// NOTE: 深いパス（dist/tile-layer/tile-layer.js）から入れて @deck.gl/layers を
+// 初期チャンクから外そうとしたが、package.json の exports に無く解決できない。
+// 初期チャンクの内訳は docs/WEB_RESULTS.md §8.1 を参照
 import { TileLayer } from '@deck.gl/geo-layers'
 
 import { decodeTileImage } from '../assets/packing'
@@ -24,6 +27,8 @@ export interface FloodTileLayerOptions {
   uniforms: Omit<FloodMeshUniforms, 'bounds' | 'metersPerTexel' | 'hasDiff'>
   visible: boolean
   opacity: number
+  /** そのタイルがいまも視野に必要か。付けないとキャンセル対象にならない */
+  isTileNeeded?: (z: number, x: number, y: number) => boolean
   onTileLoaded?: (z: number) => void
   onViewportLoad?: () => void
   refinementStrategy?: 'best-available' | 'no-overlap' | 'never'
@@ -51,9 +56,12 @@ export function createFloodTileLayer(o: FloodTileLayerOptions) {
       signal?: AbortSignal
     }) => {
       const u = url(o.urlTemplate, tile.index)
+      const { x, y, z } = tile.index
       const get = async (target: string) =>
         decodeTileImage(await o.scheduler.submit({
-          key: target, url: target, cls: o.cls, rank: tile.index.z, signal: tile.signal,
+          key: target, url: target, cls: o.cls, rank: z, signal: tile.signal,
+          epoch: o.scheduler.currentEpoch,
+          stillNeeded: o.isTileNeeded ? () => o.isTileNeeded!(z, x, y) : undefined,
         }))
       // 差分モードは「標高（メッシュ用）」と「2 条件の h_conn」で 2 枚必要
       const [image, diffImage] = await Promise.all([

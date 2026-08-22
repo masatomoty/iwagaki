@@ -37,6 +37,7 @@ export interface Catalog {
     min: number; max: number; step: number
     representative: number[]
     reference_levels_m_tp: Record<string, number>
+    reference_levels_detail?: unknown
   }
   packing: { scheme: string; elev: string; hconn: string; h_step: number; note: string }
   terrain: Record<string, TerrainAsset>

@@ -5,3 +5,4 @@ public/data/
 perf/*.png
 perf/shots/
 perf/results/*.png
+.wrangler/
