@@ -20,7 +20,7 @@ export function createPointCloud(opts: {
   matrix: [number, number, number, number]
   geoid: number
   coalesceGap: number
-  usefulPoints: number
+  usefulFraction: number
   onChange: () => void
 }): PcBundle {
   const renderer = new DeckPointCloudRenderer(opts.originWgs84, opts.onChange)
@@ -34,7 +34,7 @@ export function createPointCloud(opts: {
     geoid: opts.geoid,
     coalesceGap: opts.coalesceGap,
     maxSpan: 4 * 1024 * 1024,
-    usefulPoints: opts.usefulPoints,
+    usefulFraction: opts.usefulFraction,
   })
   return { controller, renderer }
 }

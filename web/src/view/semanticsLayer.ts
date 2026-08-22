@@ -52,3 +52,29 @@ export function createSemanticsLayer(o: SemanticsOptions) {
     },
   })
 }
+
+/**
+ * 点群が地表面として効いている範囲の輪郭。
+ *
+ * AOI は 100 ha だが点群が効いているのは 3.17 ha しかない（`docs/RESULTS.md`）。
+ * 画面に境界が無いと「点群で高精度に見た結果」が全域に効いているように読める。
+ *
+ * `GeoJsonLayer` を持つこのモジュールに同居させているのは、
+ * チャンクを増やすと往復が 1 回増えるから。実配信では往復回数が
+ * 待ち時間を支配していた（docs/WEB_RESULTS.md §6.6）。
+ */
+export function createPcCoverageLayer(data: unknown) {
+  return new GeoJsonLayer({
+    id: 'pc-coverage',
+    data: data as never,
+    // 塗ると下の浸水色・差分色が読めなくなる。境界だけ出す
+    filled: false,
+    stroked: true,
+    pickable: false,
+    lineWidthUnits: 'pixels',
+    getLineWidth: 2,
+    getLineColor: [255, 214, 64, 220],
+    // 地形メッシュの上に線を置く。深度で負けると帯の内側で線が消える
+    parameters: { depthTest: false },
+  })
+}

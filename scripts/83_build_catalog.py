@@ -96,6 +96,15 @@ def local_frame(to_wgs, x0: float, y0: float, lon0: float, lat0: float) -> dict:
     }
 
 
+def pc_coverage() -> dict:
+    """scripts/25 が書いた被覆輪郭。無ければ空で返す（配線だけ先に入っている状態を許す）"""
+    p = WEB_DATA / "pc_coverage.geojson"
+    if not p.exists():
+        return {}
+    props = json.loads(p.read_text())["features"][0]["properties"]
+    return {"url": "data/pc_coverage.geojson", "bytes": p.stat().st_size, **props}
+
+
 def main() -> int:
     WEB_DATA.mkdir(parents=True, exist_ok=True)
     to_wgs = pyproj.Transformer.from_crs(CRS_ANALYSIS, "EPSG:4326", always_xy=True)
@@ -217,6 +226,9 @@ def main() -> int:
             # 実際に出現したコードだけ載せる。viewer の凡例はこれを引く
             "codelists": codelists,
         },
+        # 点群が地表面として効いている範囲。AOI 100 ha に対して 3 ha しか無いので、
+        # 明示しないと「点群で高精度に見た結果」が全域に効いているように読める
+        "pointcloud_coverage": pc_coverage(),
         "totals_bytes": {
             "tiles": dir_bytes("tiles"),
             "3dtiles": dir_bytes("3dtiles"),

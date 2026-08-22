@@ -18,13 +18,20 @@ import type { FloodMeshUniforms } from './view/floodMeshLayer'
 import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
 import { applyPreset, bindCameraKeys, createMap } from './view/map'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
-import type { createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
+import type { createPcCoverageLayer as CreatePcCoverageLayer,
+              createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
 
 const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_meaningful_render の対象）
-const USEFUL_POINTS = 200_000
+/**
+ * 「点群が見えた」とみなす、LOD が選んだ点数に対する割合。
+ * 絶対値（旧: 20 万点）は合成点群向けの値で、実点群では LOD の選択が
+ * 17.3〜21.6 万点と閾値をまたぎ、同じ画面でも計測できたりできなかったりした。
+ * 割合にすればデータ密度・LOD 予算を変えても同じものを指す（docs/WEB_RESULTS.md §6.3）。
+ */
+const USEFUL_FRACTION = 0.5
 /** 実測で決めた常駐点数の上限（docs/WEB_RESULTS.md §6.2）。?maxpts= で上書きできる */
 const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 600_000
 
@@ -66,6 +73,10 @@ async function boot() {
   let rawFeatures: RawFeature[] = []
   let features: RawFeature[] = []
   let makeSemantics: typeof CreateSemanticsLayer | undefined
+  let makePcCoverage: typeof CreatePcCoverageLayer | undefined
+  /** 診断用。tileset の内部状態を __iwagaki から見るために持つ */
+  let plateauTileset: unknown
+  let pcCoverageData: unknown
   const assertions = new Map<string, FeatureAssertion>()
   let featureExaggeration = -1
   /** 地物ポリゴンを地面の高さに載せる。鉛直強調を変えたら作り直す */
@@ -93,10 +104,30 @@ async function boot() {
     rebuildFeatureGeometry()
     perf.mark('semantics_loaded')
     // GeoJsonLayer もここで初めて読む
-    makeSemantics = (await import('./view/semanticsLayer')).createSemanticsLayer
+    const mod = await import('./view/semanticsLayer')
+    makeSemantics = mod.createSemanticsLayer
+    makePcCoverage = mod.createPcCoverageLayer
     perf.mark('semantics_module_loaded')
     refresh()
+    void loadPcCoverage()
   })()
+
+  /**
+   * 点群の被覆輪郭（118 kB）。**クラスは prefetch** で、
+   * 何かを待たせることが無いようにする。無くても地図は成立し、
+   * 有ると「点群がどこに効いているか」が分かる、という性質の情報。
+   */
+  async function loadPcCoverage() {
+    const a = catalog.pointcloud_coverage
+    if (!a?.url || pcCoverageData) return
+    try {
+      const b = await scheduler.submit({ key: 'pc-coverage', url: a.url, cls: 'prefetch' })
+      pcCoverageData = JSON.parse(new TextDecoder().decode(b))
+      refresh()
+    } catch {
+      // 表示の補助なので、取れなくても地図は動かす
+    }
+  }
 
   // ---- 描画ループ -------------------------------------------------------
   const extent = catalog.aoi.bbox_wgs84
@@ -243,6 +274,7 @@ async function boot() {
         // 塗り替えでは測り直さない。time_to_plateau は初回描画の指標
         onViewportLoaded: () => { if (first) perf.mark('time_to_plateau') },
         onTileError: (t, e) => { plateauFailed++; console.warn('b3dm failed', t, e) },
+        onTileset: (ts) => { plateauTileset = ts },
       })
       if (first) perf.mark('plateau_module_loaded')
     } finally {
@@ -256,6 +288,11 @@ async function boot() {
     // レイヤ自体は外さず visible で切る（外して戻すと deck.gl が assertion で落ちる）
     const show = store.state.layers.plateau && store.state.exaggeration === 1
     return [plateauLayer.clone({ visible: show })]
+  }
+
+  function pcCoverageLayer() {
+    if (!store.state.layers.pcCoverage || !pcCoverageData || !makePcCoverage) return []
+    return [makePcCoverage(pcCoverageData)]
   }
 
   function semanticsLayer() {
@@ -276,6 +313,7 @@ async function boot() {
     overlay.setProps({
       layers: [
         ...terrainLayers(),
+        ...pcCoverageLayer(),
         ...semanticsLayer(),
         ...plateauLayers(),
         ...(pcb ? pcb.renderer.layers(store.state.layers.pointcloud,
@@ -330,7 +368,7 @@ async function boot() {
         origin6674: [ox, oy], originWgs84: catalog.aoi.centre_wgs84,
         matrix, geoid,
         coalesceGap: OPT.coalesce ? 64 * 1024 : 0,
-        usefulPoints: USEFUL_POINTS,
+        usefulFraction: USEFUL_FRACTION,
         onChange: () => refresh(),
       })
       await pcb.controller.open()
@@ -398,6 +436,7 @@ async function boot() {
   ;(window as unknown as Record<string, unknown>).__iwagaki = {
     perf, scheduler, store, map,
     get pc() { return pcb?.controller },
+    plateauTileset: () => plateauTileset,
     snapshot: () => ({
       ...perf.snapshot(),
       pointcloud: pcb?.controller.stats() ?? null,

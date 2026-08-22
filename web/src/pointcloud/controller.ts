@@ -21,7 +21,18 @@ export interface PcControllerOptions {
   /** coalescing の設定。off にして比較計測できるようにしておく */
   coalesceGap: number
   maxSpan: number
-  usefulPoints: number
+  /**
+   * 「点群が見えた」とみなす、LOD が選んだ点数に対する割合。
+   *
+   * 以前は絶対値（20 万点）で判定していた。これは合成点群（325 万点・一様）向けに
+   * 決めた値で、実点群では LOD の選択が 17.3〜21.6 万点と閾値をまたぐため、
+   * 同じ画面でもプロファイルによって計測できたりできなかったりした。
+   * データの密度や LOD 予算を変えるたびに意味が変わる指標は使えない。
+   *
+   * LOD が「この視点にはこれだけ要る」と決めた点数に対する割合で見れば、
+   * データセットにも予算にも依らず「点群が実質そろった時刻」を指せる。
+   */
+  usefulFraction: number
 }
 
 export class PointCloudController {
@@ -31,6 +42,8 @@ export class PointCloudController {
   private resident = new Set<string>()
   /** いま必要としているノード。stillNeeded はここを見る（発行時の集合ではなく） */
   private wanted = new Set<string>()
+  /** LOD がいまの視点に必要と判断した点数。useful 判定の分母 */
+  private wantedPoints = 0
   private epoch = 0
   private opened = false
 
@@ -68,6 +81,7 @@ export class PointCloudController {
       toLocal: this.toLocal,
     })
     this.wanted = new Set(wanted.map((w) => w.key))
+    this.wantedPoints = wanted.reduce((s, w) => s + w.pointCount, 0)
     const wantedKeys = this.wanted
 
     // 不要になったものを GPU から降ろす
@@ -157,7 +171,8 @@ export class PointCloudController {
     const t0 = performance.now()
     this.o.renderer.upsert([chunk])
     this.o.perf.noteGpuUpload(performance.now() - t0)
-    if (this.o.renderer.stats().residentPoints >= this.o.usefulPoints) {
+    const need = this.wantedPoints * this.o.usefulFraction
+    if (need > 0 && this.o.renderer.stats().residentPoints >= need) {
       this.o.perf.mark('time_to_first_useful_pc')
     }
   }
@@ -165,6 +180,7 @@ export class PointCloudController {
   stats() {
     return {
       nodes: this.nodeCount,
+      wantedPoints: this.wantedPoints,
       resident: this.resident.size,
       inFlight: this.inFlight.size,
       ...this.o.renderer.stats(),

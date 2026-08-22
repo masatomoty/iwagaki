@@ -29,6 +29,20 @@ function buildingLegendHtml(mode: BuildingColorMode, entries: LegendEntry[]): st
     <div><i style="background:${UNKNOWN_HEX}"></i>${UNKNOWN_LABEL}</div></div>`
 }
 
+/**
+ * 点群が効いている範囲を数字でも出す。輪郭（黄線）だけだと
+ * 「AOI のどれくらいか」が伝わらない。100 ha に対して 3 ha である。
+ */
+function coverageNote(catalog: Catalog): string {
+  const c = catalog.pointcloud_coverage
+  if (!c) return ''
+  const aoi = 100
+  return `<div class="note">点群が地形に効いているのは
+    <b>${c.area_ha_cells} ha</b>（AOI ${aoi} ha の
+    ${((c.area_ha_cells / aoi) * 100).toFixed(1)}%）だけ。
+    黄線の外側は京都府 0.5m DEM のままで、点群は効いていない。</div>`
+}
+
 const SURFACES: { id: SurfaceMode; label: string }[] = [
   { id: 'baseline', label: 'PLATEAU 5m' },
   { id: 'highres', label: '高解像度 0.5m' },
@@ -41,6 +55,7 @@ const LAYERS: { key: keyof Store['state']['layers']; label: string }[] = [
   { key: 'plateau', label: 'PLATEAU 建物' },
   { key: 'semantics', label: '建物・道路（解析値）' },
   { key: 'pointcloud', label: '点群' },
+  { key: 'pcCoverage', label: '点群が効いている範囲' },
   { key: 'changedOnly', label: '判定が変わる地物のみ' },
 ]
 
@@ -92,7 +107,8 @@ export function renderControls(
     : `<div class="note">点群は <b>2026-07 取得のバックパック SLAM 実測</b>
         （${(pc.point_count / 1e6).toFixed(1)} M 点 / ${(pc.bytes / 1e6).toFixed(0)} MB）。
         <b>表示専用</b>で、浸水解析には点群を融合した地形ラスタを使っている。
-        歩いた線に沿った帯しか無い点に注意。</div>`
+        歩いた線に沿った帯しか無い点に注意。</div>
+       ${coverageNote(catalog)}`
 
   el.innerHTML = `
     <h1>舞鶴・吉原 高潮浸水</h1>

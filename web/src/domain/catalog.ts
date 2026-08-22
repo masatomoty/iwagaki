@@ -45,6 +45,10 @@ export interface Catalog {
                             region_min_height_ellipsoidal_m: number }>
   pointcloud: { url: string; synthetic: boolean; provenance: string
                 bytes: number; point_count: number; bytes_per_point: number }
+  /** 点群が地表面として効いている範囲の輪郭。無い配信物もあるので optional */
+  pointcloud_coverage?: { url: string; bytes: number
+                          area_ha_cells: number; area_ha_outline: number
+                          cells: number; resolution_m: number; note: string }
   semantics: { url: string; bytes: number; feature_count: number
                road_depth_classes_m: number[]
                /** 属性コード -> 表示名。CityGML 配布 zip 同梱のコードリスト由来 */

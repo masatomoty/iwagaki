@@ -227,6 +227,8 @@ export interface PlateauOptions {
   /** 現在の視野に必要なタイルが揃った瞬間。全タイルの取得完了ではない */
   onViewportLoaded: () => void
   onTileError: (t: unknown, e: unknown) => void
+  /** 診断用。tileset の内部状態を外から見られるようにする（perf/plateauprobe.mjs） */
+  onTileset?: (ts: unknown) => void
 }
 
 export function createPlateauLayer(o: PlateauOptions) {
@@ -254,7 +256,10 @@ export function createPlateauLayer(o: PlateauOptions) {
         return res
       },
     },
-    onTilesetLoad: (ts: unknown) => { tileset = ts as { isLoaded?: () => boolean } },
+    onTilesetLoad: (ts: unknown) => {
+      tileset = ts as { isLoaded?: () => boolean }
+      o.onTileset?.(ts)
+    },
     onTileLoad: (tile: unknown) => {
       const content = (tile as { content?: { gltf?: unknown } })?.content
       let r: ColorizeResult = { coloured: 0, buildings: 0, primitives: 0, values: [] }
@@ -265,8 +270,15 @@ export function createPlateauLayer(o: PlateauOptions) {
       }
       o.onTileLoad(r)
       // 「全 22 タイルの取得完了」を待つと、視野外のタイルが読まれるまで
-      // 立たない指標になる（実測で 49 秒かかった）。視野が満たされた時点にする
-      if (tileset?.isLoaded?.()) o.onViewportLoaded()
+      // 立たない指標になる（実測で 49 秒かかった）。視野が満たされた時点にする。
+      //
+      // ここで一度だけ見るのでは足りない。**最後のタイルの onTileLoad の時点では
+      // tileset.isLoaded() がまだ false** で、その後に更新される。以降タイルは
+      // 読まれないので、同期チェックだけだと指標が永久に立たない（実測: 9/22 で
+      // time_to_plateau が None のまま）。次フレームでもう一度見る。
+      const check = () => { if (tileset?.isLoaded?.()) o.onViewportLoaded() }
+      check()
+      requestAnimationFrame(check)
     },
     onTileError: o.onTileError,
     pickable: false,

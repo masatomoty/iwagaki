@@ -8,6 +8,8 @@ export interface LayerToggles {
   pointcloud: boolean
   semantics: boolean
   changedOnly: boolean
+  /** 点群が地表面として効いている範囲の輪郭。AOI 100 ha に対し 3 ha しかない */
+  pcCoverage: boolean
 }
 
 export interface AppState {
@@ -33,6 +35,9 @@ export function initialState(catalog: Catalog): AppState {
       // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
       // GPU 44 MB / 転送 14 MB を使う（docs/WEB_RESULTS.md §6）
       pointcloud: false, semantics: true, changedOnly: false,
+      // 既定 ON。これが無いと「点群で高精度に見た結果」が AOI 全域に
+      // 効いているように読めてしまう（実際に効いているのは 3.17 ha だけ）
+      pcCoverage: true,
     },
     coalesceEnabled: true,
     buildingColor: 'usage',
