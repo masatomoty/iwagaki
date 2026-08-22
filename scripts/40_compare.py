@@ -22,18 +22,24 @@ from iwagaki.config import (AOI, OUT, REPRESENTATIVE_H, RES_COARSE,
                             RES_HIGHRES, CRS_ANALYSIS)
 from iwagaki.raster import Grid, read, upsample_nearest, write
 
-PAIRS = [("baseline", "highres"), ("control", "highres"), ("baseline", "control")]
+PAIRS = [("baseline", "highres"), ("control", "highres"), ("baseline", "control"),
+         # 実点群を融合した地形との比較（scripts/19 の出力がある時だけ）
+         ("highres", "pointcloud"), ("baseline", "pointcloud")]
+DTM_FILES = {
+    "baseline": "dtm_baseline_500.tif", "control": "dtm_control_500.tif",
+    "highres": "dtm_highres_050.tif", "pointcloud": "dtm_pointcloud_050.tif",
+}
+COARSE = {"baseline", "control"}
 
 
 def load_condition(name: str, factor: int) -> tuple[np.ndarray, np.ndarray]:
     """(elev, h_conn) を 0.5m 解析格子に展開して返す。"""
-    dtm_name = {"baseline": "dtm_baseline_500.tif", "control": "dtm_control_500.tif",
-                "highres": "dtm_highres_050.tif"}[name]
+    dtm_name = DTM_FILES[name]
     e, _, nd = read(OUT / dtm_name)
     e[e == nd] = np.nan
     hc, _, nd2 = read(OUT / f"h_conn_{name}.tif")
     hc[hc == nd2] = np.inf
-    if name != "highres":
+    if name in COARSE:
         e = upsample_nearest(e, factor)
         hc = upsample_nearest(hc, factor)
     return e, hc
@@ -59,7 +65,9 @@ def main() -> int:
     land = ~seed
     cell = grid.cell_area()
 
-    cond = {n: load_condition(n, factor) for n in ("baseline", "control", "highres")}
+    available = [n for n in DTM_FILES
+                 if (OUT / DTM_FILES[n]).exists() and (OUT / f"h_conn_{n}.tif").exists()]
+    cond = {n: load_condition(n, factor) for n in available}
 
     report: dict = {"aoi": AOI.bounds, "cell_area_m2": cell,
                     "land_area_m2": round(float(land.sum() * cell), 1),
@@ -67,6 +75,8 @@ def main() -> int:
                     "pairs": {}}
 
     for a, b in PAIRS:
+        if a not in cond or b not in cond:
+            continue
         ea, ha = cond[a]
         eb, hb = cond[b]
         key = f"{a}_vs_{b}"

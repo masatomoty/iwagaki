@@ -23,6 +23,8 @@ CONDITIONS = {
     "baseline": ("dtm_baseline_500.tif", RES_COARSE),
     "control": ("dtm_control_500.tif", RES_COARSE),
     "highres": ("dtm_highres_050.tif", RES_HIGHRES),
+    # 実点群を融合した地形（scripts/19）。ファイルが無ければ黙って飛ばす
+    "pointcloud": ("dtm_pointcloud_050.tif", RES_HIGHRES),
 }
 
 
@@ -55,6 +57,9 @@ def main() -> int:
     }
 
     for name, (fname, res) in CONDITIONS.items():
+        if not (OUT / fname).exists():
+            print(f"{name:9s} skip（{fname} が無い）")
+            continue
         arr, grid, nodata = read(OUT / fname)
         arr[arr == nodata] = np.nan
         seed = seed_hi if res == RES_HIGHRES else seed_coarse
