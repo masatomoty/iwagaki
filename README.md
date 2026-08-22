@@ -26,7 +26,7 @@ PLATEAUの粗い地形表現（5m格子TIN）では捉えられない微地形�
 - [x] 設計・実装計画（`docs/DESIGN.md`）
 - [x] 最小 vertical slice — **go/no-go は GO**（`docs/RESULTS.md`）
 - [x] Web 配信・描画・ネットワーク設計（`docs/WEB_DESIGN.md`）と最小 viewer（`web/`）
-- [ ] LAS/LAZ 点群パス（PDAL ground filter → DTM → COPC）※ 点群データは別途提供予定、スクリプトは用意済み・未検証
+- [x] LAS/LAZ 点群パス — 実点群（吉原バックパック SLAM 4.98 億点 / 2026-07）を投入済み（`docs/RESULTS.md`）
 - [x] Cloudflare 配信インフラ（`docs/INFRA.md`）— 静的配信 + COPC の R2 Range 配信。ローカル workerd で検証済み、**実配信での再測は未**
 - [ ] LAS アップロード経路（Worker + D1 + R2 multipart）とジョブ実行
 
@@ -101,7 +101,8 @@ python3 -m venv .venv
 
 ```bash
 scripts/run_all.sh          # 取得 → 地形生成 → 浸水計算 → 比較 → 地物結合 → 図
-scripts/build_web.sh        # → Web 配信アセット（タイル・COPC・3D Tiles・catalog）
+scripts/build_web.sh        # → Web 配信アセット（タイル・3D Tiles・catalog）
+scripts/run_pointcloud.sh "/path/to/点群"   # 実点群: 検証 → 融合地形 → 再解析 → COPC
 ```
 
 初回は京都府DEMタイル4枚（各12MB）とPLATEAU CityGML 4メンバー（計1.25GB）を取得する。
@@ -123,10 +124,12 @@ scripts/build_web.sh        # → Web 配信アセット（タイル・COPC・3D
 ### 点群を投入する
 
 ```bash
-.venv/bin/python scripts/15_pointcloud_dtm.py path/to/input.laz --inspect  # まず中身を確認
-.venv/bin/python scripts/15_pointcloud_dtm.py path/to/input.laz            # DTM + COPC 生成
-scripts/run_all.sh --source pointcloud
+scripts/run_pointcloud.sh "/path/to/吉原点群データ"
 ```
+
+LAS の実態確認 → 被覆・密度の実測 → 京都府 DEM との突き合わせ → 融合地形の生成 →
+浸水の再計算 → 地物単位の影響評価 → 表示用 COPC、までを通しで行う。
+20 GB を数回読むので 30 分程度かかる。
 
 ### Cloudflare に配信する
 

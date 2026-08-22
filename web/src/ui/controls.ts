@@ -85,9 +85,14 @@ export function renderControls(
   }
   const wl = catalog.water_level
   const refs = Object.entries(wl.reference_levels_m_tp).sort((a, b) => a[1] - b[1])
-  const pcNote = catalog.pointcloud.synthetic
+  // 点群が合成か実測かで意味がまるで違うので、必ず明示する
+  const pc = catalog.pointcloud
+  const pcNote = pc.synthetic
     ? '<div class="note">点群は <b>DTM から生成した合成データ</b>（配信検証用）。観測値ではない。</div>'
-    : ''
+    : `<div class="note">点群は <b>2026-07 取得のバックパック SLAM 実測</b>
+        （${(pc.point_count / 1e6).toFixed(1)} M 点 / ${(pc.bytes / 1e6).toFixed(0)} MB）。
+        <b>表示専用</b>で、浸水解析には点群を融合した地形ラスタを使っている。
+        歩いた線に沿った帯しか無い点に注意。</div>`
 
   el.innerHTML = `
     <h1>舞鶴・吉原 高潮浸水</h1>
