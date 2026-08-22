@@ -77,7 +77,13 @@ export class Scheduler {
 
   submit(task: FetchTask): Promise<Uint8Array> {
     const hit = this.cache.get(task.key)
-    if (hit) return Promise.resolve(hit)
+    if (hit) {
+      if (task.parts && task.onPart) {
+        const b = task.range?.[0] ?? 0
+        for (const p of task.parts) task.onPart(p.key, hit.slice(p.begin - b, p.end - b))
+      }
+      return Promise.resolve(hit)
+    }
     const existing = this.inflightPromise.get(task.key)
     if (existing) return existing            // L0: 同一 key の重複を合流
     const p = new Promise<Uint8Array>((resolve, reject) => {
@@ -168,8 +174,28 @@ export class Scheduler {
     const live: Live = { ctrl, task: w.task, rec, received: 0 }
     this.live.set(w.task.key, live)
     this.peak = Math.max(this.peak, this.live.size)
+    // まとめた range の中を、届いた順に払い出す（1 本の完了を待たない）
+    const spanBegin = w.task.range?.[0] ?? 0
+    const pending = w.task.parts ? [...w.task.parts].sort((a, b) => a.end - b.end) : []
+    let emitted = 0
+    const onData = w.task.parts && w.task.onPart
+      ? (buf: Uint8Array, received: number) => {
+          while (emitted < pending.length &&
+                 pending[emitted].end - spanBegin <= received) {
+            const p = pending[emitted++]
+            try {
+              w.task.onPart!(p.key, buf.slice(p.begin - spanBegin, p.end - spanBegin))
+            } catch {
+              /* 呼び出し側の失敗で取得を止めない */
+            }
+          }
+        }
+      : undefined
+
     try {
-      const r = await rangeFetch(w.task.url, w.task.range, ctrl.signal, (n) => { live.received = n })
+      const r = await rangeFetch(
+        w.task.url, w.task.range, ctrl.signal, (n) => { live.received = n }, onData)
+      if (onData) onData(r.bytes, r.bytes.byteLength)   // 取りこぼしを最後に流す
       rec.endedAt = performance.now()
       rec.ttfbMs = r.ttfbMs
       rec.bytes = r.bytes.byteLength

@@ -19,11 +19,18 @@ export class RangeNotHonoured extends Error {
 
 export interface ProgressSink { (received: number): void }
 
+/**
+ * チャンクが届くたびに呼ばれる。`buf` は先頭から `received` バイトまでが有効。
+ * Range 要求で長さが確定しているときだけ渡される（= 逐次デコードできるのはその場合だけ）。
+ */
+export interface StreamSink { (buf: Uint8Array, received: number): void }
+
 export async function rangeFetch(
   url: string,
   range: [number, number] | undefined,
   signal: AbortSignal,
   onProgress?: ProgressSink,
+  onData?: StreamSink,
 ): Promise<RawResult> {
   const t0 = performance.now()
   const headers: Record<string, string> = {}
@@ -33,30 +40,50 @@ export async function rangeFetch(
   if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`)
   if (range && res.status !== 206) throw new RangeNotHonoured(url)
 
-  const chunks: Uint8Array[] = []
-  let received = 0
   const reader = res.body?.getReader()
   if (!reader) {
     const buf = new Uint8Array(await res.arrayBuffer())
     onProgress?.(buf.length)
+    onData?.(buf, buf.length)
     return { bytes: buf, status: res.status, ttfbMs, received: buf.length }
   }
+
+  // Range 要求なら長さが確定しているので事前確保できる。
+  // こうすると「届いた分までのバッファ」をそのまま呼び出し側に渡せて、
+  // 1 リクエストの完了を待たずに部分ごとのデコードを始められる。
+  let out: Uint8Array | null = range ? new Uint8Array(range[1] - range[0] + 1) : null
+  const chunks: Uint8Array[] = []
+  let received = 0
   try {
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
-      chunks.push(value)
+      if (out) {
+        if (received + value.length > out.length) {
+          // content-encoding などで受信量が Range 長を超えた。事前確保をやめて積み直す
+          chunks.push(out.slice(0, received))
+          out = null
+          chunks.push(value)
+        } else {
+          out.set(value, received)
+        }
+      } else {
+        chunks.push(value)
+      }
       received += value.length
       onProgress?.(received)
+      if (out) onData?.(out, received)
     }
   } catch (e) {
     // abort されたときも「ここまで受信した量」は呼び出し側に伝える
     ;(e as { received?: number }).received = received
     throw e
   }
+  if (out) {
+    const bytes = received === out.length ? out : out.subarray(0, received)
+    return { bytes, status: res.status, ttfbMs, received }
+  }
   if (chunks.length === 1) return { bytes: chunks[0], status: res.status, ttfbMs, received }
-  // content-encoding があると content-length（圧縮後）と受信量（展開後）が食い違うので、
-  // 事前確保はせず必ず実測長で結合する
   const merged = new Uint8Array(received)
   let o = 0
   for (const c of chunks) { merged.set(c, o); o += c.length }

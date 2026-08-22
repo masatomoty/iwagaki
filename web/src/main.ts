@@ -30,9 +30,9 @@ const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts'))
 /** 計測用のスイッチ。既定値を変えずに条件だけ切り替えられるようにする */
 const qs = new URLSearchParams(location.search)
 const OPT = {
-  // coalescing は既定 OFF。リクエスト数は減るが、束ねた range が全部届くまで
-  // 中のノードが 1 つもデコードされないので最初の点が遅れる（docs/WEB_RESULTS.md §4）
-  coalesce: qs.get('coalesce') === '1',
+  // coalescing は既定 ON。1 リクエスト内のストリーミングデコードを入れた結果、
+  // 「束ねると最初の点が遅れる」不利が消えて速い側になった（docs/WEB_RESULTS.md §4）
+  coalesce: qs.get('coalesce') !== '0',
   // 点群は既定 OFF。?pc=1 で有効化
   pointcloud: qs.get('pc') === '1',
 }

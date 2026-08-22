@@ -100,8 +100,10 @@ export class PointCloudController {
   ) {
     const anyCoarse = g.members.some((m) => m.item.coarse)
     const epochAtIssue = this.epoch
+    const byKey = new Map(g.members.map((m) => [m.item.key, m]))
+    const decoding: Promise<void>[] = []
     try {
-      const bytes = await this.o.scheduler.submit({
+      await this.o.scheduler.submit({
         key: `${this.o.url}#${g.begin}-${g.end}`,
         url: this.o.url,
         range: [g.begin, g.end - 1],
@@ -112,36 +114,16 @@ export class PointCloudController {
         // 発行時の集合を閉じ込めると永久に true になり、キャンセルが一度も発火しない。
         // 常に「いま必要なノード」を見る
         stillNeeded: () => g.members.some((m) => this.wanted.has(m.item.key)),
+        // まとめた range の中を、届いた順にデコードする。
+        // 1 本の完了を待つと coalescing がそのまま「最初の点の遅延」になる
+        parts: g.members.map((m) => ({ key: m.item.key, begin: m.begin, end: m.end })),
+        onPart: (key, bytes) => {
+          const m = byKey.get(key)
+          if (m) decoding.push(this.decodeAndShow(m, bytes))
+        },
       })
-      const chunks = await Promise.all(g.members.map(async (m) => {
-        const slice = bytes.slice(m.begin - g.begin, m.end - g.begin)
-        const buf = slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength)
-        return this.pool.decode({
-          key: m.item.key,
-          header: this.index!.header,
-          eb: this.index!.eb,
-          node: {
-            pointCount: m.item.pointCount,
-            pointDataOffset: m.begin,
-            pointDataLength: m.end - m.begin,
-          },
-          bytes: buf,
-          origin: this.o.origin6674,
-          matrix: this.o.matrix,
-          geoid: this.o.geoid,
-        }, [buf])
-      }))
-      for (const c of chunks) {
-        this.o.perf.noteDecode(c.decodeMs)
-        this.resident.add(c.key)
-      }
-      const t0 = performance.now()
-      this.o.renderer.upsert(chunks)
-      this.o.perf.noteGpuUpload(performance.now() - t0)
-
-      const pts = this.o.renderer.stats().residentPoints
-      if (pts >= this.o.usefulPoints) this.o.perf.mark('time_to_first_useful_pc')
-      if (this.inFlight.size === 0) {
+      await Promise.all(decoding)
+      if (this.inFlight.size <= g.members.length) {
         this.o.perf.mark('time_to_pc_refined')
         this.o.perf.cameraSettled()
       }
@@ -150,6 +132,33 @@ export class PointCloudController {
     } finally {
       for (const m of g.members) this.inFlight.delete(m.item.key)
       if (this.inFlight.size === 0) this.o.perf.cameraSettled()
+    }
+  }
+
+  /** 1 ノード分のバイトが届いた時点でデコードし、そのまま画面に出す */
+  private async decodeAndShow(m: RangeMember<NodeRequest>, bytes: Uint8Array): Promise<void> {
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+    const chunk = await this.pool.decode({
+      key: m.item.key,
+      header: this.index!.header,
+      eb: this.index!.eb,
+      node: {
+        pointCount: m.item.pointCount,
+        pointDataOffset: m.begin,
+        pointDataLength: m.end - m.begin,
+      },
+      bytes: buf,
+      origin: this.o.origin6674,
+      matrix: this.o.matrix,
+      geoid: this.o.geoid,
+    }, [buf])
+    this.o.perf.noteDecode(chunk.decodeMs)
+    this.resident.add(chunk.key)
+    const t0 = performance.now()
+    this.o.renderer.upsert([chunk])
+    this.o.perf.noteGpuUpload(performance.now() - t0)
+    if (this.o.renderer.stats().residentPoints >= this.o.usefulPoints) {
+      this.o.perf.mark('time_to_first_useful_pc')
     }
   }
 

@@ -32,7 +32,7 @@ export function initialState(catalog: Catalog): AppState {
       // GPU 44 MB / 転送 14 MB を使う（docs/WEB_RESULTS.md §6）
       pointcloud: false, semantics: true, changedOnly: false,
     },
-    coalesceEnabled: false,
+    coalesceEnabled: true,
     exaggeration: 1,
   }
 }

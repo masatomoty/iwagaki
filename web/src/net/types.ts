@@ -30,6 +30,14 @@ export interface FetchTask {
   stillNeeded?: () => boolean
   estBytes?: number
   signal?: AbortSignal
+  /**
+   * 1 本の Range にまとめた中の各部分。届いた分から順に `onPart` へ払い出す。
+   * これが無いと、まとめた range は全部届くまで 1 つもデコードできない
+   * （docs/WEB_RESULTS.md §4.2）。
+   * begin/end はファイル先頭からの絶対オフセット、end は排他。
+   */
+  parts?: { key: string; begin: number; end: number }[]
+  onPart?: (key: string, bytes: Uint8Array) => void
 }
 
 export interface RequestRecord {
