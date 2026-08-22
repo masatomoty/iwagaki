@@ -4,8 +4,8 @@
 アップロード経路とジョブ実行（同 §7）は作らない（§9 に境界を書く）。
 
 根拠区分は `docs/DATA.md` と同じ（**[実測]** / **[既知]** / **[仮説]** / **[未確認]**）。
-本ドキュメントの [実測] は断りがなければ **ローカルの workerd（`wrangler dev`）での実測**であり、
-実配信での再測はまだ行っていない（§7・§8）。
+配信条件（Range・圧縮・キャッシュ）は **実配信で実測済み**（§7.1）。
+残っているのは実 RTT 込みの性能で、そこは未測（§8）。
 
 ---
 
@@ -19,6 +19,7 @@
 配信できるようになると何が変わるか: `docs/WEB_RESULTS.md` の計測はすべてローカル配信のもので、
 「CDN のキャッシュ階層・実 RTT 分布・実際の Range 挙動」が入っていない（同 §7 の限界)。
 このインフラはその再測の土台であって、それ自体が結論ではない。
+Range 挙動は §7.1 で確定したが、**RTT 込みの性能はまだ測っていない。**
 
 ---
 
@@ -52,7 +53,7 @@ Worker は 1 本（`iwagaki-viewer`）。同一オリジンに両方を載せる
 ## 2. COPC だけ R2 を経由する理由 **[実測]**
 
 Workers Assets は Range リクエストに **200 を返し、ファイル全体を返す**
-（ローカル workerd で確認: `bytes=0-99` に対し status 200 / 9132 B 全体）。
+（`bytes=0-99` に対し status 200 / 9132 B 全体。**実配信とローカル workerd の両方で確認**）。
 COPC は「必要なノードのバイト範囲だけ取る」ことが前提なので、
 これに載せると 1 ノードごとに 14.4 MB が落ちてくる。**COPC を採用した意味が消える。**
 `docs/WEB_DESIGN.md` §6.1 は Pages についてこれを [既知] としていたが、
@@ -169,20 +170,32 @@ Cache API に 206 を put できないため（**[既知]**）。
 
 ---
 
-## 7. 実測（ローカル workerd、`wrangler dev` + ローカル R2） **[実測]**
+## 7. 実測
 
-`node deploy/check.mjs http://localhost:8788` → MUST 12/12。
+### 7.1 実配信 **[実測]**
+
+配信先: `https://iwagaki-viewer.tonbo.workers.dev`（2026-08-22 デプロイ）
+
+`npm run deploy:check https://iwagaki-viewer.tonbo.workers.dev` → **MUST 12/12**。
 
 | 項目 | 結果 |
 |---|---|
-| COPC `bytes=0-1023` | 206 / `bytes 0-1023/14445214` / 実バイト 1024、**中身がローカル実体と byte 一致** |
+| COPC `bytes=0-1023` | 206 / `bytes 0-1023/14445214`、**中身がローカル実体と byte 一致** |
 | COPC `bytes=-4096` | 206 / `bytes 14441118-14445213/14445214` |
 | COPC 範囲外 | 416 / `bytes */14445214` |
 | COPC マルチレンジ | 400（全体を返さない） |
-| Workers Assets の Range | **200**（全体。§2 の根拠） |
-| `objects.geojson` | br で配信 |
-| タイル | `immutable` |
-| `.assetsignore` | 番兵ファイルが 404 = アップロードされない |
+| **Workers Assets の Range** | **200**（全体を返す）。§2 の判断が実配信でも正しいことの確認 |
+| 圧縮 | `objects.geojson` / `tileset.json` / bundle すべて **br**（`application/geo+json` も対象） |
+| キャッシュ | タイル・3D Tiles・geojson は `immutable`、`index.html` と `catalog.json` は再検証。初回は `cf-cache-status: MISS` |
+| COPC のヘッダ | `immutable` / `etag` / `content-type: application/octet-stream` |
+
+つまり **Range 挙動・圧縮・キャッシュ制御は実配信で確定**した。
+`_headers` は deploy 時に反映されている（起動時読み込みの問題は実配信では出なかった）。
+
+### 7.2 ローカル workerd（`wrangler dev` + ローカル R2） **[実測]**
+
+同じ `check.mjs` で MUST 12/12。実配信と同じ結果に加えて、
+`.assetsignore` の効果を番兵ファイル（404 = アップロードされない）で確認した。
 
 viewer 実体での通し確認（`URL=http://localhost:8788/?pc=1 node perf/smoke.mjs`）:
 
@@ -195,19 +208,38 @@ viewer 実体での通し確認（`URL=http://localhost:8788/?pc=1 node perf/smo
 
 **この数字は性能の結論ではない**（ローカル・RTT ほぼ 0）。
 確認しているのは「経路が繋がっていて、正しいステータスとバイト列が返る」ことだけ。
+実配信での性能は §8 のとおり未測。
+
+### 7.3 落とし穴: URL を間違えると Cloudflare 自身の 404 が返る **[実測]**
+
+存在しない workers.dev サブドメイン（例: `iwagaki-viewer.plateau.workers.dev`）を叩くと
+**404 + 本文 `error code: 1042`** が返る。デプロイが失敗したように見えるが、
+デプロイは成功していて URL が違うだけ、という状態を作る。
+
+見分け方は **content-type**:
+
+| 返した主体 | 404 の形 |
+|---|---|
+| Cloudflare のエラーページ | `text/html` + `cache-control: private, ..., post-check=0, pre-check=0` |
+| 本リポジトリの Worker | `text/plain; charset=utf-8` + 本文 `not found` |
+
+正しい URL は `wrangler deploy` の出力に出る。流してしまった場合は
+`~/Library/Preferences/.wrangler/logs/`（macOS）のデプロイ時ログに残っている。
+`wrangler deployments list` でデプロイの有無だけは別に確認できる。
 
 ---
 
 ## 8. 未確認
 
-- **実配信での再測 [未確認]**。§7 はすべてローカル workerd。
-  production の Workers Assets が Range にどう応じるか、`cf-cache-status` の効き、
-  R2 への往復レイテンシは実際にデプロイして `check.mjs` と `perf/run.mjs` を回す必要がある。
+- **実配信での性能 [未確認]**。§7.1 で確認したのは配信条件（ステータス・ヘッダ・バイト列）だけ。
+  実 RTT 込みのマイルストーンは `perf/run.mjs` を実 URL に向けて回す必要がある。
+  edge キャッシュが温まった 2 回目以降（`cf-cache-status: HIT`）との差も未測。
 - Worker → R2 の 1 リクエストあたりのレイテンシと Class B オペレーション課金。
   点群 1 セッションで数十〜数百リクエスト出るので、無料枠の範囲かどうかを見る。
-- Workers Assets の `_headers` が production でも起動時読み込みなのか（ローカルでの事象が実配信にもあるか）。
 - `wrangler deploy` が表示する "Read N files" はディレクトリ上の実ファイル数（434）と一致しない。
   `.assetsignore` の効果はこの数字では確認できず、番兵ファイルで確認した。
+- `wrangler dev` の `_headers` は起動時に読まれる（起動後に置くと反映されないことがある）。
+  実配信では出なかったので、ローカル固有の事象と見ている。**[仮説]**
 
 ---
 

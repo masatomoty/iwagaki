@@ -27,7 +27,7 @@ PLATEAUの粗い地形表現（5m格子TIN）では捉えられない微地形�
 - [x] 最小 vertical slice — **go/no-go は GO**（`docs/RESULTS.md`）
 - [x] Web 配信・描画・ネットワーク設計（`docs/WEB_DESIGN.md`）と最小 viewer（`web/`）
 - [x] LAS/LAZ 点群パス — 実点群（吉原バックパック SLAM 4.98 億点 / 2026-07）を投入済み（`docs/RESULTS.md`）
-- [x] Cloudflare 配信インフラ（`docs/INFRA.md`）— 静的配信 + COPC の R2 Range 配信。ローカル workerd で検証済み、**実配信での再測は未**
+- [x] Cloudflare 配信インフラ（`docs/INFRA.md`）— 静的配信 + COPC の R2 Range 配信。**実配信で配信条件を検証済み**（Range 206・br 圧縮・キャッシュ制御）。RTT 込みの性能再測は未
 - [ ] LAS アップロード経路（Worker + D1 + R2 multipart）とジョブ実行
 
 ### 第一段階の結果 → **GO**

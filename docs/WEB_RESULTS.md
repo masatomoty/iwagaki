@@ -455,7 +455,7 @@ premultiplyAlpha 事故（`docs/WEB_DESIGN.md` §5.2）は起きていない。
 | 高 | キャンセル経路の検証シナリオを足す（ズームアウト・遠隔ジャンプ） | §5 のとおり現状は未検証 |
 | 中 | `slow-highrtt` 向けに LOD を浅く止める閾値の調整 | 12 秒で terrain 高ズームに届かない |
 | 中 | 実 LAS への差し替え後に decode / LOD を再計測 | 合成点群では結論が出せない |
-| 中 | **実配信での再測**（配信インフラは `docs/INFRA.md` で構築済み） | Workers Assets も Range に 200 を返すため COPC は Worker → R2。ローカル workerd では通ったが、CDN 階層と実 RTT は入っていない |
+| 中 | **実配信で `perf/run.mjs` を回す**（配信インフラは `docs/INFRA.md`、デプロイ済み） | 配信条件（Range 206 / br / キャッシュ）は実配信で確定済み（`docs/INFRA.md` §7.1）。残るのは実 RTT と edge キャッシュ温まり後の差 |
 | 中 | ノード数が桁で増える条件で coalescing を再評価 | §4.1 で符号は反転したが、試行 1 回では大きさを断定できない |
 | 中 | `objects.geojson` のストリーミング化（PMTiles 化も含む） | §4.2 のとおりここだけ未対応。560 kB の一括パース |
 | 低 | custom point-cloud renderer | §10 の移行条件にまだ届いていない |
