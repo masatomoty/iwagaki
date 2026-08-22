@@ -4,7 +4,7 @@ node_modules/
 public/data/
 perf/*.png
 perf/shots/
-perf/results/*.png
+perf/results/
 .wrangler/
 
 # デプロイ用の R2 API トークン（絶対にコミットしない）

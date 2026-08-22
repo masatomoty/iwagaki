@@ -153,24 +153,33 @@ if (SCENARIO === 'profiles') {
       () => globalThis.__iwagaki?.snapshot?.().milestones?.first_meaningful_render !== undefined,
       null, { timeout: 20_000 }).catch(() => {})
 
-    // 読み込みが走っている最中に、視野を大きく変える操作を連続で当てる
+    // 読み込みが走っている最中に、視野を大きく変える操作を連続で当てる。
+    //
+    // **絶対座標で跳ぶ**。相対移動（dx/dy の足し込み）だと、点群の被覆から
+    // 出たかどうかが積算の結果に左右されて確かめられない。
+    // 実点群は歩いた帯（3.17 ha / AOI 100 ha）にしか無いので、
+    // 被覆の中心に寄ってから被覆外の隅へ跳べば、発行済みノードが確実に
+    // `wanted` から外れる。合成点群は AOI 全体を覆っていたので、
+    // この状況が原理的に作れなかった（docs/WEB_RESULTS.md §5）。
+    const PC_CENTER = [135.328894, 35.456748]   // 点群 bounds の中心
+    const AOI_SW = [135.323041, 35.453227]      // 被覆外
+    const AOI_NE = [135.332888, 35.461394]      // 被覆外
     const moves = [
-      { zoom: 13.2, bearing: 0, pitch: 0 },
-      { zoom: 17.5, bearing: 120, pitch: 70, dx: 0.004, dy: 0.003 },
-      { zoom: 13.5, bearing: -60, pitch: 20, dx: -0.005, dy: -0.004 },
-      { zoom: 17.8, bearing: 200, pitch: 80, dx: 0.003, dy: -0.003 },
-      { zoom: 15.6, bearing: -28, pitch: 52 },
+      { center: PC_CENTER, zoom: 18.2, bearing: 0, pitch: 60 },    // 点群を深く要求させる
+      { center: AOI_SW, zoom: 18.0, bearing: 120, pitch: 70 },     // 被覆外へ跳ぶ
+      { center: PC_CENTER, zoom: 18.5, bearing: -60, pitch: 75 },  // 戻して再要求
+      { center: AOI_NE, zoom: 18.0, bearing: 200, pitch: 80 },     // 反対の隅へ
+      { center: PC_CENTER, zoom: 13.2, bearing: 0, pitch: 0 },     // 引いて全部不要にする
     ]
     for (const m of moves) {
       await page.evaluate((mv) => {
-        const map = globalThis.__iwagaki.map
-        const c = map.getCenter()
-        map.jumpTo({
-          center: [c.lng + (mv.dx ?? 0), c.lat + (mv.dy ?? 0)],
-          zoom: mv.zoom, bearing: mv.bearing, pitch: mv.pitch,
+        globalThis.__iwagaki.map.jumpTo({
+          center: mv.center, zoom: mv.zoom, bearing: mv.bearing, pitch: mv.pitch,
         })
       }, m)
-      await page.waitForTimeout(700)
+      // 発行はされたが完了はしていない、という間に次を当てたい。
+      // 完了まで待つとキャンセルの対象が残らない
+      await page.waitForTimeout(500)
     }
     await page.waitForTimeout(4000)
     const snap = await page.evaluate(() => globalThis.__iwagaki.snapshot())
@@ -213,6 +222,7 @@ const row = (r) => {
     m.time_to_terrain ?? '—',
     m.time_to_plateau ?? '—',
     m.time_to_first_useful_pc ?? '—',
+    mb(r.load.shell?.bytes),
     mb(b.initial_to_fmr),
     mb(b.at_10s),
     s.issued,
@@ -225,8 +235,9 @@ const row = (r) => {
     (r.after_camera_move.camera.settle_latency_ms.at(-1) ?? '—'),
   ]
 }
+// shell（コード）は毎回見る数字にする。FMR を決めているのはこれ（§8）
 const head = ['profile', 'FMR ms', 'terrain ms', 'PLATEAU ms', 'pc useful ms',
-  'MB→FMR', 'MB@10s', 'reqs', 'peak', 'cancel', 'MB wasted', 'coalesce g/m',
+  'MB shell', 'MB→FMR', 'MB@10s', 'reqs', 'peak', 'cancel', 'MB wasted', 'coalesce g/m',
   'decode p50', 'slider reqs', 'camera ms']
 const rows = out.map(row)
 const w = head.map((h, i) => Math.max(h.length, ...rows.map((r) => String(r[i]).length)))

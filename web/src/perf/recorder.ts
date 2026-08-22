@@ -12,11 +12,29 @@ export interface CameraEvent { at: number; settledAt?: number; latencyMs?: numbe
 
 interface ResourceSample { at: number; bytes: number }
 
+/**
+ * そのリクエストが「アプリのコード」か「地理データ」か。
+ *
+ * FMR を決めているのはバンドルであって地理データではない（§1、§6.6.4）。
+ * それなら **コードのバイト数は毎回見る数字**であるべきで、
+ * 別ツール（perf/shellcost.mjs）を走らせないと分からない状態にしておくと、
+ * 増えたことに気づけない。分類は perf/shellcost.mjs の classify() と揃える。
+ */
+function shellKind(url: string): 'code' | 'font' | 'data' {
+  const u = url.split('?')[0]
+  if (/\.(js|mjs|cjs|css|wasm|map)$/i.test(u)) return 'code'
+  if (/\.(woff2?|ttf|otf)$/i.test(u)) return 'font'
+  return 'data'
+}
+
 export class PerfRecorder {
   readonly t0 = performance.now()
   private marks = new Map<string, number>()
   private samples: ResourceSample[] = []
   private cumulative = 0
+  /** shell（コード + フォント）の転送量。地理データと分けて数える */
+  private shellBytes = 0
+  private shellRequests = 0
   private decode: number[] = []
   private gpuUpload: number[] = []
   private cameraEvents: CameraEvent[] = []
@@ -32,6 +50,7 @@ export class PerfRecorder {
           const b = e.transferSize || e.encodedBodySize || 0
           this.cumulative += b
           this.samples.push({ at: e.responseEnd, bytes: this.cumulative })
+          if (shellKind(e.name) !== 'data') { this.shellBytes += b; this.shellRequests++ }
         }
         this.emit()
       })
@@ -103,6 +122,11 @@ export class PerfRecorder {
       /** 同じマイルストーンをナビゲーション開始基準に直したもの */
       milestones_navigation: Object.fromEntries(
         [...this.marks].map(([k, v]) => [k, Math.round(v + this.t0)])),
+      shell: {
+        // 地理データを 1 バイトも見る前に払っているコスト。回帰指標（§8）
+        bytes: this.shellBytes,
+        requests: this.shellRequests,
+      },
       bytes: {
         initial_to_fmr: fmr !== undefined ? this.bytesAt(fmr) : null,
         at_5s: this.bytesAt(5000),

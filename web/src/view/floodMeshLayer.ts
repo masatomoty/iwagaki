@@ -61,7 +61,27 @@ const fmeshUniforms = {
   },
 } as const satisfies ShaderModule<FloodMeshUniforms>
 
+/**
+ * タイルは **area-registered**（1 画素 = 1 セル）である。
+ * `scripts/80_build_web_tiles.py` が `from_bounds(...tile_bounds, 256, 256)` で焼いており、
+ * セル k は uv [k/256, (k+1)/256) を占め、**中心は (k+0.5)/256** にある。
+ *
+ * これを point-registered として `texture(tex, uv)` で引くと、値が半セル分ずれた位置の
+ * ものになる。半セルの実距離はズームで変わる（z15 1.95 m / z17 0.49 m / z18 0.24 m）ので、
+ * **粗メッシュ(z14-15)と細メッシュ(z16-18)で地形が別の場所に出る**。
+ * 俯瞰視では z15 と z17 が同時に描かれるため（実測）、細タイルが揃った瞬間に
+ * 地形と浸水色が 1.5 m ほど動いて見えていた。
+ */
+const TEX = 256
+
 const DECODE = /* glsl */ `
+const float TEX = ${TEX}.0;
+
+/** uv -> 最寄りセル中心のテクスチャ座標。area-registered なので 0.5 ずらす */
+vec2 cellUv(vec2 uv) {
+  return (clamp(floor(uv * TEX), 0.0, TEX - 1.0) + 0.5) / TEX;
+}
+
 float decodeElev(vec3 c) {
   if (c.r == 0.0 && c.g == 0.0 && c.b == 0.0) return -9999.0;   // nodata
   return (c.r * 255.0) * 256.0 + (c.g * 255.0) + (c.b * 255.0) / 256.0 - 32768.0;
@@ -86,8 +106,30 @@ out vec3 vNormal;
 
 ${DECODE}
 
+/** 最寄りセルの値。nodata 判定にはこちらを使う（補間すると nodata が混ざる） */
+float sampleElevNearest(vec2 uv) {
+  return decodeElev(texture(elevTexture, cellUv(clamp(uv, 0.0, 1.0))).rgb);
+}
+
+/**
+ * セル中心を格子点とみなした双線形補間。**デコードしてから混ぜる**
+ * （パックされた RGB を線形補間すると別の標高になるので、GPU の LINEAR は使えない）。
+ *
+ * 4 点のどれかが nodata なら補間せず最寄りセルに落とす。混ぜると
+ * -9999 と実標高のランプができ、海際に平らな棚が生える（既知の症状）。
+ */
 float sampleElev(vec2 uv) {
-  return decodeElev(texture(elevTexture, clamp(uv, 0.0, 1.0)).rgb);
+  vec2 t = clamp(uv * TEX - 0.5, vec2(0.0), vec2(TEX - 1.0));
+  vec2 b = floor(t);
+  vec2 f = t - b;
+  vec2 b1 = min(b + 1.0, TEX - 1.0);
+  float e00 = decodeElev(texture(elevTexture, (b + 0.5) / TEX).rgb);
+  float e10 = decodeElev(texture(elevTexture, (vec2(b1.x, b.y) + 0.5) / TEX).rgb);
+  float e01 = decodeElev(texture(elevTexture, (vec2(b.x, b1.y) + 0.5) / TEX).rgb);
+  float e11 = decodeElev(texture(elevTexture, (b1 + 0.5) / TEX).rgb);
+  float lo = min(min(e00, e10), min(e01, e11));
+  if (lo < -9000.0) return sampleElevNearest(uv);
+  return mix(mix(e00, e10, f.x), mix(e01, e11, f.x), f.y);
 }
 
 void main(void) {
@@ -96,7 +138,8 @@ void main(void) {
   vElev = e;
   // nodata フラグは補間させない。標高そのものを補間すると、有効セルと nodata を
   // またぐ三角形が -9999 から実標高までのランプになり、海側に平らな棚が生える
-  vValid = e < -9000.0 ? 0.0 : 1.0;
+  // 判定は最寄りセルで行う（補間側は nodata を含む時点で最寄りに落ちている）
+  vValid = sampleElevNearest(aUv) < -9000.0 ? 0.0 : 1.0;
 
   // 近傍差分で法線を作る。テクスチャ 1 テクセル分の実距離は uniform で渡す
   float d = 1.0 / 256.0;
@@ -154,7 +197,7 @@ void main(void) {
 
   vec4 outColor;
   if (fmesh.mode > 0.5 && fmesh.hasDiff > 0.5) {
-    vec4 d = texture(diffTexture, vUv);
+    vec4 d = texture(diffTexture, cellUv(vUv));
     bool wb = decodeHConn(d.r) <= fmesh.waterLevel;
     bool wh = decodeHConn(d.g) <= fmesh.waterLevel;
     if (!wb && !wh) {
@@ -165,7 +208,7 @@ void main(void) {
     else if (wh)         outColor = vec4(vec3(0.93, 0.22, 0.18) * shade, 0.95);
     else                 outColor = vec4(vec3(0.97, 0.82, 0.16) * shade, 0.95);
   } else {
-    float hConn = decodeHConn(texture(elevTexture, vUv).a);
+    float hConn = decodeHConn(texture(elevTexture, cellUv(vUv)).a);
     bool isWet = hConn <= fmesh.waterLevel;
     float depth = isWet ? max(0.0, fmesh.waterLevel - vElev) : 0.0;
     if (isWet && depth > 0.0) {
