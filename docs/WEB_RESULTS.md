@@ -453,6 +453,7 @@ premultiplyAlpha 事故（`docs/WEB_DESIGN.md` §5.2）は起きていない。
 |---|---|---|
 | 高 | **初期チャンクをさらに削る**（522 kB gz）→ §8.1 | FMR を決めているのは依然としてバンドル。`slow-highrtt` の 3.1 s の大半がこれ |
 | 高 | キャンセル経路の検証シナリオを足す（ズームアウト・遠隔ジャンプ） | §5 のとおり現状は未検証 |
+| 高 | **Draco デコーダを外部 CDN から取るのをやめる**（§8.2） | 1.15 MB / 9 リクエストがクロスオリジン。同一オリジン規約（`docs/WEB_DESIGN.md` §8.3）にも反する |
 | 中 | `slow-highrtt` 向けに LOD を浅く止める閾値の調整 | 12 秒で terrain 高ズームに届かない |
 | 中 | 実 LAS への差し替え後に decode / LOD を再計測 | 合成点群では結論が出せない |
 | 中 | **実配信で `perf/run.mjs` を回す**（配信インフラは `docs/INFRA.md`、デプロイ済み） | 配信条件（Range 206 / br / キャッシュ）は実配信で確定済み（`docs/INFRA.md` §7.1）。残るのは実 RTT と edge キャッシュ温まり後の差 |
@@ -492,6 +493,66 @@ deck.gl 単体でも `MapView` + `MapController` で同じことはできる。
 なお `@deck.gl/layers`（194 kB）は `@deck.gl/geo-layers` のバレル経由で入ってくる。
 深いパス（`@deck.gl/geo-layers/dist/tile-layer/tile-layer.js`）での import を試したが、
 package.json の `exports` に無く解決できなかった。
+
+---
+
+### 8.2 実配信の HAR から出た最適化 — **b3dm の 70% は未使用の属性だった** **[実測]**
+
+実配信（`https://iwagaki-viewer.tonbo.workers.dev`）を初回表示した HAR を分解した。
+**転送は 68 リクエスト / 15.5 MB。** 内訳:
+
+| カテゴリ | 転送 (decoded) | 本数 | 占有 |
+|---|---|---|---|
+| **3D Tiles b3dm** | **10.64 MB** | 22 | **69%** |
+| バンドル (js/css) | 2.29 MB | 5 | 15% |
+| **Draco デコーダ（外部 CDN、3 重取得）** | **1.15 MB** | 9 | 7% |
+| terrain タイル | 0.81 MB | 28 | 5% |
+| `objects.geojson` | 0.57 MB | 1 | 4% |
+
+b3dm は上位 5 本で 77%（最大 `data322.b3dm` 単体で 2.34 MB）。
+そこで b3dm を分解したところ、**大きいのはジオメトリではなかった**:
+
+| `data322.b3dm` の中身 | バイト |
+|---|---|
+| batch table JSON（PLATEAU の全属性） | **1,645,322 (70%)** |
+| batch table BIN | 36,034 |
+| glTF（Draco 圧縮済み。頂点はここ） | 657,048 |
+
+22 タイル合計で **10.64 MB のうち 7.46 MB が batch table JSON**。
+中身は水系別の洪水浸水想定区域（`与保呂川水系…浸水ランク` など）、土砂災害リスク、
+`uro:BuildingDetailAttribute_*` を含む約 70 キーで、**この viewer は 1 つも読んでいない**。
+読むのは `gml_id` と塗り分け用の `bldg:class` / `bldg:usage` の 3 キーだけ
+（`web/src/view/plateau.ts` の `colorizeTile`、`web/src/view/buildingColor.ts` の `ATTRIBUTE`）。
+
+**対処**: `scripts/82_build_plateau_subset.py` の `trim_batch_table()` で、
+切り出し時に batch table を使うキーだけに絞る。glTF チャンクはバイト列のまま移すので
+ジオメトリの精度も見た目も変わらない。
+
+| | before | after |
+|---|---|---|
+| b3dm 22 タイル（1 LOD） | 10.64 MB | **3.15 MB** (-70%) |
+| セッションの b3dm 転送 [実測] | 10,655,872 B | **3,171,348 B** |
+| ページ全体（初回表示） | 15.5 MB | **8.0 MB** (-48%) |
+
+塗り分けは維持されている（`coloured: 1968 / buildings: 2005`、22/22 読み込み、
+console エラー 0、失敗リクエスト 0）。属性を増やす時は `BATCH_TABLE_KEEP` を
+`buildingColor.ts` と揃える。実際に残したキーは `3dtiles_report.json` の
+`batch_table_keys` に出る。
+
+**残っている無駄** — いずれも今回は手を付けていない:
+
+1. **Draco デコーダが外部 CDN から 3 重に落ちてくる**（`www.gstatic.com` の
+   `draco_decoder.wasm` 279 kB ×3、`draco_wasm_wrapper.js` ×3、`unpkg.com` の
+   `draco-worker.js` ×3 = 1.15 MB）。しかも **Draco が節約しているのは 12%（0.40 MB）だけ**
+   （展開後 3.41 MB → 圧縮後 3.01 MB）。デコーダを同一オリジンに置けば
+   クロスオリジン 9 本が消え、`transferSize` も測れるようになる。
+   Draco 自体を外せば差し引き 0.75 MB 減るが、b3dm の再エンコードが必要。
+2. **バンドル 1.87 MB（gzip 523 kB）** — §1 と §8.1 のとおり FMR を決めているのはここ。
+3. **b3dm は非圧縮で配信されている**（`application/octet-stream` は Cloudflare の
+   圧縮対象外）。batch table を削る前なら br で 7.46 MB → 0.33 MB になったが、
+   削った後に残るのは Draco 済みジオメトリなので圧縮の余地はほぼ無い。**削る方が正しい。**
+4. `bldg_lod1` と `bldg_lod2` は同じ地物数・同じ属性で同サイズ。1 セッションで読むのは
+   片方だけなので転送には効かないが、配信総量は 2 倍持っている。
 
 ---
 

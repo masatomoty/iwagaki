@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import struct
 import sys
 from pathlib import Path
 
@@ -25,6 +26,42 @@ SETS = {
     "bldg_lod2": "26202_maizuru-shi_city_2025_citygml_1_op_bldg_3dtiles_lod2",
 }
 WEB_DATA = ROOT / "web" / "public" / "data"
+
+# batch table から残すキー -----------------------------------------------------
+# PLATEAU の b3dm は batch table JSON に全属性（水系別の洪水浸水想定区域、
+# 土砂災害リスク、uro:* など約 70 キー）を持っており、**これが b3dm の 70% を占める**。
+# [実測] bldg_lod1 22 タイル 10.64 MB のうち batch table JSON が 7.46 MB。
+#
+# この viewer が読むのは gml_id と塗り分け用の属性だけ
+# （web/src/view/buildingColor.ts の ATTRIBUTE、web/src/view/plateau.ts の colorizeTile）。
+# 残りは配信しない。増やす時は buildingColor.ts と揃える。
+# 実際に残したキーは 3dtiles_report.json の batch_table_keys に出す。
+BATCH_TABLE_KEEP = ("gml_id", "bldg:class", "bldg:usage")
+
+
+def trim_batch_table(data: bytes) -> bytes:
+    """b3dm の batch table を BATCH_TABLE_KEEP だけに絞る。ジオメトリは触らない。
+
+    glTF チャンク（draco 圧縮済み）はバイト列のまま移すだけなので、
+    ジオメトリの精度も見た目も変わらない。
+    """
+    magic, _ver, _blen, ftj, ftb, btj, btb = struct.unpack("<4sIIIIII", data[:28])
+    if magic != b"b3dm" or btj == 0:
+        return data
+    head = 28 + ftj + ftb
+    table = json.loads(data[head:head + btj])
+    kept = {k: v for k, v in table.items() if k in BATCH_TABLE_KEEP}
+    # 残したキーが binary body を参照している（{byteOffset: ...} 形式）なら body ごと残す。
+    # 参照が無ければ body は誰も見ないので落とす。
+    keep_bin = any(isinstance(v, dict) for v in kept.values())
+    body = data[head + btj:head + btj + btb] if keep_bin else b""
+    new = json.dumps(kept, ensure_ascii=False, separators=(",", ":")).encode()
+    new += b" " * (-len(new) % 8)   # JSON の padding は空白（3D Tiles 1.0）
+    out = bytearray(data[:head] + new + body + data[head + btj + btb:])
+    struct.pack_into("<I", out, 8, len(out))    # byteLength
+    struct.pack_into("<I", out, 20, len(new))   # batchTableJSONByteLength
+    struct.pack_into("<I", out, 24, len(body))  # batchTableBinaryByteLength
+    return bytes(out)
 
 
 def aoi_region_rad() -> tuple[float, float, float, float]:
@@ -100,20 +137,26 @@ def main() -> int:
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "tileset.json").write_text(json.dumps(out_ts, separators=(",", ":")))
         total = 0
+        raw_total = 0
         for u in wanted:
-            data = zf.read(f"{prefix}/{u}")
+            raw = zf.read(f"{prefix}/{u}")
+            data = trim_batch_table(raw)
             p = dest / u
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(data)
             total += len(data)
+            raw_total += len(raw)
         mh = min_height(pruned_root)
         report[name] = {
             "url": f"data/3dtiles/{name}/tileset.json",
             "b3dm_count": len(wanted),
             "bytes": total,
+            "bytes_before_batch_table_trim": raw_total,
+            "batch_table_keys": list(BATCH_TABLE_KEEP),
             "region_min_height_ellipsoidal_m": round(mh, 3),
         }
-        print(f"{name}: {len(wanted)} b3dm, {total/1e6:.2f} MB, "
+        print(f"{name}: {len(wanted)} b3dm, {total/1e6:.2f} MB "
+              f"(batch table 削減前 {raw_total/1e6:.2f} MB), "
               f"region minH(ellipsoidal) = {mh:.3f} m")
     (WEB_DATA / "3dtiles_report.json").write_text(json.dumps(report, indent=2))
     return 0
