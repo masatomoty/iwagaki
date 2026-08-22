@@ -15,8 +15,15 @@ import { chromium } from '@playwright/test'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const BASE = process.env.BASE ?? 'https://localhost:8443'
 const args = process.argv.slice(2)
-const SCENARIO = args.find((a) => a.startsWith('--scenario='))?.split('=')[1] ?? 'profiles'
-const LABEL = args.find((a) => a.startsWith('--label='))?.split('=')[1] ?? ''
+/** 値に '=' が含まれても壊れないように、最初の '=' 以降を全部取る */
+const opt = (name, dflt) => {
+  const a = args.find((x) => x.startsWith(`--${name}=`))
+  return a === undefined ? dflt : a.slice(name.length + 3)
+}
+const SCENARIO = opt('scenario', 'profiles')
+const LABEL = opt('label', '')
+/** 既定の URL に付けるクエリ。点群は既定 OFF なので計測では ?pc=1 を付ける */
+const SUFFIX = opt('suffix', '')
 
 // Chrome DevTools のプリセットを模した本リポジトリ定義の値（プリセットそのものではない）
 const PROFILES = {
@@ -126,16 +133,16 @@ const out = []
 if (SCENARIO === 'profiles') {
   for (const p of Object.keys(PROFILES)) {
     process.stdout.write(`measuring ${p} ... `)
-    out.push(await measure(browser, p, `${BASE}/`))
+    out.push(await measure(browser, p, `${BASE}/${SUFFIX}`))
     console.log('done')
   }
 } else if (SCENARIO === 'coalesce') {
-  const only = args.find((a) => a.startsWith('--profiles='))?.split('=')[1]
+  const only = opt('profiles', undefined)
   const list = only ? only.split(',') : ['fast4g', 'slow-highrtt']
   for (const on of [1, 0]) {
     for (const p of list) {
       process.stdout.write(`measuring coalesce=${on} ${p} ... `)
-      const r = await measure(browser, p, `${BASE}/?coalesce=${on}`)
+      const r = await measure(browser, p, `${BASE}/?pc=1&coalesce=${on}`)
       r.profile = `${p}/coalesce=${on}`
       out.push(r)
       console.log('done')

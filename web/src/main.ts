@@ -25,12 +25,17 @@ import { renderPerf } from './ui/perfPanel'
 
 const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_meaningful_render の対象）
 const USEFUL_POINTS = 200_000
+/** 実測で決めた常駐点数の上限（docs/WEB_RESULTS.md §6.2）。?maxpts= で上書きできる */
+const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 600_000
 
 /** 計測用のスイッチ。既定値を変えずに条件だけ切り替えられるようにする */
 const qs = new URLSearchParams(location.search)
 const OPT = {
-  coalesce: qs.get('coalesce') !== '0',
-  pointcloud: qs.get('pc') !== '0',
+  // coalescing は既定 OFF。リクエスト数は減るが、束ねた range が全部届くまで
+  // 中のノードが 1 つもデコードされないので最初の点が遅れる（docs/WEB_RESULTS.md §4）
+  coalesce: qs.get('coalesce') === '1',
+  // 点群は既定 OFF。?pc=1 で有効化
+  pointcloud: qs.get('pc') === '1',
 }
 
 async function boot() {
@@ -46,7 +51,7 @@ async function boot() {
   scheduler.detectProtocol()
 
   const store = new Store(initialState(catalog))
-  if (!OPT.pointcloud) store.setLayer({ pointcloud: false })
+  if (OPT.pointcloud) store.setLayer({ pointcloud: true })
   const geoid = catalog.vertical.geoid_undulation_m
   const [ox, oy] = catalog.local_frame.origin_epsg6674
   const matrix = catalog.local_frame.matrix_2x2_row_major as [number, number, number, number]
@@ -214,14 +219,20 @@ async function boot() {
   }
 
   // ---- 点群の起動とカメラ連動 -------------------------------------------
+  /**
+   * LOD 予算。当初 maxPoints を 3,000,000 と根拠なく置いていたが、実測すると
+   * deck.gl PointCloudLayer の描画コストは点数にほぼ線形で約 23 ns/点/frame。
+   * 300 万点ではドラッグ中 68 ms/frame（15 fps）になる。
+   * 60 fps を保てる上限として 60 万点に置く（docs/WEB_RESULTS.md §6.2）。
+   */
   const budget = (): LodBudget => {
     const bw = scheduler.bandwidthBps || 2e6
     return {
-      maxPoints: 3_000_000,
+      maxPoints: PC_MAX_POINTS,
       // 帯域推定から毎回決める。遅い回線では自動的に浅い LOD で止まる
       maxBytes: Math.max(2e6, Math.min(20e6, bw * 6)),
-      screenSpaceError: 1.0,
-      coarseDepth: 3,
+      screenSpaceError: 2.0,
+      coarseDepth: 1,
     }
   }
   const viewState = (): ViewState => {

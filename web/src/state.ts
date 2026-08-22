@@ -26,9 +26,11 @@ export function initialState(catalog: Catalog): AppState {
     waterLevel: catalog.water_level.representative[0] ?? 1.0,
     layers: {
       flood: true, ground: true, plateau: true,
-      pointcloud: true, semantics: true, changedOnly: false,
+      // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
+      // GPU 44 MB / 転送 14 MB を使う（docs/WEB_RESULTS.md §6）
+      pointcloud: false, semantics: true, changedOnly: false,
     },
-    coalesceEnabled: true,
+    coalesceEnabled: false,
   }
 }
 

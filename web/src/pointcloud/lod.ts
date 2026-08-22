@@ -48,14 +48,17 @@ export function selectNodes(inp: SelectInput): NodeRequest[] {
       coarse: n.depth <= budget.coarseDepth,
     })
   }
-  // 画面で大きく効くものから。予算に収まるまで採用する
-  scored.sort((a, b) => (a.coarse === b.coarse ? b.sse - a.sse : a.coarse ? -1 : 1))
+  // 浅い LOD から、そのあと画面で大きく効くものから。予算に収まるまで採用する。
+  // coarse を先頭に並べるだけでは、coarse が多いと予算を食い潰して打ち切られる。
+  // 予算は coarse にも等しく適用し、超えたらそこで止める。
+  scored.sort((a, b) =>
+    (a.coarse === b.coarse ? 0 : a.coarse ? -1 : 1) || a.depth - b.depth || b.sse - a.sse)
   const out: NodeRequest[] = []
   let pts = 0
   let bytes = 0
   for (const s of scored) {
     const nb = s.byteRange[1] - s.byteRange[0]
-    if (pts + s.pointCount > budget.maxPoints || bytes + nb > budget.maxBytes) continue
+    if (pts + s.pointCount > budget.maxPoints || bytes + nb > budget.maxBytes) break
     out.push(s)
     pts += s.pointCount
     bytes += nb

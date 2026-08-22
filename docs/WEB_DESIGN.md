@@ -335,7 +335,13 @@ gap < COALESCE_GAP (既定 64 KiB) かつ 合計 <= MAX_MERGED (既定 4 MiB)
   `Content-Length` 分を丸ごと wasted と数えるのは過大評価になる。
 - 途中まで読めたデータは**捨てずに** partial cache に置き、同じ range が再要求されたら
   残りだけ Range で取りに行く（`Range: bytes=(start+got)-end`）。
-  → wasted bytes を実際に減らせるか実測する。
+  → wasted bytes を実際に減らせるか実測する。**未実装**。
+
+**この図は「1 リクエスト完了 → decode worker」であって、チャンクが届くそばから
+デコードするものにはなっていない（`docs/WEB_RESULTS.md` §4.2）。**
+`response.body.getReader()` を使っているのは受信バイトを数えるためだけで、
+リクエスト内のストリーミング処理は入れていない。
+これが §4.4 の coalescing が「最初の点」を遅らせる直接の原因になっている。
 
 **キャンセル暴走の防止**（連続パン中に epoch が毎フレーム進むため）
 - LOD selection は `moveend` ではなく **60 ms デバウンス**で回す。epoch もそこで進める。
@@ -673,13 +679,23 @@ choke point を1箇所に統一する。Tileset3D の視野外キャンセルは
 `PointCloudRenderer` インターフェースを挟んであるので、判断は**実測後**でよい。
 以下のいずれかが実測で成立したら移行する。
 
-| # | 条件 | なぜそれが限界の徴候か |
-|---|---|---|
-| 1 | 常駐 200 万点以下でフレーム時間 p50 > 16.7 ms、かつプロファイル上 deck.gl の layer diff / attribute 更新が 40% 超 | 描画そのものではなくレイヤ管理が律速 |
-| 2 | 可視ノード数が 200 を超え、`PointCloudLayer` の sub-layer 更新が 5 ms/frame を超える | ノード = レイヤの対応が破綻 |
-| 3 | ノード追加のたびに既存バッファが作り直され、GPU アップロードが増加し続ける | 明示的なバッファプール/eviction が必要 |
-| 4 | EDL・密度連動の点サイズ・ノード単位のフェードイン・ノード内 progressive refinement のいずれかが必要になった | deck.gl の `PointCloudLayer` で表現できない |
-| 5 | GPU メモリ上限に当たり、LRU eviction を自前で持つ必要が出た | 同上 |
+**実測で条件 1 は既に成立している**（`docs/WEB_RESULTS.md` §6.2）。
+ただし律速は当初想定した layer 管理ではなく **描画そのもの**だった。条件の書き方を実測に合わせて直す。
+
+| # | 条件 | 状態 | なぜそれが限界の徴候か |
+|---|---|---|---|
+| 1 | 常駐 200 万点でドラッグ中 frame p50 > 16.7 ms | **成立**（2.13 M で 57 ms、2.97 M で 68〜82 ms。約 23 ns/点/frame） | deck.gl `PointCloudLayer` は 1 点をインスタンス化クアッドで描く（300 万点 = 1,800 万頂点/frame）。`gl.POINTS` + 単一 VBO なら 1/6 の頂点・1 draw call にできる |
+| 1b | ~~layer diff / attribute 更新が 40% 超~~ | 解消済み | レイヤ実体をキャッシュして解決（毎回 new すると全属性が再アップロードされていた）。**律速は描画側だった** |
+| 2 | 可視ノード数が 200 を超え、`PointCloudLayer` の sub-layer 更新が 5 ms/frame を超える | 未成立（現状 15〜75） | ノード = レイヤの対応が破綻 |
+| 3 | ノード追加のたびに既存バッファが作り直され、GPU アップロードが増加し続ける | 解消済み（レイヤキャッシュ） | 明示的なバッファプール/eviction が必要 |
+| 4 | EDL・密度連動の点サイズ・ノード単位のフェードイン・ノード内 progressive refinement のいずれかが必要になった | 未 | deck.gl の `PointCloudLayer` で表現できない |
+| 5 | GPU メモリ上限に当たり、LRU eviction を自前で持つ必要が出た | 未 | 同上 |
+
+**現時点の判断**: LOD 予算を 60 万点に下げて 60 fps を確保した（`docs/WEB_RESULTS.md` §6.2）ので、
+custom renderer への移行は**急がない**。ただし
+「実 LAS を入れて 60 万点では足りない」と分かった時点で条件 1 が実運用上の制約になる。
+そのときの移行先と、`PointCloudIndex` / `LodSelector` / `Scheduler` / `DecodePool` を
+そのまま再利用する方針は変えない。
 
 移行先は **maplibre-gl の `CustomLayerInterface`（`renderingMode: '3d'`）**。
 MapLibre からは投影行列だけを受け取り、頂点バッファ・シェーダ・LOD フェードは自前で持つ。
