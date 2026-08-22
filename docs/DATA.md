@@ -44,6 +44,21 @@
 
 **高潮(`htd`)モデルは収録されていない。** **[実測]**
 
+### 属性コードの表示名と、3D Tiles 側の属性 **[実測]**
+
+CityGML の `bldg:class` / `bldg:usage` はコード（`3001`, `411` …）で入っており、
+表示名は同じ zip の `codelists/Building_class.xml` / `Building_usage.xml` にある
+（`scripts/11_fetch_plateau.py` が Range で取り出す。手書きの対応表は持たない）。
+AOI に出現するのは class 3 種・usage 11 種。
+
+一方 **b3dm のバッチテーブルは同じ属性を「表示名で」持っている**（`"普通建物"` `"運輸倉庫施設"`）。
+`gml_id` に加えて `bldg:yearOfConstruction` / `bldg:measuredHeight` / 階数 /
+`uro:...buildingStructureType` / `districtsAndZonesType`（用途地域）/
+津波・洪水の想定浸水深まで棟ごとに入っている。
+つまり **3D Tiles だけで棟ごとの属性表示ができる**（objects.geojson の解析対象 694 棟に限られない。
+タイル側は AOI 外まで含めて 2,005 棟）。viewer の建物色分けはこれを使う
+（`docs/WEB_RESULTS.md` §6.4）。
+
 ### 地形モデル `dem` の実態 **[実測]**
 
 `udx/dem/533512_dem_6697_05_op.gml` (748 MB) の先頭を直接読んで確認:

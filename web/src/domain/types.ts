@@ -10,6 +10,9 @@ export type SurfaceMode = TerrainCondition | 'diff'
 
 export const TERRAIN_CONDITIONS: TerrainCondition[] = ['baseline', 'highres']
 
+/** PLATEAU 建物をどの属性で塗り分けるか。コード -> 色 は view/buildingColor.ts */
+export type BuildingColorMode = 'none' | 'class' | 'usage'
+
 /** 地物ごとの derived assertion（docs/DESIGN.md §1.1） */
 export interface FeatureAssertion {
   gmlId: string

@@ -1,6 +1,8 @@
 import type { Catalog } from '../domain/catalog'
-import type { SurfaceMode } from '../domain/types'
+import type { BuildingColorMode, SurfaceMode } from '../domain/types'
 import type { Store } from '../state'
+import { BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL,
+         type LegendEntry } from '../view/buildingColor'
 import { CAMERA_PRESETS, type CameraPresetId } from '../view/map'
 
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
@@ -16,6 +18,15 @@ function legendHtml(surface: SurfaceMode): string {
          <div><i style="background:#6bccf2"></i>浅い &nbsp;<i style="background:#0d2985"></i>深い（0〜3 m）</div>
          <div><i style="background:#f24434"></i>判定が変わる地物</div>
        </div>`
+}
+
+/** PLATEAU 建物の属性凡例。出現したコードだけ、多い順に並べる */
+function buildingLegendHtml(mode: BuildingColorMode, entries: LegendEntry[]): string {
+  if (mode === 'none' || entries.length === 0) return ''
+  return `<div class="legend">${entries.map((e) =>
+    `<div><i style="background:${e.hex}"></i>${e.label}
+       <span class="sub">${e.count}</span></div>`).join('')}
+    <div><i style="background:${UNKNOWN_HEX}"></i>${UNKNOWN_LABEL}</div></div>`
 }
 
 const SURFACES: { id: SurfaceMode; label: string }[] = [
@@ -41,6 +52,7 @@ const LAYERS: { key: keyof Store['state']['layers']; label: string }[] = [
 export function renderControls(
   el: HTMLElement, store: Store, catalog: Catalog,
   onPreset: (id: CameraPresetId) => void,
+  buildingLegend: LegendEntry[] = [],
 ) {
   const s = store.state
   if (el.dataset.built === '1') {
@@ -64,6 +76,11 @@ export function renderControls(
     if (warn) warn.style.display = s.exaggeration > 1 ? 'block' : 'none'
     const lg = el.querySelector<HTMLElement>('#legend')
     if (lg) lg.innerHTML = legendHtml(s.surface)
+    for (const b of el.querySelectorAll<HTMLButtonElement>('#bcol button')) {
+      b.setAttribute('aria-pressed', String(s.buildingColor === b.dataset.b))
+    }
+    const blg = el.querySelector<HTMLElement>('#bldglegend')
+    if (blg) blg.innerHTML = buildingLegendHtml(s.buildingColor, buildingLegend)
     return
   }
   const wl = catalog.water_level
@@ -79,6 +96,14 @@ export function renderControls(
     <fieldset><legend>Terrain</legend>
       <div class="seg" id="surf">${SURFACES.map((x) =>
         `<button data-s="${x.id}" aria-pressed="${s.surface === x.id}">${x.label}</button>`).join('')}</div>
+    </fieldset>
+
+    <fieldset><legend>PLATEAU 建物の色</legend>
+      <div class="seg" id="bcol">${BUILDING_COLOR_MODES.map((x) =>
+        `<button data-b="${x.id}" aria-pressed="${s.buildingColor === x.id}">${x.label}</button>`).join('')}</div>
+      <div id="bldglegend">${buildingLegendHtml(s.buildingColor, buildingLegend)}</div>
+      <div class="note">b3dm に色は入っていない（texture・頂点色・baseColorFactor すべて無し）。
+        属性コードの表示名は CityGML 配布 zip 同梱のコードリスト。</div>
     </fieldset>
 
     <fieldset><legend>View（1〜6 キー）</legend>
@@ -127,6 +152,10 @@ export function renderControls(
   el.querySelector('#exag')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ exaggeration: Number(b.dataset.x) })
+  })
+  el.querySelector('#bcol')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) store.set({ buildingColor: b.dataset.b as BuildingColorMode })
   })
   el.querySelector('#surf')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')

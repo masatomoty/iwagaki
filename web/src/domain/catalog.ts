@@ -46,7 +46,9 @@ export interface Catalog {
   pointcloud: { url: string; synthetic: boolean; provenance: string
                 bytes: number; point_count: number; bytes_per_point: number }
   semantics: { url: string; bytes: number; feature_count: number
-               road_depth_classes_m: number[] }
+               road_depth_classes_m: number[]
+               /** 属性コード -> 表示名。CityGML 配布 zip 同梱のコードリスト由来 */
+               codelists?: Record<string, Record<string, string>> }
   totals_bytes: Record<string, number>
   analysis_summary: unknown
   attribution: string[]

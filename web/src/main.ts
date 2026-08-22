@@ -7,7 +7,7 @@ import { MapboxOverlay } from '@deck.gl/mapbox'
 import type { Layer } from '@deck.gl/core'
 
 import type { Catalog } from './domain/catalog'
-import type { FeatureAssertion, TerrainCondition } from './domain/types'
+import type { BuildingColorMode, FeatureAssertion, TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
@@ -15,6 +15,7 @@ import type { LodBudget, ViewState } from './pointcloud/types'
 import { initialState, Store } from './state'
 import { createFloodTileLayer, FLOOD_MODE } from './view/floodTileLayer'
 import type { FloodMeshUniforms } from './view/floodMeshLayer'
+import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
 import { applyPreset, bindCameraKeys, createMap } from './view/map'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
 import type { createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
@@ -188,23 +189,65 @@ async function boot() {
     ]
   }
 
-  let plateauLoaded = 0
   let plateauFailed = 0
   let plateauLayer: Layer | undefined
   let plateauLoading = false
+  let plateauMode: BuildingColorMode | undefined
+  let plateauStats = { tiles: 0, primitives: 0, coloured: 0, buildings: 0 }
+
+  /** 属性 -> 色。モードごとに 1 回だけ組む */
+  let scheme: ColorScheme | undefined
+  function schemeFor(mode: BuildingColorMode): ColorScheme | undefined {
+    if (mode === 'none') return undefined
+    if (scheme?.mode !== mode) scheme = createColorScheme(catalog, mode)
+    return scheme
+  }
+  /** 描かれた建物の gml_id -> 属性値。凡例の件数はここから数える */
+  const plateauValues = new Map<string, string>()
+  let legendTimer: number | undefined
+
+  /**
+   * 色は b3dm の glTF に焼き込む（属性ごとに primitive を分ける）ので、
+   * 塗り分けを変えたらレイヤを作り直す。b3dm は Scheduler の LRU に載っているため
+   * 切り替えでネットワークは基本発生しない。
+   */
   async function ensurePlateau() {
     const asset = catalog.plateau.bldg_lod1
-    if (!asset || plateauLayer || plateauLoading) return
+    const mode = store.state.buildingColor
+    if (!asset || plateauLoading || (plateauLayer && plateauMode === mode)) return
     plateauLoading = true
-    const { createPlateauLayer } = await import('./view/plateau')
-    plateauLayer = createPlateauLayer({
-      url: asset.url,
-      scheduler,
-      onTileLoad: () => { plateauLoaded++ },
-      onViewportLoaded: () => perf.mark('time_to_plateau'),
-      onTileError: (t, e) => { plateauFailed++; console.warn('b3dm failed', t, e) },
-    })
-    perf.mark('plateau_module_loaded')
+    try {
+      const { createPlateauLayer } = await import('./view/plateau')
+      const first = plateauMode === undefined
+      plateauMode = mode
+      plateauStats = { tiles: 0, primitives: 0, coloured: 0, buildings: 0 }
+      plateauValues.clear()
+      plateauLayer = createPlateauLayer({
+        id: `plateau-bldg-${mode}`,
+        url: asset.url,
+        scheduler,
+        scheme: schemeFor(mode),
+        onTileLoad: (r) => {
+          plateauStats.tiles++
+          plateauStats.primitives += r.primitives
+          plateauStats.coloured += r.coloured
+          plateauStats.buildings += r.buildings
+          // 同じ建物が複数タイルに出てくるので gml_id で潰す
+          for (const [id, v] of r.values) plateauValues.set(id, v)
+          // 凡例の件数はタイルが届くたびに増える。タイル 1 枚ごとに
+          // 再描画すると 22 回作り直すことになるので束ねる
+          if (r.values.length && legendTimer === undefined) {
+            legendTimer = window.setTimeout(() => { legendTimer = undefined; refresh() }, 250)
+          }
+        },
+        // 塗り替えでは測り直さない。time_to_plateau は初回描画の指標
+        onViewportLoaded: () => { if (first) perf.mark('time_to_plateau') },
+        onTileError: (t, e) => { plateauFailed++; console.warn('b3dm failed', t, e) },
+      })
+      if (first) perf.mark('plateau_module_loaded')
+    } finally {
+      plateauLoading = false
+    }
     refresh()
   }
   function plateauLayers() {
@@ -239,8 +282,10 @@ async function boot() {
               store.state.exaggeration, geoid) : []),
       ],
     })
+    const sch = schemeFor(store.state.buildingColor)
     renderControls(document.getElementById('controls')!, store, catalog,
-      (id) => applyPreset(map, id))
+      (id) => applyPreset(map, id),
+      sch ? legendOf(plateauValues, sch) : [])
     renderInspector(document.getElementById('inspector')!, store, catalog)
   }
 
@@ -339,14 +384,19 @@ async function boot() {
     snapshot: () => ({
       ...perf.snapshot(),
       pointcloud: pcb?.controller.stats() ?? null,
-      plateau: { loaded: plateauLoaded, failed: plateauFailed,
-                 expected: catalog.plateau.bldg_lod1?.b3dm_count ?? 0 },
+      plateau: { loaded: plateauStats.tiles, failed: plateauFailed,
+                 expected: catalog.plateau.bldg_lod1?.b3dm_count ?? 0,
+                 // 属性色は primitive 分割で入れているので draw call が増える。実測用
+                 colorMode: plateauMode ?? 'none',
+                 primitives: plateauStats.primitives,
+                 coloured: plateauStats.coloured, buildings: plateauStats.buildings },
     }),
     setWaterLevel: (v: number) => store.set({ waterLevel: v }),
     setSurface: (v: 'baseline' | 'highres' | 'diff') => store.set({ surface: v }),
     setExaggeration: (v: number) => store.set({ exaggeration: v }),
     setCamera: (id: string) => applyPreset(map, id as never),
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),
+    setBuildingColor: (v: BuildingColorMode) => store.set({ buildingColor: v }),
   }
 }
 

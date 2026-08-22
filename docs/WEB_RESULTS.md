@@ -347,6 +347,47 @@ LOD selection が予算を超えたら `continue` ではなく `break` するよ
 
 ---
 
+### 6.4 PLATEAU 建物を属性で色分けするコスト **[実測]**
+
+b3dm に色情報は無い。開いて確認すると `materials` は `roughnessFactor: 0` /
+`metallicFactor: 0` だけで、texture も `COLOR_0` も `baseColorFactor` も無い
+（LOD1・LOD2 の両サブセットとも）。glTF 既定の白 `[1,1,1,1]` が陰影を受けて
+グレーに見えていただけで、**色は元データに存在しない**。
+
+色を与える経路は 3 つあり、使えるのは 1 つだけだった（`docs/WEB_DESIGN.md` §11 #1e）。
+採ったのは「属性値ごとに primitive を分割して material を与える」経路で、
+属性値は b3dm のバッチテーブルから取る（`docs/DATA.md` §1）。
+同じ色になる棟は 1 primitive にまとめるので、draw call は
+「そのタイルに出現した色数」までしか増えない。
+
+`node perf/bldgcolor.mjs`（22 タイル / 2,005 棟 / 実 GPU・ドラッグ中）:
+
+| 塗り分け | primitive（= draw call） | 色が付いた棟 | frame p50 | frame p95 | plateau 転送 |
+|---|---:|---:|---:|---:|---:|
+| なし | 22 | — | 16.7 ms | 17.9 ms | 3.17 MB / 23 req |
+| 用途（16 色） | 167 | 1,968 / 2,005 | 16.7 ms | 21.5 ms | 3.17 MB / 23 req |
+| 分類（3 色） | 60 | 2,005 / 2,005 | 16.7 ms | 17.9 ms | 3.17 MB / 23 req |
+
+- draw call は 7.6 倍になるが **60 fps は割らない**（p95 が 17.9 -> 21.5 ms）。
+  頂点は棟単位で分割されるので総頂点数は増えない（複製されるのは属性の詰め直しのみ）。
+- 塗り分けの切り替えはレイヤを作り直すが、**転送は増えない**（23 req のまま）。
+  b3dm が Scheduler の LRU に載っているため。
+- 用途で 37 棟が「属性なし」（`bldg:usage` が null）。別に「不明」コード 200 棟がある
+  ＝ 塗れない棟と「不明と申告されている棟」を色で区別している。
+- 用途の内訳（タイル側 2,005 棟、gml_id で重複を潰した値）: 住宅 1,113 / 不明 200 /
+  運輸倉庫施設 142 / 業務施設 77 / 店舗等併用住宅 75 / 文教厚生施設 61 / 商業施設 59 /
+  共同住宅 57 / 工場 43 / 官公庁施設 25 / 農林漁業用施設 11 / その他 20。
+
+![用途で色分け](images/web-viewer-bldgcolor-usage.png)
+
+計測ハーネスの注意: **非 headless の macOS ではウィンドウが他のウィンドウに隠れた瞬間に
+Chromium が requestAnimationFrame を止め、deck.gl のタイル走査ごと停止する**
+（タイルが 1 枚も来ず `time_to_plateau` が立たない）。
+再現性が要るときは headless（swiftshader）で回す。ただしフレーム時間の絶対値は
+実 GPU と比べられないので、上の表は `HEADLESS=0` の実 GPU で取っている。
+
+---
+
 ## 7. 正しさの検証（性能とは別）
 
 `web/test/parity.test.mjs`（`node test/parity.test.mjs`）:

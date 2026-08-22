@@ -749,6 +749,7 @@ MapLibre からは投影行列だけを受け取り、頂点バッファ・シ�
 | 1b | maplibre-gl 5 + deck.gl 9.3 で MapLibre terrain がどこまで使えるか | **[未確認]** | v1 は terrain 無し（§2.2）。必要になったら実機確認 |
 | 1c | 手で作った `Response` を `loadOptions.fetch` から返すと loaders.gl が loader を選べない | **[実測]** | `response.url` が空になり tileset.json が b3dm として解釈されて `3DTileLoader: unknown type` になる。`Object.defineProperty(res, 'url', {value: url})` で解決 |
 | 1d | PLATEAU の b3dm の一部で deck.gl の `ScenegraphLayer` が `size: 1` で初期化に失敗する | **[実測]** | 22 タイルすべて取得・パースは成功するが、一部のサブレイヤが luma.gl の vertex format 変換で落ちる。**未解決**。バイト転送は発生するのでネットワーク計測には影響しない |
+| 1e | **b3dm を属性で色分けする経路が 1 つしかない** | **[実測]** | b3dm には色が無い（texture・`COLOR_0`・`baseColorFactor` すべて無し）。(a) `COLOR_0` を注入しても luma.gl v9 の pbr は `HAS_COLORS` define を立てるだけでシェーダが頂点色を読まない、(b) `Tile3DLayer._getMeshColor` はタイル単位かつSimpleMesh 経路専用（1 タイル 17 棟なので棟ごとに塗れない）。**残るのは primitive を色ごとに分割して material を与える経路**（`view/plateau.ts`）。draw call はタイルあたり「出現した色数」まで増える（22 -> 167、`docs/WEB_RESULTS.md` §6.4） |
 | 2 | RGBA パッキングの premultiply 破壊 | **[既知]** | `premultiplyAlpha:'none'` + 往復テスト。ダメなら RGB 2枚に分割 |
 | 3 | ジオイド高 N の実値 | **[未確認]** | build 時に実測して catalog に焼く。暫定 37.0 m |
 | 4 | R2 はマルチレンジに 400 を返す | **[既知]** | 連続 1 レンジへの coalescing のみ。`COALESCE_GAP` を実測で決める |

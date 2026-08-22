@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import json
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pyproj
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, CRS_ANALYSIS, H_MAX, H_MIN, H_STEP, OUT, ROOT,
+from iwagaki.config import (AOI, CRS_ANALYSIS, H_MAX, H_MIN, H_STEP, OUT, RAW, ROOT,
                             REPRESENTATIVE_H, ROAD_DEPTH_CLASSES, TP_OF_MSL,
                             ATTRIBUTION)
 
@@ -29,6 +30,22 @@ KEEP_PROPS = [
     "h_conn_baseline", "h_conn_highres",
     "delta_ground_elev", "delta_h_conn",
 ]
+
+
+# 属性コードの表示名。CityGML の codeSpace が指しているコードリスト（配布 zip 同梱）
+# をそのまま使う。手書きの対応表を持たない。
+CODELISTS = {"bldg:class": "Building_class.xml", "bldg:usage": "Building_usage.xml"}
+GML = "{http://www.opengis.net/gml}"
+
+
+def codelist(path: Path) -> dict[str, str]:
+    root = ET.parse(path).getroot()
+    out = {}
+    for d in root.iter(f"{GML}Definition"):
+        code, label = d.findtext(f"{GML}name"), d.findtext(f"{GML}description")
+        if code and label:
+            out[code.strip()] = label.strip()
+    return out
 
 
 def geoid_undulation(lon: float, lat: float) -> float:
@@ -115,6 +132,23 @@ def main() -> int:
     op.write_text(json.dumps(objects, separators=(",", ":")))
     print(f"objects.geojson: {len(feats)} features, {op.stat().st_size/1e6:.2f} MB")
 
+    # --- 属性コード -> 表示名（建物のみ。出現したコードに絞る）----------------
+    codelists = {}
+    for key, fname in CODELISTS.items():
+        path = RAW / "plateau" / fname
+        if not path.exists():
+            print(f"  ! {fname} 未取得。scripts/11_fetch_plateau.py を実行する")
+            continue
+        table = codelist(path)
+        prop = key.split(":")[1]
+        seen = sorted({f["properties"].get(prop) for f in feats
+                       if f["properties"].get("feature_type") == "bldg:Building"}
+                      - {None})
+        codelists[key] = {c: table.get(c, c) for c in seen}
+        missing = [c for c in seen if c not in table]
+        print(f"  {key}: {len(seen)} codes"
+              + (f" (コードリストに無い: {missing})" if missing else ""))
+
     # --- 各レポートを取り込む -----------------------------------------------
     def load(name):
         p = WEB_DATA / name
@@ -180,6 +214,8 @@ def main() -> int:
             "bytes": op.stat().st_size,
             "feature_count": len(feats),
             "road_depth_classes_m": list(ROAD_DEPTH_CLASSES),
+            # 実際に出現したコードだけ載せる。viewer の凡例はこれを引く
+            "codelists": codelists,
         },
         "totals_bytes": {
             "tiles": dir_bytes("tiles"),

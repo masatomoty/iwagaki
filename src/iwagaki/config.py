@@ -93,6 +93,11 @@ PLATEAU_MEMBERS = {
     ],
     "bldg": ["udx/bldg/53351246_bldg_6697_op.gml"],
     "tran": ["udx/tran/53351246_tran_6697_op.gml"],
+    # 属性コードの表示名はコードリスト（同じ zip 内）が正。手で対応表を書かない
+    "codelists": [
+        "codelists/Building_class.xml",
+        "codelists/Building_usage.xml",
+    ],
 }
 
 # 京都府 数値標高モデル(DEM) 0.5m。図郭 zip ごとの入手先。
