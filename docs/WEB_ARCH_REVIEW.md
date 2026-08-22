@@ -72,7 +72,8 @@ C は B のコスト（shell）を丸ごと引き受けたうえで、B の利�
 | partial cache（中断分の再利用） | 未実装 |
 | custom point-cloud renderer（`gl.POINTS` + バッファプール） | 未実装。移行条件は §10 |
 | `objects.geojson` のストリーミング化 / PMTiles 化 | 未実装。560 kB を一括 `JSON.parse`（`docs/WEB_RESULTS.md` §4.2） |
-| **viewer に載せる点群が実点群になっていない** | 解析側には実 LAS（吉原バックパック SLAM 4.98 億点）が入っている（`36a393c`, `docs/RESULTS.md`）が、`catalog.json` が指す COPC は依然 `yoshiwara-synthetic-from-dtm.copc.laz`（`synthetic: true` / 325 万点）。**network / LOD / decode の結論は合成点群のまま** |
+| ~~viewer に載せる点群が合成データ~~ | **解消**。`catalog.json` は `yoshiwara-backpack-slam.copc.laz`（`synthetic: false`）を指す。配信物はその後 **全 10 LAS / voxel 0.08 m / 272 MB / 37.5 M 点 / 1,594 ノード**に更新（`docs/WEB_RESULTS.md` §6.6.2） |
+| ~~Draco デコーダを外部 CDN から取っている~~ | **現行ビルドでは発火しない**。22 個の b3dm に `KHR_draco_mesh_compression` が無く、実配信でクロスオリジンのリクエストは 0 件（実測）。ただし CDN URL はバンドルに残っており潜在リスク（`docs/WEB_RESULTS.md` §8） |
 | 点群のキャンセル経路の検証 | 未発火のまま（`docs/WEB_RESULTS.md` §5） |
 | 実配信での `perf/run.mjs` 再測 | 未実施 |
 
@@ -440,25 +441,41 @@ fork せずに済む道が実在する **[実測: `docs/plugin-api.md`]**。
 
 ### 10.3 A のまま進める実装の優先順（`docs/WEB_RESULTS.md` §8 を引き継ぐ）
 
+> **この節は `docs/WEB_RESULTS.md` §8 に統合した。** 以下は本レビュー時点（2026-08-22 18:00 頃）の
+> スナップショットとして残す。**その後 ② と ④ は完了した**ので、生きている TODO は
+> `docs/WEB_RESULTS.md` §8 を見る。
+
 | # | 優先 | 内容 | 根拠 |
 |---|---|---|---|
 | ① | 高 | 初期チャンクをさらに削る（現状 464 kB br） | FMR を決めているのは依然としてバンドル。§4.2 の `slow-highrtt` 5.2 s の大半がこれ |
-| ~~②~~ | — | ~~1 リクエスト内のストリーミングデコード~~ | **実装済み**（`5419e7a`）。`docs/WEB_RESULTS.md` §4.1–4.2。coalescing の符号が反転し、on が速い側になった → 「ノード数が桁で増える条件での再評価」が代わりに残る |
-| ③ | 高 | 点群キャンセル経路の検証シナリオ | `docs/WEB_RESULTS.md` §5 のとおり未発火 |
-| ④ | 高 | **実 LAS を viewer に載せて network / LOD / decode を再計測** | 下記 |
-| ⑤ | 中 | LAS アップロード経路（Worker + D1 + R2 multipart） | ④ の結果を見てから作る |
-| ⑥ | 低 | custom point-cloud renderer | §10 の移行条件にまだ届かない。ただし `maplibre-gl-lidar` の「連続バッファ + compaction」は設計の参考になる（§2.3） |
+| ~~②~~ | — | ~~1 リクエスト内のストリーミングデコード~~ | **完了**（`5419e7a`）。`docs/WEB_RESULTS.md` §4.1–4.2。coalescing の符号が反転し、on が速い側になった |
+| ③ | 高 | 点群キャンセル経路の検証シナリオ | `docs/WEB_RESULTS.md` §5 のとおり未発火。**実点群なら発火させられる**（点群が AOI 全体を覆わない） |
+| ~~④~~ | — | ~~実 LAS を viewer に載せて network / LOD / decode を再計測~~ | **完了**。`docs/WEB_RESULTS.md` §6.5 / §6.6.2。**ファイルのごく一部しか運ばない**ことが実点群で実証された（272 MB のうち 5.7 MB）。下の見立ては当たった |
+| ⑤ | 中 | LAS アップロード経路（Worker + D1 + R2 multipart） | ④ が済んだので**着手可能になった** |
+| ⑥ | 低 | custom point-cloud renderer | §10 の移行条件にまだ届かない（実点群でも 16.7 ms）。ただし `maplibre-gl-lidar` の「連続バッファ + compaction」は設計の参考になる（§2.3） |
+| 新 | 高 | Draco デコーダを外部 CDN から取るのをやめる | `docs/WEB_RESULTS.md` §8.2。1.15 MB / 9 リクエストがクロスオリジン。**§4 の shell コスト測定にも影響する**（`classify()` は同一オリジン前提ではないが、`transferSize` がクロスオリジンで 0 になる問題は `docs/WEB_DESIGN.md` §8.3 のとおり） |
 
 **④ を ⑤ より先にする**（当初は逆に置いていた。判断を変えた）。
+→ **この順で進めた結果、④ は完了した**（`docs/WEB_RESULTS.md` §6.5 / §6.6.2）。
+下に書いた「ノード数・階層の深さ・LAZ 圧縮率が桁で変わる」という予測は当たり、
+ノードは 81 → **4,266**（voxel 0.05 m）になった。その後、配信物を
+**voxel 0.08 m / 全 10 LAS** に作り直したのでノードは **1,594** である
+（`docs/RESULTS.md`。0.05 m から下げたのは反復速度のためで、配信性能ではない）。
+⑤ はこの実測値を基準に設計できる。
 
-現在の点群は `synthetic-from-dtm`（0.5 m DTM の格子を 1 点に変換したもの）であり、
+**なお ④ の計測は当初 headless で行っており、再描画駆動の指標が歪んでいた。**
+`docs/WEB_RESULTS.md` §6.6.1 のとおり、headless では deck.gl の tileset traversal が
+進まない。この文書に残る `time_to_plateau` 系の値は §6.6.2 の headed 実測で読み替える。
+
+（以下、④ 着手前の判断根拠。）当時の点群は `synthetic-from-dtm`（0.5 m DTM の格子を 1 点に
+変換したもの）であり、
 **密度分布もノイズもオクツリーのノード分布も LAZ の圧縮率も、実測点群とは違う**
 （`docs/WEB_RESULTS.md` §6 / §9）。つまり LOD 選択・decode コスト・
 ノード数（= coalescing の再評価条件）のいずれも、いま出ている数字は本番分布を踏んでいない。
 
 **実 LAS は既に手元にある**（吉原バックパック SLAM 4.98 億点、`36a393c`）。
-ただし入っているのは**解析側だけ**で、viewer が配信しているのは今も
-`yoshiwara-synthetic-from-dtm.copc.laz`（325 万点）である。したがって次は
+ただし当時入っていたのは**解析側だけ**で、viewer が配信していたのは
+`yoshiwara-synthetic-from-dtm.copc.laz`（325 万点）だった。したがって次は
 
 ```
 実 LAS(4.98 億点) --ローカル CLI (PDAL)--> COPC --> catalog 差し替え --> viewer で再計測
