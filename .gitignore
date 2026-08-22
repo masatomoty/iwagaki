@@ -8,3 +8,39 @@ data/out/
 
 # デプロイ用の R2 API トークン（絶対にコミットしない）
 .env.deploy
+
+# --- 点群および点群由来データは一切コミットしない（private / public リポジトリのため） ---
+# data/ 配下は列挙ではなく丸ごと deny する（新しい出力先を作っても漏れないように）
+data/
+!data/README.md
+
+# 生点群
+*.las
+*.laz
+*.copc
+*.ply
+*.pcd
+*.e57
+*.pts
+*.bpf
+
+# 点群由来の中間・配信物（加工済みも同様に private 扱い）
+*.b3dm
+*.pnts
+*.i3dm
+*.cmpt
+*.3tz
+*.glb
+*.gltf
+*.ktx2
+*.tif
+*.tiff
+*.tif.aux.xml
+*.npy
+
+# 実点群を描画したスクリーンショットの置き場（既存の追跡済み画像はそのまま）
+docs/images/private/
+
+# ローカル作業領域（worktree 配下に派生データが載る）
+.claude/worktrees/
+.claude/settings.local.json
