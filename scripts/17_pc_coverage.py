@@ -24,6 +24,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from iwagaki.config import AOI, CRS_ANALYSIS, INTERIM, RES_HIGHRES
 from iwagaki.raster import Grid, read
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from importlib import import_module
+
+_repair = import_module("24_repair_las_evlr")
+NotRepairable = _repair.NotRepairable
+repair_las = _repair.repair
+
 # SRS が書かれていないファイルは、座標域が他と同じなので同じ CRS とみなす
 # （docs/DATA.md §3。推測ではなく「同一測量の同一出力」という根拠に基づく）
 FILES_WITHOUT_SRS = ("⑧", "⑨")
@@ -61,15 +68,27 @@ def main() -> int:
     args = ap.parse_args()
 
     files = sorted(p for p in args.src.iterdir() if p.suffix.lower() in (".las", ".laz"))
-    # PDAL が開けないものは外す（docs/DATA.md §3 に記録）
+    # PDAL が開けないものは、直せる壊れ方なら修復コピーを作って使う（scripts/24）。
+    # 以前はここで黙って外しており、⑨ が解析からも配信からも抜けたまま気づけなかった。
+    # 外したものは pc_coverage.json の dropped_files に必ず残す。
     ok: list[Path] = []
+    dropped: list[dict] = []
     for f in files:
         r = subprocess.run(["pdal", "info", "--summary", str(f)],
                            capture_output=True, text=True)
         if r.returncode == 0:
             ok.append(f)
-        else:
-            print(f"skip（PDAL が開けない）: {f.name}")
+            continue
+        err = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "(理由不明)"
+        print(f"PDAL が開けない: {f.name}\n  {err}")
+        try:
+            fixed = repair_las(f, INTERIM / "las_repaired")
+        except NotRepairable as e:
+            print(f"  修復対象外: {e}")
+            dropped.append({"file": f.name, "reason": err, "repair": str(e)})
+            continue
+        print(f"  修復コピーを使う: {fixed}")
+        ok.append(fixed)
     if args.limit:
         ok = ok[: args.limit]
     print(f"{len(ok)} ファイルを 1 パスで走査（res={args.res} m）")
@@ -105,6 +124,9 @@ def main() -> int:
     covered = cnt > 0
     report = {
         "files": [f.name for f in ok],
+        # 使えなかったファイルを必ず残す。空配列なら「全部入っている」と読める
+        "dropped_files": dropped,
+        "repaired_files": [f.name for f in ok if f.parent.name == "las_repaired"],
         "resolution_m": args.res,
         "band_descriptions": descs,
         "grid": [grid.height, grid.width],

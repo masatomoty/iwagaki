@@ -25,6 +25,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from iwagaki.config import AOI, CRS_ANALYSIS, INTERIM, ROOT
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from importlib import import_module
+
+_repair = import_module("24_repair_las_evlr")
+NotRepairable = _repair.NotRepairable
+repair_las = _repair.repair
+
 WEB_DATA = ROOT / "web" / "public" / "data"
 OUT_NAME = "yoshiwara-backpack-slam.copc.laz"
 FILES_WITHOUT_SRS = ("⑧", "⑨")
@@ -40,16 +47,36 @@ def readers(files: list[Path]) -> list[dict]:
     return out
 
 
-def readable(src: Path) -> list[Path]:
-    ok = []
+def readable(src: Path) -> tuple[list[Path], list[dict]]:
+    """使えるファイルと、使えなかったファイルの理由を返す。
+
+    以前はここで「PDAL が開けないファイルを黙って skip」していた。標準出力に 1 行出るだけで
+    成果物には何も残らないので、⑨（配布 10 ファイルのうち 1 つ）が欠けたまま
+    配信されていたことに長く気づけなかった。落としたものは必ず報告に残す。
+
+    ⑨ は EVLR の宣言だけが壊れていて点データは無傷だったので、
+    scripts/24 で修復コピーを作ってから読む。原本は変更しない。
+    """
+    ok: list[Path] = []
+    dropped: list[dict] = []
+    repaired_dir = INTERIM / "las_repaired"
     for f in sorted(p for p in src.iterdir() if p.suffix.lower() in (".las", ".laz")):
         r = subprocess.run(["pdal", "info", "--summary", str(f)],
                            capture_output=True, text=True)
         if r.returncode == 0:
             ok.append(f)
-        else:
-            print(f"skip（PDAL が開けない）: {f.name}")
-    return ok
+            continue
+        err = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "(理由不明)"
+        print(f"PDAL が開けない: {f.name}\n  {err}")
+        try:
+            fixed = repair_las(f, repaired_dir)
+        except NotRepairable as e:
+            print(f"  修復対象外: {e}")
+            dropped.append({"file": f.name, "reason": err, "repair": str(e)})
+            continue
+        print(f"  修復コピーを使う: {fixed}")
+        ok.append(fixed)
+    return ok, dropped
 
 
 def run(cmd: list[str]) -> None:
@@ -92,9 +119,12 @@ def main() -> int:
     ap.add_argument("--keep-thinned", action="store_true")
     args = ap.parse_args()
 
-    files = readable(args.src)
+    files, dropped = readable(args.src)
     if not files:
         raise SystemExit("読める LAS が無い")
+    n_src = len([p for p in args.src.iterdir() if p.suffix.lower() in (".las", ".laz")])
+    print(f"入力 {n_src} ファイル中 {len(files)} ファイルを使う"
+          + (f"（除外 {len(dropped)}）" if dropped else ""))
 
     if args.calibrate:
         f = files[:1]
@@ -139,6 +169,10 @@ def main() -> int:
         "provenance": "舞鶴市吉原 バックパック SLAM（LiBackpack / LiFuser-BP）2026-07 取得。"
                       f"AOI で切り出し、{args.cell} m ボクセルで間引いたもの。表示専用",
         "source_files": [f.name for f in files],
+        # 使えなかったファイルを必ず残す。空配列なら「全部入っている」と読める
+        "dropped_files": dropped,
+        "repaired_files": [f.name for f in files
+                           if f.parent.name == "las_repaired"],
         "voxel_cell_m": args.cell,
         "bytes": size,
         "point_count": info.get("num_points"),
