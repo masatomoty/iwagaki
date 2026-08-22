@@ -2,6 +2,7 @@
 // この「ノード = レイヤ」の対応が破綻したら custom renderer に移る（§10 条件 2）。
 
 import { COORDINATE_SYSTEM } from '@deck.gl/core'
+import { Matrix4 } from '@math.gl/core'
 import { PointCloudLayer } from '@deck.gl/layers'
 
 import type { PointCloudRenderer, PointStyle } from './renderer'
@@ -17,6 +18,7 @@ export class DeckPointCloudRenderer implements PointCloudRenderer {
    */
   private layerCache = new Map<NodeKey, PointCloudLayer>()
   private style: PointStyle = { pointSize: 1.4, opacity: 1 }
+  private exaggeration = 1
 
   constructor(
     private readonly origin: [number, number],
@@ -46,8 +48,22 @@ export class DeckPointCloudRenderer implements PointCloudRenderer {
     this.onChange()
   }
 
-  layers(visible: boolean) {
+  /**
+   * 鉛直強調は modelMatrix で掛ける。点の z は decode 時に (標高 + geoid) にしてあるので、
+   * z' = geoid + k * (z - geoid) になるよう平行移動を足す。
+   */
+  private modelMatrix(k: number, geoid: number): Matrix4 | undefined {
+    if (k === 1) return undefined
+    return new Matrix4().translate([0, 0, geoid * (1 - k)]).scale([1, 1, k])
+  }
+
+  layers(visible: boolean, exaggeration = 1, geoid = 0) {
     if (!visible) return []
+    if (exaggeration !== this.exaggeration) {
+      this.exaggeration = exaggeration
+      this.layerCache.clear()
+    }
+    const mm = this.modelMatrix(exaggeration, geoid)
     const out: PointCloudLayer[] = []
     for (const c of this.chunks.values()) {
       let l = this.layerCache.get(c.key)
@@ -64,6 +80,7 @@ export class DeckPointCloudRenderer implements PointCloudRenderer {
           },
           coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
           coordinateOrigin: [this.origin[0], this.origin[1], 0],
+          modelMatrix: mm,
           pointSize: this.style.pointSize,
           opacity: this.style.opacity,
           sizeUnits: 'pixels',

@@ -17,6 +17,8 @@ export interface AppState {
   layers: LayerToggles
   selected?: FeatureAssertion
   coalesceEnabled: boolean
+  /** 鉛直強調。吉原は起伏が 0〜3 m しかないので、真横から見るには必須 */
+  exaggeration: number
 }
 
 export function initialState(catalog: Catalog): AppState {
@@ -31,6 +33,7 @@ export function initialState(catalog: Catalog): AppState {
       pointcloud: false, semantics: true, changedOnly: false,
     },
     coalesceEnabled: false,
+    exaggeration: 1,
   }
 }
 

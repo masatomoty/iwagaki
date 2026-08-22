@@ -28,6 +28,8 @@ export function createMap(container: HTMLElement, catalog: Catalog): MlMap {
     zoom: 15.6,
     pitch: 52,
     bearing: -28,
+    // 真横から見られないと地形の起伏を確かめられない。MapLibre の上限まで開ける
+    maxPitch: 85,
     maxBounds: [
       [catalog.aoi.bbox_wgs84[0] - 0.02, catalog.aoi.bbox_wgs84[1] - 0.02],
       [catalog.aoi.bbox_wgs84[2] + 0.02, catalog.aoi.bbox_wgs84[3] + 0.02],
@@ -41,4 +43,33 @@ export function createMap(container: HTMLElement, catalog: Catalog): MlMap {
     customAttribution: catalog.attribution.join(' / '),
   }), 'bottom-right')
   return map
+}
+
+/** CAD のように軸方向から見るためのプリセット。bearing はカメラが向く方位 */
+export const CAMERA_PRESETS = [
+  { key: '1', id: 'top', label: '平面', pitch: 0, bearing: 0 },
+  { key: '2', id: 'south', label: '南↑', pitch: 84, bearing: 0 },
+  { key: '3', id: 'west', label: '西→', pitch: 84, bearing: 90 },
+  { key: '4', id: 'north', label: '北↓', pitch: 84, bearing: 180 },
+  { key: '5', id: 'east', label: '東←', pitch: 84, bearing: 270 },
+  { key: '6', id: 'iso', label: '俯瞰', pitch: 52, bearing: -28 },
+] as const
+
+export type CameraPresetId = (typeof CAMERA_PRESETS)[number]['id']
+
+export function applyPreset(map: MlMap, id: CameraPresetId) {
+  const p = CAMERA_PRESETS.find((x) => x.id === id)
+  if (!p) return
+  map.easeTo({ pitch: p.pitch, bearing: p.bearing, duration: 500 })
+}
+
+/** 1〜6 で視点、[ ] で鉛直強調 */
+export function bindCameraKeys(map: MlMap, onExaggeration: (delta: number) => void) {
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement) return
+    const p = CAMERA_PRESETS.find((x) => x.key === e.key)
+    if (p) { applyPreset(map, p.id); return }
+    if (e.key === ']') onExaggeration(1)
+    if (e.key === '[') onExaggeration(-1)
+  })
 }

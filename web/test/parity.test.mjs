@@ -60,8 +60,8 @@ for (const f of fx.features) {
 }
 
 // 3) GLSL に同じ定数が入っているか（式の二重管理が崩れていないかの最低限のガード）
-const glsl = readFileSync(path.join(HERE, '../src/view/shaders/flood.ts'), 'utf8')
-for (const token of ['32768', '256.0', 'flood.hStep', 'flood.waterLevel']) {
+const glsl = readFileSync(path.join(HERE, '../src/view/floodMeshLayer.ts'), 'utf8')
+for (const token of ['32768', '256.0', 'fmesh.hStep', 'fmesh.waterLevel']) {
   checked++
   if (!glsl.includes(token)) { failed++; console.error(`FAIL glsl missing ${token}`) }
 }

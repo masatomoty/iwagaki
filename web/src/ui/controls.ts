@@ -1,6 +1,9 @@
 import type { Catalog } from '../domain/catalog'
 import type { SurfaceMode } from '../domain/types'
 import type { Store } from '../state'
+import { CAMERA_PRESETS, type CameraPresetId } from '../view/map'
+
+export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 
 function legendHtml(surface: SurfaceMode): string {
   return surface === 'diff'
@@ -35,7 +38,10 @@ const LAYERS: { key: keyof Store['state']['layers']; label: string }[] = [
  * 毎回 innerHTML を作り直すと、水位スライダを掴んでいる最中に
  * スライダ自身の DOM が消えて作り直される（掴み直しが必要になる）。
  */
-export function renderControls(el: HTMLElement, store: Store, catalog: Catalog) {
+export function renderControls(
+  el: HTMLElement, store: Store, catalog: Catalog,
+  onPreset: (id: CameraPresetId) => void,
+) {
   const s = store.state
   if (el.dataset.built === '1') {
     const v = el.querySelector<HTMLElement>('#wlv')
@@ -51,6 +57,11 @@ export function renderControls(el: HTMLElement, store: Store, catalog: Catalog) 
       const k = cb.dataset.l as keyof typeof s.layers
       if (cb.checked !== s.layers[k]) cb.checked = s.layers[k]
     }
+    for (const b of el.querySelectorAll<HTMLButtonElement>('#exag button')) {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.x) === s.exaggeration))
+    }
+    const warn = el.querySelector<HTMLElement>('#exagwarn')
+    if (warn) warn.style.display = s.exaggeration > 1 ? 'block' : 'none'
     const lg = el.querySelector<HTMLElement>('#legend')
     if (lg) lg.innerHTML = legendHtml(s.surface)
     return
@@ -70,6 +81,19 @@ export function renderControls(el: HTMLElement, store: Store, catalog: Catalog) 
         `<button data-s="${x.id}" aria-pressed="${s.surface === x.id}">${x.label}</button>`).join('')}</div>
     </fieldset>
 
+    <fieldset><legend>View（1〜6 キー）</legend>
+      <div class="seg" id="cam">${CAMERA_PRESETS.map((p) =>
+        `<button data-c="${p.id}" title="${p.key}">${p.label}</button>`).join('')}</div>
+    </fieldset>
+
+    <fieldset><legend>鉛直強調（[ ] キー）</legend>
+      <div class="seg" id="exag">${EXAGGERATIONS.map((x) =>
+        `<button data-x="${x}" aria-pressed="${s.exaggeration === x}">×${x}</button>`).join('')}</div>
+      <div class="note" id="exagwarn" style="display:${s.exaggeration > 1 ? 'block' : 'none'}">
+        鉛直強調中は PLATEAU 建物を非表示にしている。建物は実高のままなので地形とずれるため。
+      </div>
+    </fieldset>
+
     <fieldset><legend>Water level</legend>
       <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
       <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}" value="${s.waterLevel}" />
@@ -86,6 +110,14 @@ export function renderControls(el: HTMLElement, store: Store, catalog: Catalog) 
   `
   el.dataset.built = '1'
 
+  el.querySelector('#cam')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) onPreset(b.dataset.c as CameraPresetId)
+  })
+  el.querySelector('#exag')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) store.set({ exaggeration: Number(b.dataset.x) })
+  })
   el.querySelector('#surf')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ surface: b.dataset.s as SurfaceMode })

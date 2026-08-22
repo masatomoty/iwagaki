@@ -1,5 +1,5 @@
 // 浸水判定。docs/DESIGN.md §1.2 の h_conn をそのまま使う。
-// GLSL 側（view/shaders/flood.ts）と同じ式であることを test/parity で検証する。
+// GLSL 側（view/floodMeshLayer.ts）と同じ式であることを test/parity で検証する。
 
 import type { FeatureAssertion, MTP, TerrainCondition } from './types'
 

@@ -15,11 +15,11 @@ import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
 import type { LodBudget, ViewState } from './pointcloud/types'
 import { initialState, Store } from './state'
-import { createFloodTileLayer, type FloodProps } from './view/floodTileLayer'
-import { createMap } from './view/map'
+import { createFloodTileLayer, FLOOD_MODE } from './view/floodTileLayer'
+import type { FloodMeshUniforms } from './view/floodMeshLayer'
+import { applyPreset, bindCameraKeys, createMap } from './view/map'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
-import { FLOOD_MODE } from './view/shaders/flood'
-import { renderControls } from './ui/controls'
+import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
 
@@ -63,19 +63,33 @@ async function boot() {
   let pcb: PcBundle | undefined
 
   // ---- 地物 -------------------------------------------------------------
+  let rawFeatures: RawFeature[] = []
   let features: RawFeature[] = []
-  let assertions = new Map<string, FeatureAssertion>()
+  const assertions = new Map<string, FeatureAssertion>()
+  let featureExaggeration = -1
+  /** 地物ポリゴンを地面の高さに載せる。鉛直強調を変えたら作り直す */
+  function rebuildFeatureGeometry() {
+    const k = store.state.exaggeration
+    if (k === featureExaggeration) return
+    featureExaggeration = k
+    features = rawFeatures.map((f) => {
+      const a = f.properties.__a as FeatureAssertion
+      const g = a?.groundElev.highres ?? 0
+      return { ...f, geometry: liftZ(f.geometry, geoid + g * k) }
+    })
+  }
   void (async () => {
     const b = await scheduler.submit({
       key: 'semantics', url: catalog.semantics.url, cls: 'semantics',
     })
     const fc = JSON.parse(new TextDecoder().decode(b)) as { features: RawFeature[] }
-    features = fc.features.map((f) => ({ ...f, geometry: liftZ(f.geometry, geoid) }))
-    for (const f of features) {
+    rawFeatures = fc.features
+    for (const f of rawFeatures) {
       const a = toAssertion(f.properties)
       assertions.set(a.gmlId, a)
       ;(f.properties as Record<string, unknown>).__a = a
     }
+    rebuildFeatureGeometry()
     perf.mark('semantics_loaded')
     refresh()
   })()
@@ -85,35 +99,41 @@ async function boot() {
   let coarseDone = false
   let fineDone = false
 
-  const floodProps = (): FloodProps => {
+  type MeshUniforms = Omit<FloodMeshUniforms, 'bounds' | 'metersPerTexel' | 'hasDiff'>
+  const floodProps = (): MeshUniforms => {
     const s = store.state
-    const mpt = 156543.03392 * Math.cos((catalog.aoi.centre_wgs84[1] * Math.PI) / 180) /
-      2 ** Math.round(map.getZoom()) / 256 * 256
     return {
       waterLevel: s.waterLevel,
       hStep: catalog.packing.h_step,
       mode: s.surface === 'diff' ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
+      exaggeration: s.exaggeration,
+      geoid,
       floodOpacity: 0.82,
       groundOpacity: s.layers.ground ? 0.95 : 0,
       showGround: s.layers.ground ? 1 : 0,
-      metersPerTexel: Math.max(mpt / 256, 0.1),
-      texel: [1 / 256, 1 / 256],
     }
   }
 
   function terrainLayers() {
     const s = store.state
-    const asset = catalog.terrain[s.surface]
-    if (!asset || !s.layers.flood) return []
-    const fp = floodProps()
+    if (!s.layers.flood) return []
+    // 差分モードでも地形メッシュは必要なので、高解像度の標高タイルを土台に使い、
+    // 判定だけ diff タイル（2 条件の h_conn）から取る
+    const geomAsset = catalog.terrain[s.surface === 'diff' ? 'highres' : s.surface]
+    if (!geomAsset) return []
+    const diffUrl = s.surface === 'diff' ? catalog.terrain.diff?.url : undefined
     const common = {
-      urlTemplate: asset.url, extent, scheduler, flood: fp,
-      visible: true, opacity: 1, elevationOffset: geoid,
+      urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl, extent, scheduler,
+      uniforms: floodProps(), opacity: 1,
     }
+    const asset = geomAsset
     return [
       createFloodTileLayer({
         ...common,
         id: `flood-coarse-${s.surface}`,
+        // 板なら重ねて描けたが、メッシュ同士だと z-fight する。
+        // 粗メッシュは first_meaningful_render 用と割り切り、細が出たら隠す
+        visible: !fineDone,
         minZoom: asset.min_zoom, maxZoom: COARSE_MAX_ZOOM,
         cls: 'terrainCoarse',
         onViewportLoad: () => {
@@ -132,10 +152,11 @@ async function boot() {
       createFloodTileLayer({
         ...common,
         id: `flood-fine-${s.surface}`,
+        visible: true,
         minZoom: COARSE_MAX_ZOOM + 1, maxZoom: asset.max_zoom,
         cls: 'terrainFine',
         onViewportLoad: () => {
-          if (!fineDone) { fineDone = true; perf.mark('time_to_terrain') }
+          if (!fineDone) { fineDone = true; perf.mark('time_to_terrain'); refresh() }
           perf.cameraSettled()
         },
       }),
@@ -164,7 +185,11 @@ async function boot() {
     refresh()
   }
   function plateauLayers() {
-    return store.state.layers.plateau && plateauLayer ? [plateauLayer] : []
+    if (!plateauLayer) return []
+    // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない。
+    // レイヤ自体は外さず visible で切る（外して戻すと deck.gl が assertion で落ちる）
+    const show = store.state.layers.plateau && store.state.exaggeration === 1
+    return [plateauLayer.clone({ visible: show })]
   }
 
   function semanticsLayer() {
@@ -206,15 +231,18 @@ async function boot() {
   }
 
   function refresh() {
+    rebuildFeatureGeometry()
     overlay.setProps({
       layers: [
         ...terrainLayers(),
         ...semanticsLayer(),
         ...plateauLayers(),
-        ...(pcb ? pcb.renderer.layers(store.state.layers.pointcloud) : []),
+        ...(pcb ? pcb.renderer.layers(store.state.layers.pointcloud,
+              store.state.exaggeration, geoid) : []),
       ],
     })
-    renderControls(document.getElementById('controls')!, store, catalog)
+    renderControls(document.getElementById('controls')!, store, catalog,
+      (id) => applyPreset(map, id))
     renderInspector(document.getElementById('inspector')!, store, catalog)
   }
 
@@ -284,6 +312,12 @@ async function boot() {
     }, 60)
   })
 
+  bindCameraKeys(map, (d) => {
+    const i = EXAGGERATIONS.indexOf(store.state.exaggeration as never)
+    const next = EXAGGERATIONS[Math.min(EXAGGERATIONS.length - 1, Math.max(0, i + d))]
+    store.set({ exaggeration: next })
+  })
+
   map.on('load', () => {
     map.addControl(overlay as unknown as Parameters<typeof map.addControl>[0])
     refresh()
@@ -312,6 +346,8 @@ async function boot() {
     }),
     setWaterLevel: (v: number) => store.set({ waterLevel: v }),
     setSurface: (v: 'baseline' | 'highres' | 'diff') => store.set({ surface: v }),
+    setExaggeration: (v: number) => store.set({ exaggeration: v }),
+    setCamera: (id: string) => applyPreset(map, id as never),
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),
   }
 }
