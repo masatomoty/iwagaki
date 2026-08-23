@@ -111,11 +111,23 @@ web/
 
 コードは MIT。データは各提供元の規約に従う。
 
-- 3D 都市モデル（Project PLATEAU）舞鶴市（2025 年度）, 国土交通省 — PLATEAU Site Policy
-- 京都府オープンデータ「数値標高モデル（DEM）」（航空レーザ計測 平成 31〜令和 5 年）
-  — 公共データ利用規約 (PDL1.0)。**出典表示および加工した旨の明示が必要**
-- 潮位: 気象庁 潮位観測資料（舞鶴 MZ）
-- 高潮の想定条件: 京都府「高潮浸水想定区域図について」
+| データ | 出典 | ライセンス |
+|---|---|---|
+| 3D 都市モデル（建物・道路・地形） | [3D都市モデル（Project PLATEAU）舞鶴市（2025年度）／国土交通省](https://www.geospatial.jp/ckan/dataset/plateau-26202-maizuru-shi-2025) | [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) |
+| 0.5 m 数値標高モデル | [京都府オープンデータ「数値標高モデル（DEM）」（2019-2023 年計測）](https://www.geospatial.jp/ckan/dataset/dem05_kyoto) | [公共データ利用規約 第1.0版 (PDL1.0)](https://www.digital.go.jp/resources/open_data/public_data_license_v1.0) |
+| 潮位（推算・観測） | [気象庁 潮位観測資料（舞鶴 MZ）](https://www.data.jma.go.jp/kaiyou/db/tide/suisan/index.php) | 気象庁ホームページ利用規約 |
+| 既往最高潮位・防護水準 | [京都府「丹後沿岸海岸保全基本計画」](https://www.pref.kyoto.jp/shingikai/kaigan-01/documents/shiryo4.pdf) | — |
+| 高潮の想定条件 | [京都府「高潮浸水想定区域図について」](https://www.pref.kyoto.jp/sabo/takashio_shinsui/index.html) | — |
+| 験潮場の諸元 | [国土地理院 舞鶴験潮場](https://cais.gsi.go.jp/cmdc/center/kenchojo/maizuru/maizuru.html) | — |
+
+**京都府 DEM は出典表示と「加工した旨」の明示が必要。** 成果物には次を含めること。
+
+```
+出典：3D都市モデル（Project PLATEAU）舞鶴市（2025年度）／国土交通省
+出典：京都府オープンデータ「数値標高モデル（DEM）」（2019-2023年計測）
+      （本成果は同データを加工して作成したものであり、京都府が作成したものではありません）
+出典：気象庁 潮位観測資料（舞鶴）
+```
 
 測量法 43/44 条の扱い、京都府 DEM が森林資源把握を目的とした成果である点など、
 データ側の注意事項は `docs/DATA.md` を参照。
