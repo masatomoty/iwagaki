@@ -160,7 +160,53 @@ if (!copcUrl) {
   must('存在しない COPC -> 404', res.status === 404, String(res.status))
 }
 
+// ---- 5. 外部への通信を 1 件も出さない ---------------------------------------
+//
+// **ここだけブラウザを立てる。** fetch では分からない: 外部を叩くのは
+// ライブラリが動き出してからで、しかも Worker の中から出ることがある。
+// 実際 Draco のデコーダは worker 3 本がそれぞれ unpkg と gstatic を叩いていて、
+// 計 1.15 MB あった（docs/WEB_RESULTS.md）。
+//
+// クロスオリジンでは `transferSize` も `encodedBodySize` も 0 になるので、
+// **こちらの転送量計測には最後まで映らない**。だから MUST で塞ぐ。
+await sameOriginOnly()
+
 summary()
+
+async function sameOriginOnly() {
+  let chromium
+  try {
+    ({ chromium } = await import('@playwright/test'))
+  } catch (e) {
+    // **飛ばさない。** 「測っていない」を「通った」と読ませない
+    must('外部オリジンへのリクエストが 0 件', false,
+      `playwright が無くて測れなかった: ${String(e).slice(0, 80)}`)
+    return
+  }
+  const origin = new URL(base).origin
+  const browser = await chromium.launch({ args: ['--ignore-certificate-errors'] })
+  try {
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true,
+      viewport: { width: 1100, height: 750 } })
+    const page = await ctx.newPage()
+    const foreign = new Map()
+    page.on('request', (r) => {
+      const u = r.url()
+      if (/^(blob:|data:|about:)/.test(u) || u.startsWith(origin)) return
+      const k = u.split('?')[0]
+      foreign.set(k, (foreign.get(k) ?? 0) + 1)
+    })
+    // 点群も PLATEAU も動かす。外部を叩くのは大抵この 2 つの module
+    await page.goto(`${base}/?pc=1`, { waitUntil: 'commit' })
+    await page.waitForTimeout(15_000)
+    const list = [...foreign].map(([u, n]) => `${n}x ${u}`).join(' / ')
+    must('外部オリジンへのリクエストが 0 件', foreign.size === 0,
+      foreign.size === 0 ? `${origin} 以外へ 0 件` : list.slice(0, 400))
+    await ctx.close()
+  } finally {
+    await browser.close()
+  }
+}
 
 function summary() {
   const fails = results.filter((r) => r.kind === 'MUST' && !r.ok)

@@ -463,7 +463,10 @@ Cloudflare は br 応答に `content-length` を付けない（`docs/PLATFORM.md
 小さく見せる方に倒すと判断を誤る。帯域推定にも同じ値を使う。
 
 クロスオリジンだと `transferSize` も `encodedBodySize` も 0 になるので、
-**同一オリジンで配信する**（`docs/INFRA.md`）。
+**同一オリジンで配信する**（`docs/INFRA.md`）。これは計測の都合であると同時に、
+**外部に出られない回線で動くための条件**でもある。`deploy/check.mjs` の MUST
+「外部オリジンへのリクエストが 0 件」がここを守る（ブラウザを立てて数える。
+`fetch` では分からない）。
 
 ### 正しさを守るテスト
 
@@ -547,6 +550,7 @@ three.js の `Points` への差し替えは**この境界だけで済んだ**（
 | b3dm の `_BATCHID` は size:1 の属性で来る | **[実測]** | loaders.gl が `CUSTOM_ATTRIBUTE_2` に改名するので**名前ではなく `size === 1` で拾う** |
 | glTF は Y-up、3D Tiles は Z-up | **[既知]** | loaders.gl は変換せず `rotateYtoZ` を立てて渡してくる。受け側で回す |
 | 点群レンダラのセッタが毎回 `onChange` を出すと相互再帰する | **[実測]** | `refresh()` ⇄ セッタで `Maximum call stack size exceeded`。値が変わったときだけ通知する |
+| **loaders.gl は Draco を外部 CDN から取る** | **[実測]** | 既定で `unpkg.com` と `www.gstatic.com` に worker 1 本あたり 1 組（実測 3 本 / 計 1.15 MB）。**外部に出られない回線では建物が 1 棟も出ない。** `scripts/vendor-draco.mjs` が `public/vendor/draco@<version>/` に複製し、`options.CDN` をそこへ向ける。`options.modules` に URL を渡す道は worker へ渡る途中で落ちて効かない |
 | RGBA パッキングのアルファ乗算 | **[既知]** | GPU 経路は `premultiplyAlpha: 'none'`、CPU 経路は canvas を通さない |
 | `EXT_disjoint_timer_query_webgl2` の可用性 | **[未確認]** | 無ければ CPU 側の壁時計で代用し、その旨を結果に明記する |
 | 正射投影での点群 LOD の screen-space error | **[未確認]** | `sse` の式は透視のカメラ距離を前提にしている。正射では距離が効かないので、軸方向プリセットのときの採否は検証していない |

@@ -9,3 +9,6 @@ perf/results/
 
 # デプロイ用の R2 API トークン（絶対にコミットしない）
 .env.deploy
+
+# node_modules から生成する（scripts/vendor-draco.mjs）
+public/vendor/

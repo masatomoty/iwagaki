@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "vendor": "node scripts/vendor-draco.mjs",
+    "predev": "npm run vendor",
     "dev": "vite",
+    "prebuild": "npm run vendor",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "serve": "node serve.mjs",

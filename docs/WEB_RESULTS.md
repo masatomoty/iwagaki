@@ -209,26 +209,63 @@ MapLibre 側は**アプリ本体が 120 kB しかない**。初期チャンク�
 | `www.gstatic.com/draco/versioned/decoders/1.5.6/draco_decoder.wasm` | 3 | 285,747 |
 | `www.gstatic.com/draco/versioned/decoders/1.5.6/draco_wasm_wrapper.js` | 3 | 58,763 |
 | `unpkg.com/@loaders.gl/draco@4.4.5/dist/draco-worker.js` | 3 | 38,094 |
+| **合計** | **9** | **1,147,812** |
 
-**すべて 200 で、合計 1.15 MB。** cold load のたびに外部から取っている。
-`docs/TODO.md` に「現行ビルドでは発火しない（クロスオリジンのリクエストは 0 件）」と
-書いていたが、**誤りだった**。
+すべて 200。`docs/TODO.md` に「現行ビルドでは発火しない（クロスオリジンのリクエストは
+0 件）」「22 個の b3dm に `KHR_draco_mesh_compression` が無く」と書いていたが、
+**どちらも誤りだった。b3dm は 44 枚すべて Draco 圧縮されている**（バイナリを直接検査）。
+MapLibre + deck.gl のときも同じように出ていた。
 
-**MapLibre + deck.gl（`3ddf78b`）でも three.js でも同じように出る。**
-描画層の置き換えとは無関係な、元からあった問題である。
+Worker 3 本がそれぞれ 1 組ずつ取るので 3 倍になる。
 
-2 つの意味で悪い。
+#### 一番効くのは「外部が塞がれた回線で動くこと」 **[実測]**
 
-1. **1 Mbps では 9 秒分。** `slow-highrtt` の 12 秒窓で運べるのは 0.9 MB なので、
-   これが走れば窓を丸ごと食う。b3dm 22 枚に `KHR_draco_mesh_compression` は
-   1 つも無いのに、`@loaders.gl/3d-tiles` が Worker ごと先に用意してしまう
-2. **こちらの計測に映らない。** クロスオリジンでは `transferSize` も
-   `encodedBodySize` も 0 になるので（`docs/WEB_DESIGN.md`「収集する量」）、
-   `PerformanceObserver` で数えている転送量にこの 1.15 MB は入っていない。
-   **「見えていないものは無いことにしていた」**
+localhost 以外を全部 abort して、庁内のようなフィルタのある回線を模した:
 
-`deploy/check.mjs` の MUST に「クロスオリジンのリクエストを 1 件も出さない」を
-入れるところまで含めて `docs/TODO.md`。
+| | PLATEAU 建物 |
+|---|---|
+| 修正前 | **loaded 0 / failed 3 / 建物 0 棟。** `importScripts` が unpkg で失敗 |
+| 修正後 | loaded 22 / failed 0 / **建物 2,005 棟** |
+
+**外部に出られない回線では、建物が 1 棟も出なかった。** 本プロジェクトは
+庁内回線を前提にしているので、これが修正の主な理由である。
+
+#### 転送量は減るが、`fast4g` のマイルストーンは動かない **[実測]**
+
+同じ機械で交互に 2 回:
+
+| | 修正前 `c20ee11` | 修正後 |
+|---|---:|---:|
+| クロスオリジン | 9 件 / 1,147,812 B | **0 件 / 0 B** |
+| 同一オリジン @5 s | 1,863,569 B | 1,863,602 B |
+| 同一オリジン @10 s | 3,291,337 B | 3,291,370 B |
+| `time_to_plateau`（ナビ基準） | 12,197 / 12,132 ms | 12,510 / 12,352 ms |
+| 点群 `wantedPoints` | 124,550 | 124,550 |
+
+**同一オリジンの転送は 33 バイトしか変わらず、マイルストーンも動かない。**
+1.15 MB が消えたぶんが同一オリジンの取得に回る、とはならなかった。
+`Network.emulateNetworkConditions` の絞りが接続ごとに掛かっていて、
+**クロスオリジンの取得が同一オリジンの取得と帯域を奪い合っていない**と読める。
+実回線では奪い合うはずなので、**この表は「効果が無い」ではなく
+「この模擬回線では効果が測れない」と読むこと。**
+
+`?pc=1` を付けない既定の視点・絞りなしでは `time_to_plateau` が
+**2,544 ms -> 1,243 ms**。こちらは往復が素直に減っている。
+
+#### 直し方
+
+`scripts/vendor-draco.mjs` が `node_modules/@loaders.gl/draco/dist/libs/` から
+`public/vendor/draco@<version>/dist/libs/` に複製し、`options.CDN` をそこへ向ける。
+worker は `@loaders.gl/draco/draco-worker.js?url` でバンドルに同梱する。
+
+`options.modules` に URL を直接渡す道は**効かなかった**（worker へ渡る途中で落ちて
+既定の CDN に戻る。実測）。パスに loaders.gl のバージョンが入るので `_headers` で
+`immutable` にしてよい。
+
+`deploy/check.mjs` に MUST **「外部オリジンへのリクエストが 0 件」**を足した。
+ここだけブラウザを立てる。**`fetch` では分からない**（外部を叩くのはライブラリが
+動き出してからで、しかも Worker の中から出る）。playwright が無い環境では
+**通過にせず MUST を落とす** — 「測っていない」を「通った」と読ませないため。
 
 ### ズームの基準を取り違えていた **[実測]**
 

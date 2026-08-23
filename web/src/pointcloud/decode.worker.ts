@@ -4,8 +4,7 @@
 
 import { Copc, Las } from 'copc'
 import { LazPerf } from 'laz-perf/lib/worker/index.js'
-// @ts-expect-error vite asset url
-import wasmUrl from 'laz-perf/lib/worker/laz-perf.wasm?url'
+import wasmUrl from 'laz-perf/lib/worker/laz-perf.wasm?url'   // 型は src/assets.d.ts
 
 interface DecodeMsg {
   id: number

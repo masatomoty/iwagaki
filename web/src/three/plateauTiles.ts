@@ -17,6 +17,11 @@
 
 import { parse } from '@loaders.gl/core'
 import { Tiles3DLoader } from '@loaders.gl/3d-tiles'
+// Draco の実体を**自分のオリジンから**配る。既定では loaders.gl が
+// unpkg.com と www.gstatic.com から取りに行く（DRACO_LOCAL 参照）。
+// `?url` なので中身はバンドルに入らず、内容ハッシュ付きで dist/assets に出る
+// （= `_headers` の `/assets/*` で immutable になる）。
+import dracoWorkerUrl from '@loaders.gl/draco/draco-worker.js?url'
 import {
   BufferAttribute, BufferGeometry, DoubleSide, GLSL3, Group, Mesh, ShaderMaterial,
 } from 'three'
@@ -27,6 +32,29 @@ import { createEcefFrame, ecefToLocal, type EcefFrame, type LocalFrame } from '.
 import type { Viewer } from './viewer'
 
 const UNKNOWN_RGB = hexToRgb(UNKNOWN_HEX)
+
+/**
+ * Draco を外部 CDN から取らせないための設定。**PLATEAU の b3dm は 44 枚すべて
+ * `KHR_draco_mesh_compression` 付き**なので、Draco は必須である（一時期
+ * `docs/TODO.md` に「発火しない」と書いていたが誤り）。
+ *
+ * 既定のままだと cold load ごとに
+ * `unpkg.com/@loaders.gl/draco/dist/draco-worker.js`（38 kB）と
+ * `www.gstatic.com/draco/.../draco_decoder.wasm`（286 kB）+ `draco_wasm_wrapper.js`（59 kB）を
+ * **worker 3 本ぶん、計 1.15 MB** 取りに行く。1 Mbps なら 9 秒分で、しかも
+ * **クロスオリジンでは `transferSize` が 0 になるのでこちらの転送量計測に映らない**
+ * （`docs/WEB_RESULTS.md`「Draco を毎回 unpkg と gstatic から取っていた」）。
+ *
+ * `useLocalLibraries` を立てないと `modules` を見てくれない
+ * （loaders.gl の `getLoadableLibraryUrl` は http で始まる既定 URL をそのまま返す）。
+ * URL は絶対化しておく。worker の中では blob URL が基準になるため。
+ */
+const abs = (u: string) => new URL(u, location.href).href
+const DRACO_LOCAL = {
+  useLocalLibraries: true,
+  CDN: abs('vendor'),
+  draco: { workerUrl: abs(dracoWorkerUrl) },
+}
 
 const VS = /* glsl */ `
 in vec3 aColor;
@@ -168,7 +196,7 @@ export class PlateauTiles {
         // byteOffset を無視して先頭から読まれることがあるので、範囲を切り出す
         bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
         Tiles3DLoader,
-        { '3d-tiles': { loadGLTF: true }, gltf: { postProcess: true } } as never,
+        { '3d-tiles': { loadGLTF: true }, gltf: { postProcess: true }, ...DRACO_LOCAL } as never,
       ) as {
         gltf?: { meshes?: { primitives?: unknown[] }[] }
         batchTableJson?: Record<string, unknown>
