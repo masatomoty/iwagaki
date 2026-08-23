@@ -37,6 +37,26 @@ RECORD_HIGH = {
     "kind": "citation",
 }
 
+# 京都府「高潮浸水想定区域図について」（解説資料）表 3.2。
+# **舞鶴は高潮浸水想定区域に指定されている**（水防法第14条の3）。
+# 以前このリポジトリは「指定は無い」と書いていたが誤りだった。
+OFFICIAL_LEVELS = {
+    # 舞鶴検潮所の毎時潮位記録（気象庁）から 2019-2023 の 5 ヶ年平均
+    "spring_high_water_m_tp": 0.545,
+    # 下野ら(2004) の日本海沿岸の値
+    "anomaly_m": 0.142,
+    # 朔望平均満潮位 + 異常潮位。高潮のシミュレーションはここを起点に潮位偏差を足す
+    "design_base_tide_m_tp": 0.69,
+    "assumed_typhoon": "中心気圧 910 hPa（室戸台風規模）。想定し得る最大規模",
+    "levee_assumption":
+        "海岸保全施設・河川管理施設は設計条件に達した段階で決壊するものとして扱う。"
+        "決壊しない場合も別途計算し、両者の最大浸水深を区域図に表示している",
+    "source": "京都府「高潮浸水想定区域図について」（水防法第14条の3に基づく公表資料）",
+    "source_url": "https://www.pref.kyoto.jp/sabo/takashio_shinsui/documents/takashiokaisetsu.pdf",
+    "index_url": "https://www.pref.kyoto.jp/sabo/takashio_shinsui/index.html",
+    "kind": "citation",
+}
+
 
 def hourly_tp(year: int) -> np.ndarray:
     """推算潮位表の毎時値 [cm, 潮位表基準面] を読み、標高 [m T.P.] にして返す。
@@ -90,17 +110,27 @@ def main() -> int:
                 "朔望平均満潮位の近似。厳密な定義（朔望前後の各月最高満潮面の平均）ではない",
         },
         "record_high": RECORD_HIGH,
+        # 京都府「高潮浸水想定区域図について」（解説資料）表 3.2 の実数値。
+        # **本リポジトリの近似ではなく公表値**なので、近似より優先して出す。
+        "official": OFFICIAL_LEVELS,
         "reference_levels_m_tp": {
             "MSL": round(mean, 3),
             "H.W.L.(近似)": round(float(np.sort(daily_max)[-24:].mean()), 3),
             "天文潮最高": round(float(tp.max()), 3),
+            # 京都府の公表値。こちらの近似（H.W.L.(近似)）より 0.1 m 高い
+            "朔望平均満潮位(公表)": OFFICIAL_LEVELS["spring_high_water_m_tp"],
+            "高潮想定の基準潮位": OFFICIAL_LEVELS["design_base_tide_m_tp"],
             "既往最高潮位": RECORD_HIGH["value_m_tp"],
         },
         "caveats": [
             "既往最高潮位は引用値であり、本リポジトリで再計算したものではない",
-            "朔望平均満潮位は近似値。設計に使う値ではない",
-            "舞鶴に高潮浸水想定区域（水防法）の指定は無い（docs/DATA.md §4）",
-            "設計高潮位・計画高潮位・吉原入江の護岸天端高は依然として未確認",
+            "朔望平均満潮位(近似) は本リポジトリの近似。公表値は別に併記している",
+            "**舞鶴は高潮浸水想定区域（水防法第14条の3）に指定されている。**"
+            "以前『指定は無い』と記載していたのは誤り（docs/DATA.md §4）",
+            "京都府の想定は堤防等が決壊する場合を基本としている。"
+            "本リポジトリのモデルは施設を一切持たないので、決壊側に近い",
+            "設計高潮位・計画高潮位の個別海岸の数値、および"
+            "吉原入江の水門・樋門・陸閘は依然として未確認",
         ],
     }
     OUT.mkdir(parents=True, exist_ok=True)

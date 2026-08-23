@@ -230,6 +230,14 @@ void main(void) {
     } else if (wb && wh) outColor = vec4(vec3(0.16, 0.34, 0.58) * shade, fmesh.floodOpacity);
     else if (wh)         outColor = vec4(vec3(0.93, 0.22, 0.18) * shade, 0.95);
     else                 outColor = vec4(vec3(0.97, 0.82, 0.16) * shade, 0.95);
+  } else if (fmesh.mode > 0.5) {
+    // 差分モードなのに差分タイルが無い区画。**単一条件の浸水色を出してはいけない。**
+    // 「判定差が無い」ではなく「分からない」ので、色を付けると誤読させる。
+    // 差分ピラミッドは両条件とも h_conn が無い区画を焼かないので地形より疎で、
+    // ここは必ず出る（131 対 101 枚）。地面だけ描いて判断材料が無いことを示す
+    if (fmesh.showGround < 0.5) discard;
+    float gu = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
+    outColor = vec4(vec3(gu) * vec3(1.00, 0.99, 0.95), fmesh.groundOpacity);
   } else {
     float hConn = decodeHConn(texture(elevTexture, cellUv(texUv(vUv))).a);
     bool isWet = hConn <= fmesh.waterLevel;

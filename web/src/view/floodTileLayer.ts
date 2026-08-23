@@ -63,10 +63,17 @@ export function createFloodTileLayer(o: FloodTileLayerOptions) {
           epoch: o.scheduler.currentEpoch,
           stillNeeded: o.isTileNeeded ? () => o.isTileNeeded!(z, x, y) : undefined,
         }))
-      // 差分モードは「標高（メッシュ用）」と「2 条件の h_conn」で 2 枚必要
+      // 差分モードは「標高（メッシュ用）」と「2 条件の h_conn」で 2 枚必要。
+      //
+      // **差分タイルの欠損は許容する。** 差分ピラミッドは「両条件とも h_conn が
+      // 無い区画」を焼かないので地形より枚数が少なく（131 対 101）、
+      // Promise.all で待つと差分が 404 の区画は地形タイルごと落ちて画面に穴が開く。
+      // 地形タイルの失敗は従来どおり落とす（それは本当に描けない）。
       const [image, diffImage] = await Promise.all([
         get(u),
-        o.diffUrlTemplate ? get(url(o.diffUrlTemplate, tile.index)) : Promise.resolve(null),
+        o.diffUrlTemplate
+          ? get(url(o.diffUrlTemplate, tile.index)).catch(() => null)
+          : Promise.resolve(null),
       ])
       o.onTileLoaded?.(tile.index.z)
       return { image, diffImage }
