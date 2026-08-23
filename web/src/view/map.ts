@@ -3,7 +3,7 @@
 // docs/WEB_DESIGN.md §2.2）。起伏は FloodTileLayer のシェーダ内の陰影で出す。
 
 import {
-  Map as MlMap, NavigationControl, AttributionControl,
+  Map as MlMap, AttributionControl,
   type StyleSpecification,
 } from 'maplibre-gl'
 
@@ -11,6 +11,7 @@ import {
 // @deck.gl/mapbox 9.3 の interleaved 描画が毎フレーム例外で落ちる（docs/WEB_DESIGN.md §11）。
 
 import type { Catalog } from '../domain/catalog'
+import { ViewCube } from './viewCube'
 
 /** 外部タイルサーバに依存しない最小ベースマップ。計測を汚さないため外部通信ゼロ */
 const STYLE: StyleSpecification = {
@@ -37,13 +38,44 @@ export function createMap(container: HTMLElement, catalog: Catalog): MlMap {
     attributionControl: false,
 
   })
-  // ギズモは右上。左上の操作パネルと下辺の凡例・実測パネルから離す
-  map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')
+  // NavigationControl（+/- とコンパス）は付けない。
+  // ズームはホイールとピンチで足り、向きはビューキューブが担う。
+  // 小さいボタンが 3 つ並ぶより、押せる的が 1 つ大きいほうがよい。
   map.addControl(new AttributionControl({
     compact: true,
     customAttribution: catalog.attribution.join(' / '),
   }), 'bottom-right')
   return map
+}
+
+/**
+ * 右上にビューキューブを置く。カメラに追従し、面/辺/角で整列、ドラッグで回転。
+ * 実装は `view/viewCube.ts`（描画ライブラリに依存しない 2D canvas）。
+ */
+export function attachViewCube(map: MlMap): ViewCube {
+  const cube = new ViewCube({
+    size: 128,
+    onPick: (o) => map.easeTo({ bearing: o.bearingDeg, pitch: o.pitchDeg, duration: 450 }),
+    onDrag: (dx, dy) => {
+      // 横は方位、縦は傾き。MapLibre の上限を超えないように丸める
+      map.jumpTo({
+        bearing: map.getBearing() + dx * 0.6,
+        pitch: Math.max(0, Math.min(map.getMaxPitch(), map.getPitch() - dy * 0.4)),
+      })
+    },
+  })
+  const host = document.createElement('div')
+  host.id = 'viewcube'
+  host.appendChild(cube.el)
+  map.getContainer().appendChild(host)
+  const sync = () => cube.setOrientation({
+    bearingDeg: map.getBearing(), pitchDeg: map.getPitch(),
+  })
+  map.on('move', sync)
+  map.on('rotate', sync)
+  map.on('pitch', sync)
+  sync()
+  return cube
 }
 
 /** CAD のように軸方向から見るためのプリセット。bearing はカメラが向く方位 */

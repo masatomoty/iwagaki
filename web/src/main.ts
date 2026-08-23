@@ -18,7 +18,7 @@ import { initialState, Store } from './state'
 import { createFloodTileLayer, FLOOD_MODE } from './view/floodTileLayer'
 import type { FloodMeshUniforms } from './view/floodMeshLayer'
 import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
-import { applyPreset, bindCameraKeys, createMap } from './view/map'
+import { applyPreset, attachViewCube, bindCameraKeys, createMap } from './view/map'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
 import type { createPcCoverageLayer as CreatePcCoverageLayer,
               createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
@@ -71,6 +71,7 @@ async function boot() {
   const matrix = catalog.local_frame.matrix_2x2_row_major as [number, number, number, number]
 
   const map = createMap(document.getElementById('map')!, catalog)
+  attachViewCube(map)
   const overlay = new MapboxOverlay({ interleaved: true, layers: [] })
 
   // ---- 点群（遅延ロード。初回描画のバンドルに入れない）--------------------
@@ -332,7 +333,6 @@ async function boot() {
     })
     const sch = schemeFor(store.state.buildingColor)
     renderControls(document.getElementById('controls')!, store, catalog,
-      (id) => applyPreset(map, id),
       sch ? legendOf(plateauValues, sch) : [])
     renderInspector(document.getElementById('inspector')!, store, catalog)
   }

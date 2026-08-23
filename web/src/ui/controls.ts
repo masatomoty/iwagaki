@@ -3,7 +3,6 @@ import type { BuildingColorMode, SurfaceMode } from '../domain/types'
 import type { Store } from '../state'
 import { BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL,
          type LegendEntry } from '../view/buildingColor'
-import { CAMERA_PRESETS, type CameraPresetId } from '../view/map'
 
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 
@@ -79,7 +78,6 @@ const LAYERS: { key: keyof Store['state']['layers']; label: string }[] = [
  */
 export function renderControls(
   el: HTMLElement, store: Store, catalog: Catalog,
-  onPreset: (id: CameraPresetId) => void,
   buildingLegend: LegendEntry[] = [],
 ) {
   const s = store.state
@@ -143,11 +141,6 @@ export function renderControls(
         属性コードの表示名は CityGML 配布 zip 同梱のコードリスト。</div>
     </fieldset>
 
-    <fieldset><legend>View（1〜6 キー）</legend>
-      <div class="seg" id="cam">${CAMERA_PRESETS.map((p) =>
-        `<button data-c="${p.id}" title="${p.key}">${p.label}</button>`).join('')}</div>
-    </fieldset>
-
     <fieldset><legend>鉛直強調（[ ] キー）</legend>
       <div class="seg" id="exag">${EXAGGERATIONS.map((x) =>
         `<button data-x="${x}" aria-pressed="${s.exaggeration === x}">×${x}</button>`).join('')}</div>
@@ -181,10 +174,6 @@ export function renderControls(
   el.querySelector('#refs')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ waterLevel: Number(b.dataset.h) })
-  })
-  el.querySelector('#cam')!.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest('button')
-    if (b) onPreset(b.dataset.c as CameraPresetId)
   })
   el.querySelector('#exag')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')

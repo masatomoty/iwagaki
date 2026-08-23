@@ -14,6 +14,8 @@
   .panel { position: absolute; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line);
            border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(8px); }
   #controls { top: 12px; left: 12px; width: 268px; max-height: 56%; overflow: auto; }
+  /* ビューキューブ。左の操作パネルと下辺の凡例から離して右上に置く */
+  #viewcube { position: absolute; top: 8px; right: 8px; z-index: 5; }
   #inspector { top: 12px; right: 53px; width: 300px; max-height: calc(100% - 24px); overflow: auto; display: none; }
   /* 右上のギズモも 12px 基準に揃える（MapLibre の既定は 10px） */
   .maplibregl-ctrl-top-right .maplibregl-ctrl { margin: 12px 12px 0 0; }
