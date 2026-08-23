@@ -33,7 +33,7 @@ import { FOV_Y_DEG, type Viewer } from './three/viewer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
-import { drawSection, type SectionSeries } from './ui/section'
+import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
 import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
 import { applyPreset, attachViewCube, bindCameraKeys, createViewer, INITIAL_ZOOM,
          showSectionLine } from './view/map'
@@ -139,6 +139,8 @@ async function boot() {
       floodOpacity: 0.82,
       groundOpacity: s.layers.ground ? 0.95 : 0,
       showGround: s.layers.ground ? 1 : 0,
+      // 平常時に水がある範囲の下地。潮位を MSL より下げても川が消えないようにする
+      waterBase: catalog.water_level.reference_levels_m_tp?.['MSL'] ?? 0,
     }
   }
 
@@ -313,7 +315,6 @@ async function boot() {
   ]
   const secEl = document.getElementById('section')!
   const secCanvas = document.getElementById('sec-canvas') as HTMLCanvasElement
-  const secNote = document.getElementById('sec-note')!
   let secSeries: SectionSeries[] = []
   let secLine: [LonLat, LonLat] | null = null
   // 既定は水位まわり。全体に合わせると市街地の 0〜3 m が背後の 40 m に潰される
@@ -333,7 +334,8 @@ async function boot() {
     showSectionLine(viewer, from, to)
     secEl.style.display = 'block'
     document.body.classList.add('section-open')
-    secNote.textContent = '読み込み中…'
+    // 注記の div をやめたので、読み込み中は canvas に出す
+    drawSectionMessage(secCanvas, '読み込み中…')
     const zoom = catalog.terrain.highres?.max_zoom ?? 18
     const got = await Promise.all(SECTION_SERIES.map(async (s) => {
       const asset = catalog.terrain[s.condition]
@@ -351,20 +353,13 @@ async function boot() {
     const why = catalog.default_section && secLine
       && secLine[0][0] === catalog.default_section.from[0]
       ? `${catalog.default_section.why}。` : ''
-    secNote.textContent =
-      `${why}測線 ${len.toFixed(0)} m / ${n} 点。標高は配信中のタイル（${zoom} ズーム、`
-      + `1 セル ${(len / Math.max(1, n - 1)).toFixed(2)} m 相当）から読んでいる。`
-      + '水色は「海と連結して浸水する」区間で、標高が水位より低いだけでは塗らない。'
     redrawSection()
   }
 
   // 起動時に既定の断面を出す。**測線を引かせる前に、一番読む価値のある断面を見せる。**
   // 天端を横切る線で、3D では潰れて見えない 0〜3 m の起伏がここで読める
   const ds = catalog.default_section
-  if (ds) {
-    secNote.textContent = ds.why
-    void buildSection(ds.from as LonLat, ds.to as LonLat)
-  }
+  if (ds) void buildSection(ds.from as LonLat, ds.to as LonLat)
 
   const sectionTool = new SectionTool({
     viewer,
@@ -392,9 +387,8 @@ async function boot() {
     }
     // 選択を外す。地図の強調も一緒に消える
     if (t.id === 'insp-close') store.set({ selected: undefined })
-    // 視点。メニューに出すのは 平面 と ホームの 2 つで、残りはキーとビューキューブ
-    const cam = t.closest<HTMLElement>('[data-cam]')?.dataset.cam
-    if (cam) { applyPreset(viewer, cam as never); refresh() }
+    // 視点はメニューに出さない。キー 1-6 とビューキューブが担う
+    //（`bindCameraKeys` と `attachViewCube`）
     if (t.id === 'sec-fit') {
       secFit = secFit === 'water' ? 'all' : 'water'
       t.textContent = secFit === 'water' ? '全体を見る' : '水位まわり'

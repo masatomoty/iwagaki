@@ -17,7 +17,28 @@ export interface SectionSeries {
   points: SamplePoint[]
 }
 
-const PAD = { left: 46, right: 12, top: 14, bottom: 26 }
+const PAD = { left: 54, right: 14, top: 16, bottom: 30 }
+
+/** 軸と凡例の文字。パネル外に注記を持たないので、ここが読めないと何も分からない */
+const FONT = { axis: '12.5px system-ui, sans-serif', legend: '600 13px system-ui, sans-serif' }
+
+/** データが来る前の状態。**パネル下の注記をやめたので canvas に出す** */
+export function drawSectionMessage(canvas: HTMLCanvasElement, text: string) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  const dpr = devicePixelRatio || 1
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr; canvas.height = h * dpr
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
+  ctx.fillStyle = 'rgba(226,232,240,.6)'
+  ctx.font = FONT.axis
+  ctx.textAlign = 'center'
+  ctx.fillText(text, w / 2, h / 2)
+}
 
 /**
  * 縦軸の範囲。
@@ -71,7 +92,7 @@ export function drawSection(
   const withData = series.filter((s) => s.points.some((p) => Number.isFinite(p.elev)))
   if (withData.length === 0) {
     ctx.fillStyle = 'rgba(226,232,240,.6)'
-    ctx.font = '12px system-ui, sans-serif'
+    ctx.font = FONT.axis
     ctx.textAlign = 'center'
     ctx.fillText('この測線には地形データがありません', w / 2, h / 2)
     return
@@ -85,7 +106,7 @@ export function drawSection(
   // 目盛り
   ctx.strokeStyle = 'rgba(148,163,184,.18)'
   ctx.fillStyle = 'rgba(148,163,184,.75)'
-  ctx.font = '10px system-ui, sans-serif'
+  ctx.font = FONT.axis
   ctx.lineWidth = 1
   const zStep = niceStep(zHi - zLo)
   ctx.textAlign = 'right'
@@ -140,7 +161,7 @@ export function drawSection(
   ctx.fillStyle = 'rgba(96,165,250,.95)'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'bottom'
-  ctx.font = '600 11px system-ui, sans-serif'
+  ctx.font = FONT.legend
   ctx.fillText(`H = ${waterLevel.toFixed(2)} m T.P.`, PAD.left + 4, Y(waterLevel) - 3)
 
   // 地形。条件ごとに 1 本
@@ -160,7 +181,7 @@ export function drawSection(
   }
 
   // 凡例
-  ctx.font = '10px system-ui, sans-serif'
+  ctx.font = FONT.axis
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
   let lx = PAD.left + 4

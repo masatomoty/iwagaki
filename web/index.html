@@ -9,7 +9,7 @@
   :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff; }
   * { box-sizing: border-box; }
   html, body, #map { height: 100%; margin: 0; }
-  body { background: var(--bg); color: var(--fg); font: 13px/1.5 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
   #map { position: absolute; inset: 0; }
   .panel { position: absolute; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line);
            border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(8px); }
@@ -17,7 +17,7 @@
      このアプリの入力はその 2 つだけなので、スクロールで消えてはいけない */
   /* **下まで伸ばす。** 断面はこのパネルの右から始まるので、高さを譲る必要がない。
      頭（地形データ・水位）は固定で、本体だけスクロールする */
-  #controls { top: 12px; left: 12px; width: 276px; bottom: 34px;
+  #controls { top: 12px; left: 12px; width: 318px; bottom: 34px;
               display: flex; flex-direction: column; padding: 0; }
   #controls .head { flex: 0 0 auto; padding: 11px 13px 10px; border-bottom: 1px solid var(--line);
                     background: color-mix(in srgb, var(--panel) 96%, #000);
@@ -36,72 +36,82 @@
      測線が短く描かれ、0〜3 m の起伏がまた読めなくなる（以前は左 292 / 右 176 だった）。
      出典バー（下辺）の上に載せ、右の枠と角は落とす */
   #section {
-    display: none; left: 300px; right: 0; bottom: 26px; height: 262px;
+    display: none; left: 342px; right: 0; bottom: 28px; height: 268px;
     padding: 8px 14px 4px; border-radius: 0; border-right: 0;
   }
   #section .sec-head { display: flex; justify-content: space-between; align-items: center;
-    font-size: 12px; margin-bottom: 4px; }
+    font-size: 13.5px; margin-bottom: 4px; }
   #sec-close { background: transparent; border: none; color: rgba(226,232,240,.6);
-    font-size: 16px; cursor: pointer; padding: 0 4px; }
+    font-size: 19px; cursor: pointer; padding: 0 4px; }
   #sec-close:hover { color: #fff; }
   #sec-fit { background: rgba(148,163,184,.14); border: 1px solid rgba(148,163,184,.3);
-    color: rgba(226,232,240,.85); font-size: 11px; border-radius: 4px;
-    padding: 2px 8px; cursor: pointer; margin-right: 6px; }
+    color: rgba(226,232,240,.85); font-size: 12.5px; border-radius: 4px;
+    padding: 4px 10px; cursor: pointer; margin-right: 6px; }
   #sec-fit:hover { background: rgba(148,163,184,.26); }
-  #sec-canvas { width: 100%; height: 186px; display: block; }
+  #sec-canvas { width: 100%; height: 222px; display: block; }
   #section .note { margin-top: 2px; }
   /* インスペクタ。**ビューキューブ（右上 8px / 128px 角）の下に置く。**
      以前は top:12 right:53 で幅 300 だったので右端 53〜136px がキューブと重なり、
      z-index:5 のキューブがパネルの上に乗っていた */
-  #inspector { top: 146px; right: 12px; width: 292px; bottom: 34px;
+  #inspector { top: 146px; right: 12px; width: 330px; bottom: 34px;
                overflow: auto; display: none; }
   /* 断面を出している間は、その上に収める */
   body.section-open #inspector { bottom: 296px; }
   #inspector .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
   #insp-close { background: transparent; border: none; color: rgba(226,232,240,.55);
-    font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
+    font-size: 19px; line-height: 1; cursor: pointer; padding: 0 2px; }
   #insp-close:hover { color: #fff; }
   /* 出典。**常時表示する。** PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めている。
      MapLibre の AttributionControl が担っていた分で、描画層を外した以上ここで持つ */
   #attrib {
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
     background: rgba(6,8,12,.82); border-top: 1px solid var(--line);
-    color: var(--muted); font-size: 10.5px; line-height: 1.5;
-    padding: 5px 12px; backdrop-filter: blur(6px);
+    color: var(--muted); font-size: 11.5px; line-height: 1.5;
+    padding: 6px 12px; backdrop-filter: blur(6px);
   }
   #attrib a { color: var(--muted); }
   /* 計測パネルは開発者向け。既定は隠す（?perf=1 / P キーで開く）。
      左下は操作パネルが下まで占めるので、その右隣の上に置く */
-  #perf { display: none; top: 12px; left: 300px; width: 268px; max-height: 40%; overflow: auto;
+  #perf { display: none; top: 12px; left: 342px; width: 300px; max-height: 40%; overflow: auto;
            font-variant-numeric: tabular-nums; }
-  h1 { font-size: 13px; margin: 0 0 2px; letter-spacing: .02em; }
-  .sub { color: var(--muted); font-size: 11px; margin: 0 0 10px; }
+  h1 { font-size: 14.5px; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
   fieldset { border: 0; padding: 0; margin: 0 0 12px; }
-  legend { font-size: 11px; color: var(--muted); padding: 0; margin-bottom: 5px; letter-spacing: .04em; text-transform: uppercase; }
+  legend { font-size: 12.5px; color: var(--muted); padding: 0; margin-bottom: 5px; letter-spacing: .04em; text-transform: uppercase; }
   .seg { display: flex; gap: 4px; }
   .seg button { flex: 1; background: #232936; color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
-                padding: 6px 4px; font-size: 11px; cursor: pointer; }
+                padding: 7px 5px; font-size: 12.5px; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600; }
-  label.row { display: flex; align-items: center; gap: 7px; padding: 2px 0; font-size: 12px; }
+  label.row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
+  /* ドラッグだけだと 0.05 m 刻みを合わせにくい。−/＋ で 1 段ずつ動かせるようにする */
+  .wlrow { display: flex; align-items: center; gap: 6px; }
+  .wlrow input[type=range] { flex: 1 1 auto; min-width: 0; }
+  .stepbtn {
+    flex: 0 0 auto; width: 30px; height: 30px; background: #232936; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; font-size: 16px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .stepbtn:hover { border-color: #3d4657; }
+  .stepbtn:active { background: var(--accent); color: #07101d; }
   .tickbar { position: relative; height: 6px; margin: -4px 0 2px; }
   .tickbar i { position: absolute; top: 0; width: 1px; height: 6px; background: var(--muted); }
   .seg.wrap { flex-wrap: wrap; gap: 3px; }
   .seg.wrap button { flex: 1 1 46%; line-height: 1.25; padding: 4px 2px; }
   .seg.wrap button .sub { font-size: 10px; }
   .wl { display: flex; justify-content: space-between; align-items: baseline; }
-  .wl b { font-size: 17px; font-variant-numeric: tabular-nums; }
-  .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .wl b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
   td { padding: 2px 0; vertical-align: top; }
   td:first-child { color: var(--muted); white-space: nowrap; padding-right: 8px; }
   .num { font-variant-numeric: tabular-nums; text-align: right; }
-  .tag { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 10px; border: 1px solid var(--line); }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 11.5px; border: 1px solid var(--line); }
   .tag.chg { background: #4a1f22; border-color: #7d3238; color: #ffb4b4; }
   .tag.same { background: #1f2a22; border-color: #2f4636; color: #9fd6ac; }
   .tag.warn { background: #40351a; border-color: #6b5722; color: #f0d48a; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-  .note { color: var(--muted); font-size: 10.5px; margin-top: 8px; line-height: 1.45; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
   #perf table td { padding: 1px 0; }
   .bad { color: #ff9a9a; } .ok { color: #9fd6ac; }
 
@@ -109,17 +119,17 @@
      グループの見出しは 2 段だけ。fieldset/legend をやめたのは、8 個が
      フラットに並ぶ形そのものが問題だったため */
   /* **uppercase にしない。** 条件名（0.5m）を含むので 0.5M に化ける */
-  .grouplabel { font-size: 10px; color: var(--muted); letter-spacing: .06em; margin: 0 0 4px; }
-  .subhead { font-size: 10px; color: var(--muted); letter-spacing: .06em;
-    text-transform: uppercase; margin: 10px 0 4px; }
+  .grouplabel { font-size: 11.5px; color: var(--muted); letter-spacing: .04em; margin: 0 0 5px; }
+  .subhead { font-size: 11.5px; color: var(--muted); letter-spacing: .04em;
+    margin: 12px 0 5px; }
   .subhead:first-child { margin-top: 0; }
   .seg button:disabled { opacity: .38; cursor: default; }
   .seg button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
 
   /* いま何を見ているか。**これが主張そのもの**なので muted の注記にしない */
-  .nowline { margin-top: 9px; padding-top: 8px; font-size: 11.5px; line-height: 1.45;
+  .nowline { margin-top: 10px; padding-top: 9px; font-size: 13px; line-height: 1.45;
     border-top: 1px dashed rgba(148,163,184,.22); }
-  .nowline .why { color: var(--muted); display: block; font-size: 10.5px; margin-top: 2px; }
+  
 
   /* 地形データは 1 つ選ぶだけなので select。ボタン 4 つを 2 行に折り返すより、
      頭が 1 行分空く。判定差は「差分タイルが無い条件では押せない」を見せたいので
@@ -133,12 +143,12 @@
     background-size: 5px 5px, 5px 5px;
     background-position: right 12px center, right 7px center;
     color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
-    padding: 6px 24px 6px 8px; font: 12px/1.3 inherit; cursor: pointer;
+    padding: 7px 26px 7px 9px; font: 13.5px/1.3 inherit; cursor: pointer;
   }
   .condrow select:hover { border-color: #3d4657; }
   .condrow button {
     flex: 0 0 auto; background: #232936; color: var(--fg); border: 1px solid var(--line);
-    border-radius: 6px; padding: 6px 9px; font-size: 11px; cursor: pointer;
+    border-radius: 6px; padding: 7px 11px; font-size: 12.5px; cursor: pointer;
   }
   .condrow button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
   .condrow button[aria-pressed="true"] {
@@ -148,14 +158,14 @@
 
   .chips { display: flex; gap: 4px; margin-top: 6px; }
   .chips button { flex: 1; background: transparent; color: var(--muted); cursor: pointer;
-    border: 1px solid var(--line); border-radius: 5px; padding: 3px 4px; font-size: 10px; }
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 4px; font-size: 12px; }
   .chips button:hover { color: var(--fg); border-color: #3d4657; }
   .chips button b { font-variant-numeric: tabular-nums; margin-left: 4px; }
 
   .reflist { display: grid; gap: 3px; }
   .reflist button { display: flex; justify-content: space-between; background: transparent;
     color: var(--muted); border: 1px solid var(--line); border-radius: 5px;
-    padding: 3px 6px; font-size: 10.5px; cursor: pointer; text-align: left; }
+    padding: 5px 8px; font-size: 12px; cursor: pointer; text-align: left; }
   .reflist button:hover { color: var(--fg); border-color: #3d4657; }
   .reflist button b { font-variant-numeric: tabular-nums; color: var(--fg); }
 
@@ -164,24 +174,20 @@
     border-left: 1px solid rgba(148,163,184,.2); }
   label.row.off { color: #5f6875; }
   label.row.off input { opacity: .45; }
-  .whyoff { font-size: 10px; color: #6b7480; margin: 0 0 2px 19px; }
+  .whyoff { font-size: 11.5px; color: #6b7480; margin: 0 0 3px 22px; }
 
-  details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
-  details > summary { cursor: pointer; font-size: 11px; color: var(--muted);
-    letter-spacing: .04em; text-transform: uppercase; list-style: none;
-    display: flex; align-items: center; gap: 6px; }
-  details > summary::-webkit-details-marker { display: none; }
-  details > summary::before { content: "\25B8"; font-size: 9px; color: #6b7480; }
-  details[open] > summary::before { content: "\25BE"; }
-  details > summary:hover { color: var(--fg); }
-  details .inner { padding-top: 8px; }
-
+  /* 畳む機能は持たない。**常に見えている。** 節が 4 つしか無く、
+     畳むと「押さないと分からない」ものが増えるだけだった */
+  .group { padding-left: 2px; }
+  kbd { font: 500 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #232936; border: 1px solid var(--line); border-radius: 3px;
+    padding: 1px 4px; color: var(--muted); }
   .keyrow { display: flex; justify-content: space-between; gap: 8px;
-    font-size: 10.5px; color: var(--muted); padding: 2px 0; }
-  .srcnote { color: var(--muted); font-size: 10.5px; line-height: 1.5; margin: 6px 0 0; }
+    font-size: 12px; color: var(--muted); padding: 3px 0; }
+  .srcnote { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 7px 0 0; }
   .srcnote b { color: #c3cad7; font-weight: 500; }
   .btnwide { width: 100%; background: #232936; color: var(--fg); cursor: pointer;
-    border: 1px solid var(--line); border-radius: 6px; padding: 6px 4px; font-size: 11px; }
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 5px; font-size: 12.5px; }
   .btnwide:hover { border-color: #3d4657; }
   .btnwide[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
     color: #07101d; font-weight: 600; }
@@ -200,8 +206,7 @@
       <button id="sec-close" type="button" title="閉じる">×</button></span>
     </div>
     <canvas id="sec-canvas"></canvas>
-    <div class="note" id="sec-note"></div>
-  </div>
+    </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

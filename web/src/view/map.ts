@@ -10,9 +10,32 @@
 import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicMaterial } from 'three'
 
 import type { Catalog } from '../domain/catalog'
-import { createLocalFrame, lngLatToWorld } from '../three/mercator'
+import { createLocalFrame, lngLatToWorld, type LocalFrame } from '../three/mercator'
 import { Viewer, type ProjectionMode } from '../three/viewer'
 import { ViewCube } from './viewCube'
+
+/**
+ * 既定の注視点。**点群が取れている帯の中心**を見る。
+ *
+ * AOI の中心（100 ha の真ん中）は背後の山を含むので、起動直後の画面が
+ * 「山と海」になっていた。見せたいのは吉原の市街で、**そこは点群と PLATEAU 建物が
+ * 両方ある唯一の場所**である（点群は歩いた線に沿った 3.17 ha だけ）。
+ *
+ * 座標は埋め込まない。`catalog.pointcloud.bounds`（EPSG:6674）を
+ * `local_frame` の行列でローカル ENU に直す。**`pointcloud/decode.worker.ts` が
+ * 点そのものに使っているのと同じ変換**なので、必ず点群の上に来る。
+ * 点群を持たない配信物では AOI の中心に落ちる。
+ */
+function defaultTarget(catalog: Catalog, frame: LocalFrame): [number, number] {
+  const [lon, lat] = catalog.aoi.centre_wgs84
+  const b = catalog.pointcloud?.bounds
+  if (!b) return lngLatToWorld(frame, lon, lat)
+  const [ox, oy] = catalog.local_frame.origin_epsg6674
+  const [m0, m1, m2, m3] = catalog.local_frame.matrix_2x2_row_major
+  const dx = (b.minx + b.maxx) / 2 - ox
+  const dy = (b.miny + b.maxy) / 2 - oy
+  return [m0 * dx + m1 * dy, m2 * dx + m3 * dy]
+}
 
 export function createViewer(container: HTMLElement, catalog: Catalog): Viewer {
   const [lon, lat] = catalog.aoi.centre_wgs84
@@ -24,7 +47,7 @@ export function createViewer(container: HTMLElement, catalog: Catalog): Viewer {
     // 注視点を AOI から大きく離さない（旧 maxBounds 相当）
     maxBoundsLngLat: [b[0] - 0.02, b[1] - 0.02, b[2] + 0.02, b[3] + 0.02],
     initial: {
-      target: lngLatToWorld(frame, lon, lat),
+      target: defaultTarget(catalog, frame),
       // 距離はこのあと setZoom(INITIAL_ZOOM) で上書きする（ビューポート高に依存するため）
       distance: 3456,
       pitch: 52,
@@ -42,8 +65,22 @@ export function createViewer(container: HTMLElement, catalog: Catalog): Viewer {
  * （ちょうど 2 倍）、可視範囲が 4 倍**になっていた。要求するタイルも
  * z17 が 25 枚 -> z16 が 9 枚と 1 段粗く、配信性能の比較が成立していなかった。
  * ここを変えると `docs/WEB_RESULTS.md` の数字と比べられなくなる。
+ *
+ * **16.6 から 17.2 に寄せた** [実測]。既定の注視点を点群の帯にしたので、
+ * 帯（426 × 799 m）が画面幅（17.2 で 843 m）に収まる倍率にしてある。
+ * 17.6 まで寄せると `Math.round` で要求する z が 17 -> 18 に上がり、
+ * **細タイルが 4 倍になって PLATEAU も視界に入る**。実測（localhost, 1400x900）:
+ *
+ * | z | FMR | time_to_terrain | 要求 | 転送 |
+ * |---|---|---|---|---|
+ * | 16.6（旧既定） | 906 ms | 2,323 ms | 64 | 4.84 MB |
+ * | 17.2（新既定） | 733 ms | 1,468 ms | 64 | 4.84 MB |
+ * | 17.6 | 1,090 ms | **13,348 ms** | **126** | **6.40 MB** |
+ *
+ * 要求本数と転送量は 16.6 と同じなので、`docs/WEB_RESULTS.md` の枚数・バイト数は
+ * そのまま比較できる。変わるのは時刻だけ。
  */
-export const INITIAL_ZOOM = 16.6
+export const INITIAL_ZOOM = 17.2
 
 /**
  * CAD のように軸方向から見るためのプリセット。bearing はカメラが向く方位。

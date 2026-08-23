@@ -46,6 +46,8 @@ export interface FloodUniformValues {
   floodOpacity: number
   groundOpacity: number
   showGround: number
+  /** 平常時に水がある範囲の閾値 [m T.P.]。MSL を渡す */
+  waterBase: number
 }
 
 const DECODE = /* glsl */ `
@@ -153,6 +155,7 @@ uniform float uMode;
 uniform float uFloodOpacity;
 uniform float uGroundOpacity;
 uniform float uShowGround;
+uniform float uWaterBase;
 uniform float uHasDiff;
 
 in vec2 vUv;
@@ -181,6 +184,19 @@ void main() {
   vec2 cu = cellUv(vUv);
 
   vec4 outColor;
+
+  // **平常時に水がある範囲**の下地。
+  //
+  // 潮位を下げると海と川が「乾いた地面」として描かれ、地形が読めなくなっていた。
+  // 原因は 2 つの実測事実の組み合わせ [実測]:
+  //   - h_conn = 0.00 の画素が **19.26 %** ある（= 海と川。z17 の 25 枚で計測）
+  //   - **標高は 0 m にクリップされている**（同計測の最小値が 0.0 m）
+  // したがって潮位 0 では h_conn <= H は真だが depth = H - elev = 0 になり、
+  // 浸水色の条件（depth > 0）を外れて地面の分岐に落ちていた。
+  //
+  // なので「濡れているか」ではなく **「平常時の海面より低いか」** で下地を決める。
+  // 閾値は catalog の MSL（気象庁 公表・天文潮の年平均と一致で検算済み）。
+
   if (uMode > 0.5 && uHasDiff < 0.5) {
     // 差分モードだが差分タイルが無い区画。判定差が「無い」のではなく
     // 「分からない」ので、浸水色は出さず地面だけ描く
@@ -193,7 +209,12 @@ void main() {
     vec4 d = texture(diffTexture, cu);
     bool wb = decodeHConn(d.r) <= uWaterLevel;
     bool wh = decodeHConn(d.g) <= uWaterLevel;
-    if (!wb && !wh) {
+    // 平常時の水域で、まだ水深が付かない潮位のときは下地を出す。
+    // ここを先に見ないと、潮位 0 で海が「どちらも浸水」の青になる
+    bool permWater = min(decodeHConn(d.r), decodeHConn(d.g)) <= uWaterBase;
+    if (permWater && max(0.0, uWaterLevel - vElev) <= 0.0) {
+      outColor = vec4(vec3(0.20, 0.31, 0.40) * shade, uGroundOpacity);
+    } else if (!wb && !wh) {
       if (uShowGround < 0.5) discard;
       float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
       outColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
@@ -201,11 +222,18 @@ void main() {
     else if (wh)         outColor = vec4(vec3(0.93, 0.22, 0.18) * shade, 0.95);
     else                 outColor = vec4(vec3(0.97, 0.82, 0.16) * shade, 0.95);
   } else {
-    float hConn = decodeHConn(texture(elevTexture, cu).a);
+    float a = texture(elevTexture, cu).a;
+    float hConn = decodeHConn(a);
     bool isWet = hConn <= uWaterLevel;
+    bool baseWater = a > 0.0 && hConn <= uWaterBase;
     float depth = isWet ? max(0.0, uWaterLevel - vElev) : 0.0;
     if (isWet && depth > 0.0) {
       outColor = vec4(depthRamp(depth) * mix(1.0, shade, 0.35), uFloodOpacity);
+    } else if (baseWater) {
+      // 判定の色（浸水深ランプ = 鮮やかな水色〜紺）とは別に、**彩度を落とした鋼色**。
+      // 「我々の判定」ではなく「普段から水域」であることを色で分ける。
+      // 暗くしすぎると地面に見えるので、水面として読める明るさに置く
+      outColor = vec4(vec3(0.20, 0.31, 0.40) * shade, uGroundOpacity);
     } else if (uShowGround > 0.5) {
       float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
       outColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
@@ -298,6 +326,7 @@ export function createFloodMaterial(): ShaderMaterial {
       uFloodOpacity: { value: 0.82 },
       uGroundOpacity: { value: 0.95 },
       uShowGround: { value: 1 },
+      uWaterBase: { value: 0 },
       uHasDiff: { value: 0 },
     },
   })
@@ -315,4 +344,5 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uFloodOpacity.value = v.floodOpacity
   u.uGroundOpacity.value = v.groundOpacity
   u.uShowGround.value = v.showGround
+  u.uWaterBase.value = v.waterBase
 }

@@ -112,7 +112,10 @@ function buildingLegendHtml(s: Store['state'], entries: LegendEntry[]): string {
       + `<i style="background:${UNKNOWN_HEX};margin-left:5px"></i></div>` : ''}</div>`
 }
 
-/** いま何を見ているか。**これが主張そのもの**なので muted の注記にはしない */
+/**
+ * いま何を見ているか。1 行だけ。
+ * データの由来（`CONDITIONS[].hint`）は画面に出さない。select の title に残す。
+ */
 function nowLine(s: Store['state']): string {
   const cond = surfaceCondition(s.surface)
   const c = CONDITIONS.find((x) => x.id === cond)!
@@ -121,8 +124,7 @@ function nowLine(s: Store['state']): string {
   const head = isDiff(s.surface)
     ? `${label(pair.from)} と ${label(pair.to)} の判定差`
     : `${c.label} の浸水`
-  return `<b>${head}</b> @ H = ${s.waterLevel.toFixed(2)} m T.P.
-    <span class="why">${c.hint}</span>`
+  return `<b>${head}</b> @ H = ${s.waterLevel.toFixed(2)} m T.P.`
 }
 
 /**
@@ -236,16 +238,23 @@ export function renderControls(
       <p class="grouplabel">地形データ</p>
       <div class="condrow">
         <select id="cond" aria-label="地形データ">${CONDITIONS.map((c) =>
-          `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
+          `<option value="${c.id}" title="${c.hint}"
+                   ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
         <button id="diffbtn" type="button"
                 aria-pressed="${isDiff(s.surface)}"
                 ${DIFF_OF[cond] ? '' : 'disabled'}>判定差</button>
       </div>
 
-      <p class="grouplabel" style="margin-top:9px">水位</p>
+      <p class="grouplabel" style="margin-top:11px">潮位</p>
       <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
-      <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}"
-             value="${s.waterLevel}" aria-label="水位 H（m T.P.）" />
+      <div class="wlrow">
+        <button class="stepbtn" id="wl-down" type="button"
+                aria-label="潮位を ${wl.step} m 下げる">−</button>
+        <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}"
+               value="${s.waterLevel}" aria-label="潮位（m T.P.）" />
+        <button class="stepbtn" id="wl-up" type="button"
+                aria-label="潮位を ${wl.step} m 上げる">＋</button>
+      </div>
       <div class="tickbar">${refs.map(([k, v]) =>
         `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${v.toFixed(3)} m"></i>`).join('')}</div>
       <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
@@ -274,41 +283,25 @@ export function renderControls(
         <div id="bldglegend">${buildingLegendHtml(s, buildingLegend)}</div>
       </div>
 
-      <details>
-        <summary>見方</summary>
-        <div class="inner">
-          <p class="grouplabel">視点</p>
-          <div class="seg">
-            <button data-cam="west" type="button"
-              title="汀線に沿って真横から・正射（キー 3）。起伏 0〜3 m はここでしか読めない">横から</button>
-            <button data-cam="iso" type="button" title="起動時の俯瞰（キー 6）">ホーム</button>
-          </div>
-          <div class="keyrow">他の視点 <span>キー 1 2 4 5 ・ キューブ</span></div>
-          <div class="keyrow">透視 / 正射 <span>キー O</span></div>
-          <p class="srcnote"><b>上から見ても浸水域の輪郭しか分からない。</b>
-            どこが水位より低いかは横から見る。汀線の方位は約 75°、
-            「横から」はそれに沿った真横で、正射に切り替わる。</p>
-
-          <p class="grouplabel" style="margin-top:9px">高さを強調</p>
+      <p class="subhead">見方</p>
+      <div class="group">
+          <p class="grouplabel">高さを強調</p>
           <div class="seg" id="exag">${MENU_EXAGGERATIONS.map((x) =>
             `<button data-x="${x}" type="button"
                      aria-pressed="${s.exaggeration === x}">×${x}</button>`).join('')}</div>
           <div class="keyrow">×2 ×10 <span>キー [ ]</span></div>
-          <p class="srcnote">吉原は 1 km に対して起伏が 0〜3 m しかない。
-            横から見るときは強調しないと読めない。判定そのものは変わらない。</p>
 
-          <p class="grouplabel" style="margin-top:9px">断面</p>
-          <button class="btnwide" id="secbtn" type="button">測線を引く</button>
-          <p class="srcnote">地図を 2 点クリック。Esc で中止。</p>
+          <p class="grouplabel" style="margin-top:11px">断面</p>
+          <button class="btnwide" id="secbtn" type="button"
+                  title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>
 
+          <div class="keyrow" style="margin-top:11px">投影 <span>キー O</span></div>
+          <div class="keyrow">視点 <span>キー 1–6 ・ ビューキューブ</span></div>
           <div class="keyrow">計測パネル <span>キー P</span></div>
-        </div>
-      </details>
+      </div>
 
-      <details>
-        <summary>参照潮位</summary>
-        <div class="inner">${refListHtml(refs)}</div>
-      </details>
+      <p class="subhead">参照潮位</p>
+      ${refListHtml(refs)}
     </div>
   `
   el.dataset.built = '1'
@@ -335,9 +328,18 @@ export function renderControls(
   })
   const range = el.querySelector<HTMLInputElement>('#wl')!
   range.addEventListener('input', () => {
-    // 水位変更でネットワークは一切発生しない。シェーダの uniform が変わるだけ
+    // 潮位変更でネットワークは一切発生しない。シェーダの uniform が変わるだけ
     store.set({ waterLevel: Number(range.value) })
   })
+  // **ドラッグだけでは 0.05 m 刻みを合わせにくい。** 1 段ずつ動かせるようにする
+  const nudge = (d: number) => {
+    const v = Math.min(wl.max, Math.max(wl.min, store.state.waterLevel + d * wl.step))
+    // 端で刻みからずれた値（既定は MSL 0.124）でも、刻みの格子に乗せ直さない。
+    // 参照潮位はそのままの値で意味があるので、丸めると出典と合わなくなる
+    store.set({ waterLevel: Math.round(v * 1000) / 1000 })
+  }
+  el.querySelector('#wl-down')!.addEventListener('click', () => nudge(-1))
+  el.querySelector('#wl-up')!.addEventListener('click', () => nudge(1))
   el.querySelector('#cb-changed')!.addEventListener('change', (e) => {
     store.setLayer({ changedOnly: (e.target as HTMLInputElement).checked })
   })

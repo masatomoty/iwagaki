@@ -159,17 +159,31 @@ function buildOutline(frame: LocalFrame, features: RawFeature[], grounds: number
 }
 
 /**
- * 選択・ホバーの輪郭は 1 地物ぶんだけ別に作る。
+ * 選択・ホバーの枠線を 1 地物ぶんだけ作る。**線ではなく帯（三角形）で作る。**
  *
- * **色属性を書き換えるだけでは強調が見えない。** 地物ポリゴンは地面の高さにあり、
- * PLATEAU 建物（3D Tiles）の箱がその上に立つので、真上から見ると箱に隠れる。
- * ここだけ `depthTest: false` にして、必ず手前に描く。
+ * 理由が 2 つある。
+ *  1. **WebGL の `linewidth` はほとんどの実装で 1 px に固定される。** 太い線は
+ *     引けないので、1 px の輪郭では俯瞰で「どれを選んだか」が読めなかった
+ *  2. 地物ポリゴンは地面の高さにあり、PLATEAU 建物（3D Tiles）の箱がその上に
+ *     立つので、色属性を書き換えるだけでは箱に隠れる
+ *
+ * 幅はメートルで与える（ズームに追従しないので、寄れば太く見える）。
+ * 角は辺ごとの矩形だけでは隙間が開くので、頂点に正方形を置いて埋める。
+ * 描くときは `depthTest: false` で必ず手前に出す。
  */
-function buildOneOutline(
-  frame: LocalFrame, feature: RawFeature, ground: number,
+function buildOutlineBand(
+  frame: LocalFrame, feature: RawFeature, ground: number, widthM: number,
 ): BufferGeometry {
   const pos: number[] = []
   const g: number[] = []
+  const hw = widthM / 2
+  const quad = (
+    ax: number, ay: number, bx: number, by: number,
+    cx: number, cy: number, dx: number, dy: number,
+  ) => {
+    pos.push(ax, ay, 0, bx, by, 0, cx, cy, 0, ax, ay, 0, cx, cy, 0, dx, dy, 0)
+    for (let k = 0; k < 6; k++) g.push(ground)
+  }
   const polys: number[][][][] =
     feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates as number[][][]]
     : feature.geometry.type === 'MultiPolygon' ? (feature.geometry.coordinates as number[][][][])
@@ -180,16 +194,26 @@ function buildOneOutline(
       for (let i = 0; i < w.length; i++) {
         const a = w[i]
         const b = w[(i + 1) % w.length]
-        pos.push(a.x, a.y, 0, b.x, b.y, 0)
-        g.push(ground, ground)
+        const ex = b.x - a.x
+        const ey = b.y - a.y
+        const len = Math.hypot(ex, ey)
+        if (len > 1e-6) {
+          // 辺に垂直な向きへ hw だけ広げた矩形
+          const px = (-ey / len) * hw
+          const py = (ex / len) * hw
+          quad(a.x + px, a.y + py, b.x + px, b.y + py,
+               b.x - px, b.y - py, a.x - px, a.y - py)
+        }
+        // 角の隙間埋め（辺の向きに依らない正方形）
+        quad(a.x - hw, a.y - hw, a.x + hw, a.y - hw,
+             a.x + hw, a.y + hw, a.x - hw, a.y + hw)
       }
     }
   }
   const geo = new BufferGeometry()
   geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
   geo.setAttribute('aGround', new BufferAttribute(new Float32Array(g), 1))
-  const col = new Float32Array(pos.length)
-  geo.setAttribute('aColor', new BufferAttribute(col, 3))
+  geo.setAttribute('aColor', new BufferAttribute(new Float32Array(pos.length), 3))
   geo.computeBoundingSphere()
   return geo
 }
@@ -226,9 +250,9 @@ export class SemanticsMesh {
   private style?: SemanticsStyle
   private highlight: SemanticsHighlight = {}
   private grounds: number[] = []
-  /** 選択・ホバーの輪郭。1 地物ぶんだけ作り直す（建物の箱より手前に描く） */
-  private selLine: LineSegments
-  private hovLine: LineSegments
+  /** 選択・ホバーの枠線。1 地物ぶんだけ作り直す（建物の箱より手前に描く） */
+  private selLine: Mesh
+  private hovLine: Mesh
   private selMat: ShaderMaterial
   private hovMat: ShaderMaterial
 
@@ -257,8 +281,8 @@ export class SemanticsMesh {
     this.hovMat = material(0.12, 0.9, true)
     this.selMat.uniforms.uGeoid.value = geoid
     this.hovMat.uniforms.uGeoid.value = geoid
-    this.selLine = new LineSegments(new BufferGeometry(), this.selMat)
-    this.hovLine = new LineSegments(new BufferGeometry(), this.hovMat)
+    this.selLine = new Mesh(new BufferGeometry(), this.selMat)
+    this.hovLine = new Mesh(new BufferGeometry(), this.hovMat)
     this.selLine.renderOrder = 20
     this.hovLine.renderOrder = 19
     this.selLine.visible = this.hovLine.visible = false
@@ -288,14 +312,15 @@ export class SemanticsMesh {
   setHighlight(h: SemanticsHighlight) {
     if (h.selected === this.highlight.selected && h.hovered === this.highlight.hovered) return
     this.highlight = { ...h }
-    this.rebuildOutline(this.selLine, h.selected, [1, 1, 1])
+    // 選択は 2.4 m 幅の白。ホバーは 1.2 m 幅の水色（選択より控える）
+    this.rebuildOutline(this.selLine, h.selected, [1, 1, 1], 2.4)
     this.rebuildOutline(this.hovLine, h.hovered === h.selected ? undefined : h.hovered,
-      [0.55, 0.78, 1])
+      [0.6, 0.82, 1], 1.2)
     if (this.style) this.recolor()
   }
 
   private rebuildOutline(
-    line: LineSegments, gmlId: string | undefined, rgb: [number, number, number],
+    line: Mesh, gmlId: string | undefined, rgb: [number, number, number], widthM: number,
   ) {
     line.geometry.dispose()
     const fi = gmlId ? this.byGmlId.get(gmlId) : undefined
@@ -304,7 +329,7 @@ export class SemanticsMesh {
       line.visible = false
       return
     }
-    const geo = buildOneOutline(this.frame, this.features[fi], this.grounds[fi])
+    const geo = buildOutlineBand(this.frame, this.features[fi], this.grounds[fi], widthM)
     const col = geo.getAttribute('aColor') as BufferAttribute
     const arr = col.array as Float32Array
     for (let v = 0; v < arr.length; v += 3) { arr[v] = rgb[0]; arr[v + 1] = rgb[1]; arr[v + 2] = rgb[2] }

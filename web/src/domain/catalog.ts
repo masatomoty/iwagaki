@@ -44,7 +44,10 @@ export interface Catalog {
   plateau: Record<string, { url: string; b3dm_count: number; bytes: number
                             region_min_height_ellipsoidal_m: number }>
   pointcloud: { url: string; synthetic: boolean; provenance: string
-                bytes: number; point_count: number; bytes_per_point: number }
+                bytes: number; point_count: number; bytes_per_point: number
+                /** COPC の範囲 [EPSG:6674 m]。既定視点をここから決める */
+                bounds?: { minx: number; miny: number; minz: number
+                           maxx: number; maxy: number; maxz: number } }
   /**
    * 起動時に出す断面線。**どこを切るべきかは解析側が知っている**ので、
    * 座標を viewer に埋め込まず catalog 経由で受け取る（scripts/87）。
