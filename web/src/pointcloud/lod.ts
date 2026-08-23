@@ -11,10 +11,22 @@ function distanceToBox(p: [number, number, number], b: PcNode['bounds']): number
 }
 
 /** ノードの点間隔が画面上で何 px になるか */
+/**
+ * ノード 1 つの点間隔が画面上で何 px になるか。
+ *
+ * **投影で式が変わる。** 透視はカメラからの距離で割る。正射は 1 px が何メートルかが
+ * 画面のどこでも同じなので、**距離に依らない**。
+ *
+ * 正射で透視の式を使うと `spacing / metresPerPixel x (dist / カメラ距離)` になり、
+ * 視線方向に伸びた視野では端から端で偏る。実測（zoom 17.2 / 900 px、
+ * 視線方向に 800 m）で **3.0 倍 = 1.6 LOD 段**ぶんの偏りだった:
+ * 手前のノードは過剰に細かく、奥のノードは過剰に粗く選ばれる。
+ */
 export function screenSpaceError(
   node: PcNode, info: PcInfo, view: ViewState, dist: number,
 ): number {
   const spacing = info.spacing / 2 ** node.depth
+  if (view.orthographic && view.metresPerPixel) return spacing / view.metresPerPixel
   const d = Math.max(dist, 1e-3)
   return (spacing * (view.viewportHeight / 2)) / (d * Math.tan(view.fovY / 2))
 }

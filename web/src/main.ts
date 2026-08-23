@@ -462,6 +462,9 @@ async function boot() {
       eye: eyeInLocal(cam, localOrigin),
       viewportHeight: cam.viewportHeight,
       fovY: cam.fovY,
+      // 正射では SSE が距離に依らない（pointcloud/lod.ts）
+      orthographic: viewer.projectionMode === 'orthographic',
+      metresPerPixel: viewer.metresPerPixel(),
       // **地面に落とした視錐台そのもの（台形）**で絞る。
       // 外接矩形は傾けた視野で実際の 2 倍近い面積を「見えている」と答える。
       // 余白 50 m はノード側の箱を広げて取る（domain/camera.ts）

@@ -368,6 +368,7 @@ export class Viewer {
    */
   private groundCorners(): [number, number][] {
     const cam = this.camera
+    const isOrtho = cam instanceof OrthographicCamera
     const out: [number, number][] = []
     const far = this.cam.distance * 4
     for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
@@ -377,7 +378,12 @@ export class Viewer {
       if (Math.abs(dir.z) < 1e-6) t = far
       else {
         t = -near.z / dir.z
-        if (t < 0 || t > far) t = far          // 地平線の上を向いている隅
+        // **正射で far に切ってはいけない。** 光線が平行で、近平面を -100_000 に
+        // 置いてあるので t は 10^5 の桁になるが、それが正しい交点である。
+        // 切ると 4 隅が同じ点に潰れ、**可視多角形の幅が 0 になって点群が全部落ちる**
+        // （実測: pitch 84° の正射で wanted = 0、点群が消えていた）。
+        // 透視では「地平線の上を向いている隅」を far で止める必要が残る
+        if (t < 0 || (!isOrtho && t > far)) t = far
       }
       out.push([near.x + dir.x * t, near.y + dir.y * t])
     }

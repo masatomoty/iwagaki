@@ -25,6 +25,14 @@ export interface ViewState {
   viewportHeight: number
   fovY: number
   /**
+   * 正射投影か。**SSE の式が変わる。**
+   * 透視は距離で割るが、正射は 1 px が何メートルかが画面中どこでも同じなので
+   * 距離に依らない（`pointcloud/lod.ts`）
+   */
+  orthographic?: boolean
+  /** 画面中心 1 px が何メートルか。正射の SSE に使う */
+  metresPerPixel?: number
+  /**
    * 画面に入っている範囲 [minE, minN, maxE, maxN]（ローカル メートル）。
    * これを渡さないと視野外のノードが `wanted` に残り続け、
    * キャンセルが原理的に発火しない（docs/web_results.md「キャンセル」）。
