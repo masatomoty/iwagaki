@@ -672,16 +672,17 @@ premultiplyAlpha 事故（`docs/WEB_DESIGN.md` §5.2）は起きていない。
 
 | 優先 | 内容 | 根拠 |
 |---|---|---|
-| 高 | **初期チャンクをさらに削る**（522 kB gz）→ §8.1 | 最も細い回線で改めて裏付いた。`slow-highrtt` の 12 秒で運んだ 966 kB のうち **約 588 kB が JS/CSS/HTML** で、Scheduler を通る地理データは 378 kB しかない（§6.6.4）。**優先度制御では動かない領域**なので、ここを削るのが唯一の打ち手 |
-| 高 | **shell コスト（コードの転送量）を本書の回帰指標に加える** | `docs/WEB_ARCH_REVIEW.md` §4。FMR を決めているのがバンドルなら、そのバイト数は毎回見る数字であるべき。道具は `web/perf/shellcost.mjs`（iwagaki 0.56 MB / GeoLibre 7.34 MB） |
+| 高 | **`slow-highrtt` だけ three.js 化で悪化した理由を突き止める** → §8.1.1 | FMR 2,744 → 3,171 ms。shell を 0.37 MB、FMR までの転送を 0.59 → 0.32 MB 減らしていて遅い。1 Mbps なら baseline の 0.59 MB は 4.7 秒かかるはずで、**2,744 ms という baseline 側の数字の方が説明できない**。§9-7 |
+| 高 | **この計測環境で baseline の PLATEAU が 1 タイルも読まれない件** | 4 プロファイル全てで PLATEAU が「—」、リクエスト 33 本に b3dm が無い（§8.1.1）。three.js 版は 22/22 読む。**baseline 側の測定が成立していない**ので、`MB@10s` の before/after 比較が今は無意味になっている |
+| 高 | **shell コスト（コードの転送量）を本書の回帰指標に加える** | `docs/WEB_ARCH_REVIEW.md` §4。FMR を決めているのがバンドルなら、そのバイト数は毎回見る数字であるべき。道具は `web/perf/shellcost.mjs`（iwagaki **0.20 MB**（three.js 化後・§8.1.1）/ GeoLibre 7.34 MB）。**まだ回帰ゲートになっていない**のが残件 |
 | 高 | 点群キャンセル経路の検証シナリオ（ズームアウト・遠隔ジャンプ） | §5 のとおり点群側は未発火。実点群は歩いた帯にしか無く AOI 全体を覆わないので、合成点群では原理的に作れなかった「`wanted` から外れる」状況が今なら作れる。実配信 4 プロファイルでも `cancel` は全て 0（§6.6.2） |
 | 高 | **計測を複数回・交互に取ることを標準にする** | 1 回では判断できない。無絞りの `normal` でも `time_to_terrain` が 478〜992 ms の幅を持ち、1 回ずつの比較で誤った結論を出しかけた（§6.6.4）。道具は `web/perf/ab.mjs`（中央値と範囲を出す） |
 | 中 | **1,594 ノード規模での coalescing on/off 比較** | §4.1 の on/off 比較は**ノード 11〜14 本の合成点群時代**のもの。実点群では 4,266（voxel 0.05 m）→ 1,594（0.08 m）になり「桁で増えたら再評価」の条件は満たしたが、比較自体はやっていない。§6.5 / §6.6.2 で測ったのは on 側だけ |
 | 中 | `objects.geojson` のストリーミング化（PMTiles 化も含む） | **根拠を訂正**: 転送は wire 92 kB で、バイト面の問題ではない（§6.6.3）。残る理由は **569 kB の JSON を一括パースする CPU コスト**（§4.2） |
 | 中 | **LAS アップロード経路（Worker + D1 + R2 multipart）** | ④ が済んで前提が揃った。パートサイズ・ジョブ分割・COPC 生成パラメータを実測値基準で決められる。**R2 への 315 MB 超のアップロード経路は既に確立済み**（`wrangler r2 object put` は 315 MB 上限。`web/deploy/r2put.sh` が S3 API multipart に回し、アップロード後にサイズと先頭 4 バイトの両方を検証する） |
-| 中 | `slow-highrtt` 向けに LOD を浅く止める閾値の調整 | 12 秒で terrain 高ズームに届かない。**ただし優先度制御と同じ罠に注意**: 1 Mbps では点群も PLATEAU も 12 秒の窓で 1 リクエストも出ていない（§6.6.4）。バンドルを削って初期の帯域が空いてから測り直す |
-| 低 | Draco / デバッグ用の CDN 参照をバンドルから消す | **根拠を訂正**: 現行ビルドでは発火しない。22 個の b3dm に `KHR_draco_mesh_compression` が無く、実配信でクロスオリジンのリクエストは **0 件**（実測、`web/perf/origins.mjs`）。ただし `www.gstatic.com/draco/...`・`unpkg.com/webgl-debug`・`cdn.jsdelivr.net/npm/spectorjs` の URL はバンドルに残る。**潜在リスク**なので、ローカル同梱に固定し「クロスオリジンを 1 件も出さない」ことを `deploy/check.mjs` の MUST に入れる |
-| 低 | custom point-cloud renderer | §10 の移行条件にまだ届いていない。実点群でも常駐 0.59 M 点 / GPU 8.8 MB で LOD 予算（60 万点）に収まっている（§6.6.2） |
+| 中 | `slow-highrtt` 向けに LOD を浅く止める閾値の調整 | 12 秒で terrain 高ズームに届かない。**ただし優先度制御と同じ罠に注意**: 1 Mbps では点群も PLATEAU も 12 秒の窓で 1 リクエストも出ていない（§6.6.4）。バンドルを削って初期の帯域が空いてから測り直す。**その前提は §8.1.1 で満たされた**（shell 0.57 → 0.20 MB）ので、いま測り直せる |
+| 低 | Draco / デバッグ用の CDN 参照をバンドルから消す | **根拠を訂正**: 現行ビルドでは発火しない。22 個の b3dm に `KHR_draco_mesh_compression` が無く、実配信でクロスオリジンのリクエストは **0 件**（実測、`web/perf/origins.mjs`）。バンドルに残る URL は three.js 化で **4 種 → 2 種**になった（`unpkg.com/webgl-debug` と `cdn.jsdelivr.net/npm/spectorjs` は luma.gl のデバッグフックで、deck.gl ごと消えた）。残るのは `www.gstatic.com/draco/...` と `unpkg.com/` で、どちらも `@loaders.gl` 由来。**潜在リスク**なので、ローカル同梱に固定し「クロスオリジンを 1 件も出さない」ことを `deploy/check.mjs` の MUST に入れる |
+| 中 | **`THREE.Points` での描画コストを測り直す** | §6.2 の「23 ns/点/frame・上限 60 万点」は deck.gl `PointCloudLayer` の実測。renderer が変わったので `PC_MAX_POINTS` の根拠が失効している（§8.1.1） |
 
 **この表から外したもの（完了）**:
 
@@ -691,6 +692,8 @@ premultiplyAlpha 事故（`docs/WEB_DESIGN.md` §5.2）は起きていない。
 | 実 LAS への差し替え後に decode / LOD を再計測 | §6.5 |
 | b3dm の未使用属性（batch table JSON）の削減 | §8.2。初回転送 15.5 → 8.0 MB |
 | 実配信での配信条件の確定（Range 206 / 圧縮 / キャッシュ） | `docs/INFRA.md` §7.1 |
+| **初期チャンクをさらに削る** | §8.1.1。MapLibre + deck.gl をやめて three.js に。shell 434 → 124 kB br（−71.4 %） |
+| **custom point-cloud renderer** | §8.1.1。ただし §10 の移行条件を満たしたからではなく、**バンドルを削る過程で deck.gl ごと外れた結果**である。性能上の理由では動いていない |
 | **実配信で `perf/run.mjs` を回す** | §6.6.2。4 プロファイル headed 実測。normal で FMR 383 ms / terrain 551 ms / PLATEAU 3,269 ms / pc useful 3,591 ms |
 | **COPC hierarchy の往復削減** | §6.6。33 → 3 リクエスト（転送量は 0.20 MB のまま不変）。20 Mbps / RTT 400 ms で 22.2 → 3.7 秒 |
 | **転送バイトを wire で数える** | §6.6.3。デコード後で数えていたため `objects.geojson` を 5.9 倍に過大計上し、帯域推定も 6 倍狂っていた |
@@ -823,8 +826,14 @@ renderer に依存しない設計（`docs/WEB_DESIGN.md` §1・§10）がその�
 - `slow-highrtt` の FMR 悪化（上記 2）。
 - 点群の描画コストの再計測。§6.2 の「23 ns/点/frame・上限 60 万点」は
   deck.gl `PointCloudLayer` での実測で、`THREE.Points` では取り直しが要る。
-- Draco デコーダは相変わらず外部 CDN（§8 の高優先項目）。three.js 化では変わっていない。
+- **Draco の記述を自分で間違えた。訂正する。** §8 のとおり現行ビルドでは発火しない
+  （22 個の b3dm に `KHR_draco_mesh_compression` が無い）。ただし
+  **バンドルに残る CDN URL は 4 種 → 2 種に減った**（実測）:
+  `unpkg.com/webgl-debug` と `cdn.jsdelivr.net/npm/spectorjs` は luma.gl の
+  デバッグフックだったので deck.gl ごと消えた。残るのは
+  `www.gstatic.com/draco/...` と `unpkg.com/`（どちらも `@loaders.gl` 由来）。
 - `catalog.terrain` が 6 条件に増える件（`docs/TODO.md` A1〜A4）への追従。
+  `main.ts` の `geomAsset` の選び方と `diffUrl` の 2 か所。シェーダは変更不要。
 
 ---
 

@@ -38,13 +38,27 @@
 A1〜A3 はどれも「解析側の成果物は既にあり、配信物に載せていないだけ」である。
 新しい解析は要らない。
 
+> **viewer 側の作業分担**（`threejs-migration` ブランチ以降）。
+> `catalog.terrain` が 2 → 6 条件（`baseline` / `highres` / `control` / `pointcloud` /
+> `diff` / `diff_pc`）に増えたとき、viewer で直すのは 3 か所だけ:
+>
+> 1. `src/domain/types.ts` の `SurfaceMode`
+> 2. `src/ui/controls.ts` の `SURFACES`
+> 3. `src/main.ts` の `buildTerrain()` — 幾何をどの条件から取るか
+>    （`diff` は `highres`、`diff_pc` は `pointcloud`）と `diffUrl` の分岐
+>
+> **シェーダ（`src/three/floodMaterial.ts`）は変更不要。** 差分は h_conn を R/G の
+> 2 チャンネルに詰めた同じ形式で、どの組かはタイルの中身の違いでしかない。
+
 ---
 
 ## B. 明示的な要求で未達のもの
 
+**現在このセクションは空（B1 は完了）。** 記録として残す。
+
 | # | 優先 | 内容 | 根拠 |
 |---|---|---|---|
-| B1 | 中 | **正射投影（CAD のように xyz 方向から見る）** | 6 方向のカメラプリセット（1〜6 キー）は入れたが、**MapLibre は透視投影しか持たない**ので、断面のように見ることができない。deck.gl の `MapView` は `orthographic?: boolean` を持つ（`@deck.gl/core` で確認）ので、**MapLibre を外す作業（`docs/WEB_RESULTS.md` §8）と同時に実現できる** |
+| ~~B1~~ | — | ~~**正射投影（CAD のように xyz 方向から見る）**~~ **完了** | `docs/WEB_RESULTS.md` §8.1.1。MapLibre を外して three.js にした際に `OrthographicCamera` で実現した。カメラプリセット 1〜5（平面・南↑・西→・北↓・東←）が正射に切り替わり、6（俯瞰）は透視のまま。`O` キーと `?ortho=1` でも切り替わる |
 
 ---
 
@@ -64,6 +78,19 @@ A1〜A3 はどれも「解析側の成果物は既にあり、配信物に載せ
 | # | 優先 | 内容 | 根拠 |
 |---|---|---|---|
 | D1 | 低 | `docs/DESIGN.md` §9 の実装順序表 | 「#10 点群パス 実装済み・**未検証**（LAS未入手）」「#11 Webアプリ **未着手**」のまま。どちらも完了している |
+
+---
+
+## D2. three.js 化で発生した宿題
+
+`docs/WEB_RESULTS.md` §8.1.1 の「残っている宿題」と同じもの。**ネットワーク / 性能側なので
+生きたリストは `docs/WEB_RESULTS.md` §8 にある。**ここには索引だけ置く。
+
+| # | 優先 | 内容 |
+|---|---|---|
+| — | 高 | `slow-highrtt` だけ FMR が悪化した理由（転送量は減っている） |
+| — | 高 | この計測環境で baseline の PLATEAU が 1 タイルも読まれない件 |
+| — | 中 | `THREE.Points` での描画コスト再計測（`PC_MAX_POINTS` の根拠が失効している） |
 
 ---
 
