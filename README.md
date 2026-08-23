@@ -39,7 +39,7 @@ PLATEAU と地形観測を「3D で重ねて見せる」のではなく、**役�
 
 地上点群は 20 GB あるが、**AOI に入るのは 4.37 億点で、地表面として使えるのは
 3.17 ha 分だけ**である（バックパック SLAM は歩いた線に沿った帯しか取れない）。
-AOI 100 ha に対する被覆は 7.88 %。詳細は `docs/DATA.md`。
+AOI 100 ha に対する被覆は 7.88 %。詳細は `docs/data.md`。
 
 ### 比較する 4 つの地形条件
 
@@ -66,7 +66,7 @@ AOI 100 ha に対する被覆は 7.88 %。詳細は `docs/DATA.md`。
 viewer の水位スライダはこの性質の上に載っている。
 
 モデルは静水位（hydrologically-connected bathtub, Poulter & Halpin 2008 系）で、
-越流の時間発展・流量・波の打ち上げは含まない。詳細は `docs/DESIGN.md`。
+越流の時間発展・流量・波の打ち上げは含まない。詳細は `docs/design.md`。
 
 ---
 
@@ -117,7 +117,7 @@ viewer の水位スライダはこの性質の上に載っている。
                  └───────────────────┘
 ```
 
-数字は `scripts/` の番号。実行手順は `docs/USAGE.md`。
+数字は `scripts/` の番号。実行手順は `docs/usage.md`。
 
 **`h_conn` を持つことが全体の設計を決めている。** 水位ごとに浸水域を焼くのではなく
 「そのセルが浸水し始める水位」を 1 枚持つので、配信物は水位の数に依らず一定で、
@@ -149,15 +149,15 @@ viewer の水位スライダはこの性質の上に載っている。
 
 | | |
 |---|---|
-| `docs/DATA.md` | 入力データ（出典・CRS・解像度・ライセンス・未確認事項） |
-| `docs/DESIGN.md` | 解析の手法 |
-| `docs/RESULTS.md` | 解析の結果 |
-| `docs/WEB_DESIGN.md` | ブラウザ側の設計（配信・描画・ネットワーク） |
-| `docs/WEB_RESULTS.md` | 配信性能の実測 |
-| `docs/INFRA.md` | Cloudflare 配信の構成と手順 |
-| `docs/PLATFORM.md` | 配信プラットフォームの挙動（Range・圧縮・キャッシュ）の実測 |
-| `docs/USAGE.md` | セットアップと実行 |
-| `docs/TODO.md` | 生きているタスク |
+| `docs/data.md` | 入力データ（出典・CRS・解像度・ライセンス・未確認事項） |
+| `docs/design.md` | 解析の手法 |
+| `docs/results.md` | 解析の結果 |
+| `docs/web_design.md` | ブラウザ側の設計（配信・描画・ネットワーク） |
+| `docs/web_results.md` | 配信性能の実測 |
+| `docs/infra.md` | Cloudflare 配信の構成と手順 |
+| `docs/platform.md` | 配信プラットフォームの挙動（Range・圧縮・キャッシュ）の実測 |
+| `docs/usage.md` | セットアップと実行 |
+| `docs/todo.md` | 生きているタスク |
 | `docs/adr/` | 過去の判断記録（**現行仕様ではない**） |
 
 ---
@@ -203,4 +203,4 @@ web/
 ```
 
 測量法 43/44 条の扱い、京都府 DEM が森林資源把握を目的とした成果である点など、
-データ側の注意事項は `docs/DATA.md` を参照。
+データ側の注意事項は `docs/data.md` を参照。

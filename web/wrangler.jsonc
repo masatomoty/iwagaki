@@ -1,10 +1,10 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	// viewer と生成済みアセットの配信。設計は docs/WEB_DESIGN.md §6、手順は docs/INFRA.md。
+	// viewer と生成済みアセットの配信。設計は docs/web_design.md §6、手順は docs/infra.md。
 	//
 	// 静的アセット（html / js / wasm / catalog / タイル / 3D Tiles / geojson）は Workers Assets、
 	// COPC だけ Worker 経由で R2 から Range 配信する。Pages / Workers Assets の Range 挙動に
-	// 依存せず 206 を保証するため（docs/WEB_DESIGN.md §6.1）。
+	// 依存せず 206 を保証するため（docs/web_design.md §6.1）。
 	// 同一オリジンに揃えるのは PerformanceResourceTiming.transferSize が
 	// クロスオリジンで 0 になるため（同 §8.3）。
 	"name": "iwagaki-viewer",
@@ -20,7 +20,7 @@
 	},
 	// raw LAS（将来）と COPC を同じバケットに置く。キー空間は URL パスと一致させる:
 	//   data/pointcloud/*.copc.laz   配信対象（= https://<host>/data/pointcloud/...）
-	//   raw/las/*                    将来のアップロード置き場（docs/WEB_DESIGN.md §7）
+	//   raw/las/*                    将来のアップロード置き場（docs/web_design.md §7）
 	"r2_buckets": [
 		{
 			"binding": "BUCKET",

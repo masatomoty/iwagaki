@@ -4,7 +4,7 @@
 // フォールバック描画 の 3 つ。(2) は元々 Scheduler に委ねていた（maxRequests: 0）ので、
 // ここで書くのは (1) と (3) だけになる。
 //
-// choke point の規約は変えない: **このファイルは fetch を呼ばない**（docs/WEB_DESIGN.md §1）。
+// choke point の規約は変えない: **このファイルは fetch を呼ばない**（docs/web_design.md §1）。
 
 import { Group, Mesh, ShaderMaterial, type Texture } from 'three'
 

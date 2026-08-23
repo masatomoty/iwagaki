@@ -1,7 +1,7 @@
 // 8bit RGBA / 非インタレースの PNG を、canvas を通さずに復号する。
 //
 // **canvas を経由してはいけない。** タイルは RGB に標高、A に h_conn コードを
-// 詰めている（docs/WEB_DESIGN.md「RGBA タイルのパッキング」）。2D canvas はアルファ乗算した状態で
+// 詰めている（docs/web_design.md「RGBA タイルのパッキング」）。2D canvas はアルファ乗算した状態で
 // 画素を保持するので、`drawImage` → `getImageData` の往復で **A < 255 の画素の
 // RGB が壊れる**。h_conn コードはほぼ常に 255 未満なので、ほぼ全画素が壊れる。
 // 実際、標高 1.5 m のはずの画素が 1536 m や 32512 m として読めた。

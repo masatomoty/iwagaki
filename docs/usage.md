@@ -94,7 +94,7 @@ npm run deploy:check <URL>  # Range 206 / 圧縮 / キャッシュを実測し�
 ```
 
 静的アセットは Workers Assets、**COPC だけ Worker 経由で R2 から Range 配信**する
-（Workers Assets は Range に 200 を返すため）。構成と手順は `docs/INFRA.md`。
+（Workers Assets は Range に 200 を返すため）。構成と手順は `docs/infra.md`。
 
 COPC が 315 MB を超える場合は `wrangler r2 object put` では上げられない。
 `deploy/r2put.sh` が S3 API の multipart に回し、
@@ -123,4 +123,4 @@ node test/png.test.mjs                     # PNG 復号が Pillow と一致す�
   A/B は `perf/ab.mjs` で交互に複数回まわして中央値と範囲を見る
 - **転送量は wire で見る。** デコード後のバイト数は br が効くアセットで 6 倍ずれる
 
-道具の一覧と、それぞれが何を切り分けるためのものかは `docs/WEB_RESULTS.md`。
+道具の一覧と、それぞれが何を切り分けるためのものかは `docs/web_results.md`。

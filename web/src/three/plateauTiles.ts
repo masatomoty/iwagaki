@@ -36,14 +36,14 @@ const UNKNOWN_RGB = hexToRgb(UNKNOWN_HEX)
 /**
  * Draco を外部 CDN から取らせないための設定。**PLATEAU の b3dm は 44 枚すべて
  * `KHR_draco_mesh_compression` 付き**なので、Draco は必須である（一時期
- * `docs/TODO.md` に「発火しない」と書いていたが誤り）。
+ * `docs/todo.md` に「発火しない」と書いていたが誤り）。
  *
  * 既定のままだと cold load ごとに
  * `unpkg.com/@loaders.gl/draco/dist/draco-worker.js`（38 kB）と
  * `www.gstatic.com/draco/.../draco_decoder.wasm`（286 kB）+ `draco_wasm_wrapper.js`（59 kB）を
  * **worker 3 本ぶん、計 1.15 MB** 取りに行く。1 Mbps なら 9 秒分で、しかも
  * **クロスオリジンでは `transferSize` が 0 になるのでこちらの転送量計測に映らない**
- * （`docs/WEB_RESULTS.md`「Draco を毎回 unpkg と gstatic から取っていた」）。
+ * （`docs/web_results.md`「Draco を毎回 unpkg と gstatic から取っていた」）。
  *
  * `useLocalLibraries` を立てないと `modules` を見てくれない
  * （loaders.gl の `getLoadableLibraryUrl` は http で始まる既定 URL をそのまま返す）。

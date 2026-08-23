@@ -1,6 +1,6 @@
 // 「いま選ばれている surface に対して、幾何をどのタイルから取り、
 // 色をどのタイルから取るか」だけを決める。maplibre-gl / deck.gl / three.js を
-// import しない（docs/WEB_DESIGN.md「層の分け方」の依存ルール）。
+// import しない（docs/web_design.md「層の分け方」の依存ルール）。
 //
 // 描画側にこの分岐を置くと、レンダラを差し替えるたびに書き写すことになる。
 // 配信物の構造（catalog.terrain のキーと差分タイルの意味）はレンダラに依らないので、
@@ -60,7 +60,7 @@ export function resolveSurface(
  * - `baseline` 自身 … 比較相手が自分なので、判定は常に「変わらない」
  *
  * 既定は `surface: 'highres'` なので既定のペアは `(baseline, highres)` で、
- * これは以前ハードコードしていた組と同じである（`docs/RESULTS.md` の件数と整合する）。
+ * これは以前ハードコードしていた組と同じである（`docs/results.md` の件数と整合する）。
  *
  * **`control` がここで初めて使えるようになる。** 差分タイルは
  * `diff` / `diff_pc` の 2 本しか無いので「源だけを替えた差」は地形の面では

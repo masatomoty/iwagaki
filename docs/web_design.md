@@ -1,12 +1,12 @@
 # WEB_DESIGN — ブラウザ側の設計
 
-解析結果（`docs/DESIGN.md` / `docs/RESULTS.md`）をブラウザで見せるための設計。
+解析結果（`docs/design.md` / `docs/results.md`）をブラウザで見せるための設計。
 **配信・描画・ネットワークをどう組んであるか**を書く。
 
-実測値は `docs/WEB_RESULTS.md`、Cloudflare の挙動は `docs/PLATFORM.md`、
-配信の構成と手順は `docs/INFRA.md`、生きているタスクは `docs/TODO.md`。
+実測値は `docs/web_results.md`、Cloudflare の挙動は `docs/platform.md`、
+配信の構成と手順は `docs/infra.md`、生きているタスクは `docs/todo.md`。
 
-根拠区分は `docs/DATA.md` と同じ（**[実測]** / **[既知]** / **[仮説]** / **[未確認]**）。
+根拠区分は `docs/data.md` と同じ（**[実測]** / **[既知]** / **[仮説]** / **[未確認]**）。
 
 ---
 
@@ -50,7 +50,7 @@ domain/      AOI・CRS・水位・地形条件・地物 assertion、wet(H) / dep
 
 ### 連結浸水開始水位 `h_conn`
 
-このアプリの構造は `h_conn` を持っていることから決まっている（`docs/DESIGN.md`）。
+このアプリの構造は `h_conn` を持っていることから決まっている（`docs/design.md`）。
 
 ```ts
 const wet   = (hConn: MTP, H: MTP) => hConn <= H
@@ -128,12 +128,12 @@ baseline と highres を**ハードコード**していた。呼び側は
 地形の色と地物の色が同じ画面で別の比較を示していたので、ペアを引数にした。
 
 既定は `surface: 'highres'` なので既定のペアは `(baseline, highres)` で、
-以前のハードコードと同じ組である（`docs/RESULTS.md` の件数と整合する）。
+以前のハードコードと同じ組である（`docs/results.md` の件数と整合する）。
 
 **配信されている差分タイルは 2 本しかない。** 鎖は 3 段に分解できるのに
 「源だけの差」「解像度だけの差」の面は無い。ただし**地物単位なら出せる**ので、
 `control` を選べば「源だけを替えて判定が変わった地物」が赤で出る
-（面で見られない分は `docs/TODO.md`）。
+（面で見られない分は `docs/todo.md`）。
 
 ### 鉛直基準 **[実測]**
 
@@ -160,7 +160,7 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 
 前身は MapLibre GL JS + deck.gl（`MapboxOverlay`, interleaved）だった。
 外した理由は 1 つで、**初期チャンクの約 1/3 が MapLibre だったから**である
-（`docs/WEB_RESULTS.md`「初期チャンクの内訳」）。細い回線で効くのはここしかない。
+（`docs/web_results.md`「初期チャンクの内訳」）。細い回線で効くのはここしかない。
 判断の経緯は `docs/adr/2026-08-23-three-js.md`。
 
 ### ズームの規約 **[実測]**
@@ -178,14 +178,14 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 |---|---|
 | `Viewer.getZoom()` / `setZoom()` / `jumpTo({zoom})` | 256 px（= 要求する z） |
 | `domain/camera.ts` の `metresPerPixel(lat, zoom)` | 256 px |
-| `docs/WEB_RESULTS.md` と `perf/*.mjs` に書いてある zoom 値 | **512 px（MapLibre 時代のまま）**。渡すときに +1 する |
+| `docs/web_results.md` と `perf/*.mjs` に書いてある zoom 値 | **512 px（MapLibre 時代のまま）**。渡すときに +1 する |
 
 ### 操作系
 
 - **ビューキューブ**（右上、`view/viewCube.ts`）。面 6 / 辺 12 / 角 8 の 26 方向を
   クリックで選び、ドラッグで自由回転する。カメラに追従する。
   **依存を増やさないために 2D canvas に 8 頂点を自前で投影して描く。**
-  細い回線で効くのは初期チャンクのサイズだけ（`docs/WEB_RESULTS.md`）なので、
+  細い回線で効くのは初期チャンクのサイズだけ（`docs/web_results.md`）なので、
   ギズモのために描画ライブラリをもう 1 つ載せるのは筋が悪い。
   カメラの向きを受け取って向きを返すだけなので、メインのレンダラに依存しない
 - ズームはホイールとピンチ、向きはキューブ。**+/− ボタンとコンパスは置かない**。
@@ -240,7 +240,7 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 | **17.2（新既定）** | **733 ms** | **1,468 ms** | **64** | **4.84 MB** |
 | 17.6 | 1,090 ms | **13,348 ms** | **126** | **6.40 MB** |
 
-要求本数と転送量は旧既定と同じなので、`docs/WEB_RESULTS.md` の枚数・バイト数は
+要求本数と転送量は旧既定と同じなので、`docs/web_results.md` の枚数・バイト数は
 そのまま比較できる。変わるのは時刻だけである。
 
 ### パネルの情報設計
@@ -257,7 +257,7 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 | **定数** | 参照潮位の値 | 「参照潮位」に畳んで置く。押すと水位が動くので操作でもある |
 
 出典・データの由来・既知の限界の**文章は画面に出さない**。`README.md` と
-`docs/RESULTS.md` / `docs/DATA.md` が持っている。**出典表記だけは
+`docs/results.md` / `docs/data.md` が持っている。**出典表記だけは
 ライセンス上の要求**なので画面下辺（`#attrib`）に常時出す。
 
 #### 水位の既定は「普段の海面」
@@ -267,7 +267,7 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 
 以前は `catalog.water_level.representative[0]` = **1.0 m** だった。これは
 `src/iwagaki/config.py` の `REPRESENTATIVE_H = (1.0, 1.5, 2.0)` から来ていて、
-**出典が無い丸い数字**である（`docs/RESULTS.md` 自身が「当初は根拠のない代表値として
+**出典が無い丸い数字**である（`docs/results.md` 自身が「当初は根拠のない代表値として
 選んだもの」と書いている）。しかも**既往最高潮位 0.93 m より高い**ので、
 起動直後の画面が「記録されたどの潮位でもない水位」になっていた。
 
@@ -284,7 +284,7 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 戻れるように頭のチップに `普段` を置いてある。
 
 **`config.py` の代表水位は触らない。** 解析の集計と出力ファイル名
-（`changed_H{h}.geojson`）、`docs/RESULTS.md` の本文が 1.0 / 1.5 / 2.0 に依っている。
+（`changed_H{h}.geojson`）、`docs/results.md` の本文が 1.0 / 1.5 / 2.0 に依っている。
 変えたのは viewer の初期値だけである。
 
 守っていること。
@@ -312,7 +312,7 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 **状態そのものは削っていない。** `web/perf` の計測ハーネス 28 本が
 `setLayer('flood'|'ground'|'semantics'|'pcCoverage')`・`setSurface`（`surfaces.mjs` が
 6 値を全部回す）・`setBuildingColor`（`bldgcolor.mjs` が全モード）・`setCamera` /
-`setExaggeration` を叩いていて、`docs/WEB_RESULTS.md` の実測値はここから出ている。
+`setExaggeration` を叩いていて、`docs/web_results.md` の実測値はここから出ている。
 **メニューに出さないだけで、`__iwagaki` からは全部触れる。**
 
 | 出さない変数 | 決まり方 |
@@ -495,7 +495,7 @@ sse(node) = (spacing / 2^depth) * (viewportHeight / 2) / (distance * tan(fovY / 
 - `maxPoints` / `maxBytes` に収まるまで、粗い順・画面で大きい順に採る
 - `maxBytes = clamp(帯域推定 * 2, 1 MB, 20 MB)`。
   **係数 2 = 「点群に使ってよいのは 12 秒の窓のうち 2 秒ぶん」**で、
-  残りは地形・建物・地物に要る（`docs/WEB_RESULTS.md`）
+  残りは地形・建物・地物に要る（`docs/web_results.md`）
 
 ### 色は点群自身の RGB を使う **[実測]**
 
@@ -507,7 +507,7 @@ sse(node) = (spacing / 2^depth) * (viewportHeight / 2) / (distance * tan(fovY / 
 
 **バイト列は既に取得・展開してあるので、RGB を読むのに追加の通信は 0 バイト。**
 増えるのは decode worker の getter 3 本ぶんの CPU だけである
-（`docs/WEB_RESULTS.md` の decode 実測値はこの変更より前のものなので、
+（`docs/web_results.md` の decode 実測値はこの変更より前のものなので、
 決め手にするなら測り直すこと [未確認]）。
 
 標高ランプで塗り直すのをやめた理由は 3 つ。
@@ -552,7 +552,7 @@ sse(node) = (spacing / 2^depth) * (viewportHeight / 2) / (distance * tan(fovY / 
 **ズームに依存しない**。これをそのまま高度として使うと視点が定数になり、
 LOD が「近くは細かく遠くは粗く」を一切やらなくなる。
 
-常駐点数の上限は描画コストから決める。実測値は `docs/WEB_RESULTS.md`。
+常駐点数の上限は描画コストから決める。実測値は `docs/web_results.md`。
 **`Points` は 6.0 M 点まで 60 fps を保つ**（deck.gl `PointCloudLayer` は 3.0 M で 68〜82 ms）。
 既定は 200 万点。測った上限をそのまま採らないのは、計測が開発機で、
 配信先の GPU が分かっていないため [未確認]。
@@ -635,7 +635,7 @@ LOD が選んだノードを `pointDataOffset` でソートし、gap と合計�
 1 本の Range にまとめる。COPC のノードはファイル上でほぼ連続して並ぶので、
 まとめても「読むが使わないバイト」はほとんど出ない。
 
-R2 はマルチレンジを受け付けない（`docs/PLATFORM.md`）ので、**連続 1 本への結合だけ**。
+R2 はマルチレンジを受け付けない（`docs/platform.md`）ので、**連続 1 本への結合だけ**。
 飛び地は結合できない。
 
 **まとめた range は届いた分から順にノード単位でデコードする**
@@ -665,7 +665,7 @@ LOD を更新する前に reap すると古い集合を見て「まだ必要」�
 - ネットワークエラーと 5xx は最大 2 回、指数バックオフ（ジッタつき）
 - 4xx は再試行しない
 - **Range を要求したのに 200 が返ったらエラーにする。** 黙って全体を落とすのが
-  最大のネットワーク事故で、しかもクライアントは正常に見える（`docs/PLATFORM.md`）
+  最大のネットワーク事故で、しかもクライアントは正常に見える（`docs/platform.md`）
 
 | 層 | 実体 | 目的 |
 |---|---|---|
@@ -762,7 +762,7 @@ b3dm には色が無い（texture・頂点色・`baseColorFactor` すべて無�
 
 `semanticsMesh` は一度遅延していた。守っていたのは `objects.geojson` の
 `JSON.parse`（3 ms）で、**払っていたのは往復 568 ms** だった
-（`docs/WEB_RESULTS.md`「objects.geojson のパースコストは 3 ms」）。
+（`docs/web_results.md`「objects.geojson のパースコストは 3 ms」）。
 
 ---
 
@@ -804,13 +804,13 @@ b3dm には色が無い（texture・頂点色・`baseColorFactor` すべて無�
 | `nextHopProtocol` | h1/h2 の判定と結果の解釈に使う |
 
 **バイトはデコード後ではなく wire で数える。** br が効くアセットでは大きくずれる。
-Cloudflare は br 応答に `content-length` を付けない（`docs/PLATFORM.md`）ので、
+Cloudflare は br 応答に `content-length` を付けない（`docs/platform.md`）ので、
 `PerformanceResourceTiming.encodedBodySize` を URL と開始時刻で引き当てる。
 引き当てられない場合はデコード後の値に戻す。**過大に出る方に倒す。**
 小さく見せる方に倒すと判断を誤る。帯域推定にも同じ値を使う。
 
 クロスオリジンだと `transferSize` も `encodedBodySize` も 0 になるので、
-**同一オリジンで配信する**（`docs/INFRA.md`）。これは計測の都合であると同時に、
+**同一オリジンで配信する**（`docs/infra.md`）。これは計測の都合であると同時に、
 **外部に出られない回線で動くための条件**でもある。`deploy/check.mjs` の MUST
 「外部オリジンへのリクエストが 0 件」がここを守る（ブラウザを立てて数える。
 `fetch` では分からない）。
@@ -849,7 +849,7 @@ Chrome DevTools のプリセットそのものではない。
 | `fatpipe-highrtt` | 20 Mbps | 5 Mbps | 400 ms | **往復回数の影響を帯域から切り離す** |
 
 各プロファイルで cold cache から測る。計測時の注意（headed で測る、1 回で判断しない、
-wire で数える）は `docs/WEB_RESULTS.md`。
+wire で数える）は `docs/web_results.md`。
 
 ローカルの `web/serve.mjs` は production 相当の条件を再現する
 （HTTP/2 と HTTP/1.1 の切替、Range 206、事前圧縮、immutable、マルチレンジは 400）。
@@ -864,13 +864,13 @@ wire で数える）は `docs/WEB_RESULTS.md`。
 アプリ側に分岐は要らない。
 
 Cloudflare 側の構成（静的アセットは Workers Assets、COPC だけ Worker → R2）は
-`docs/INFRA.md`、プラットフォームの挙動は `docs/PLATFORM.md`。
+`docs/infra.md`、プラットフォームの挙動は `docs/platform.md`。
 
 PDAL / GDAL / COPC 生成 / ラスタ処理は Workers では動かさない。
 CPU 時間とメモリの制約に合わず、既存の Python パイプラインをそのまま使えなくなる。
 
 LAS のアップロード経路（ブラウザ → R2 直接 multipart）はまだ作っていない。
-設計上の要点は「API サーバを経由させない」ことで、詳細は `docs/TODO.md`。
+設計上の要点は「API サーバを経由させない」ことで、詳細は `docs/todo.md`。
 
 ---
 

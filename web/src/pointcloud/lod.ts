@@ -1,5 +1,5 @@
 // LOD 選択。純関数。IO も GPU も触らないので node でテストできる。
-// docs/WEB_DESIGN.md「LOD」
+// docs/web_design.md「LOD」
 
 import type { LodBudget, NodeRequest, PcInfo, PcNode, ViewState } from './types'
 

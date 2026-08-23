@@ -10,7 +10,7 @@
 //     WATER= 水位 H   TILES= 参照タイルの置き場   MARGIN= 判定が紙一重とみなす幅（m）
 //
 //   **ZOOM は REF_Z と同じにする。** Viewer の zoom はタイル 1 枚 = 256 px 基準で、
-//   `Math.round(getZoom())` がそのまま要求する z になる（docs/WEB_DESIGN.md「ズームの規約」）。
+//   `Math.round(getZoom())` がそのまま要求する z になる（docs/web_design.md「ズームの規約」）。
 //   MapLibre + deck.gl 時代は画面 zoom が 512 px 基準で、tileSize 256 の TileLayer が
 //   zoom+1 の z を要求していたため ZOOM = REF_Z - 1 だった。**数字が 1 ずれる。**
 //   pitch 0 を前提にしている（視差の補正が中心対称であることを使っている）。

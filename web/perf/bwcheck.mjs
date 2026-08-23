@@ -5,13 +5,13 @@
 // 推定がずれると予算ごとずれる。しかも**画面は出てしまうので見て気づけない**。
 // 実際、1 リクエストごとに `wireBytes / 所要時間` を測っていた頃は
 // 並列数のぶん割られて実効の 1/5 以下しか出ておらず、
-// **下限がそのまま予算になっていた**（docs/WEB_RESULTS.md）。
+// **下限がそのまま予算になっていた**（docs/web_results.md）。
 //
 //   BASE=https://localhost:8477 node perf/bwcheck.mjs
 //     PROFS=  測るプロファイル（既定は絞りのある 3 つ + normal）
 //     Q=      クエリ（既定 ?pc=1。?maxbytes= で予算を固定して比べられる）
 //
-// プロファイルの数値は perf/run.mjs と同一（docs/WEB_DESIGN.md「ネットワークプロファイル」）。
+// プロファイルの数値は perf/run.mjs と同一（docs/web_design.md「ネットワークプロファイル」）。
 import { chromium } from '@playwright/test'
 
 // [CDP の設定, 実効帯域 B/s]。実効は downloadThroughput そのもの
@@ -23,7 +23,7 @@ const PROFILES = {
 }
 const BASE = process.env.BASE ?? 'https://localhost:8477'
 const Q = process.env.Q ?? '?pc=1'
-const WINDOW_MS = 12_000            // 計測の窓（docs/WEB_RESULTS.md と同じ）
+const WINDOW_MS = 12_000            // 計測の窓（docs/web_results.md と同じ）
 
 for (const name of (process.env.PROFS ?? 'slow-highrtt,fast4g,fatpipe-highrtt,normal').split(',')) {
   const [prof, truth] = PROFILES[name]

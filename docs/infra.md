@@ -46,11 +46,11 @@ Worker は 1 本（`iwagaki-viewer`）。**静的アセットと COPC を同一�
 `catalog.json` の url は全て相対のままでよく、アプリ側に分岐は無い。
 
 同一オリジンに揃える理由は 2 つある。`PerformanceResourceTiming.transferSize` は
-クロスオリジンだと 0 になり転送量が測れなくなること（`docs/WEB_DESIGN.md`「収集する量」）と、
+クロスオリジンだと 0 になり転送量が測れなくなること（`docs/web_design.md`「収集する量」）と、
 CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えること。
 
 **COPC だけ Worker + R2 を経由するのは、Workers Assets が Range に 200 を返すから**である。
-根拠と実測は `docs/PLATFORM.md`。
+根拠と実測は `docs/platform.md`。
 
 ---
 
@@ -172,12 +172,12 @@ node deploy/check.mjs http://localhost:8788
 
 ## まだ作らないもの
 
-`docs/WEB_DESIGN.md`「配信の境界」の図のうち、作ったのは静的配信だけ。
+`docs/web_design.md`「配信の境界」の図のうち、作ったのは静的配信だけ。
 
 **「作らない」は判断であって積み残しではない。** 2026-09-05 の成果物は
 「同じ高潮水位に対して地形データを変えると浸水判定がどこで変わるか」を見せることで、
-データを増やす経路はその外にある（`docs/DESIGN.md`「やらないこと」）。
-`docs/TODO.md` には置かない。
+データを増やす経路はその外にある（`docs/design.md`「やらないこと」）。
+`docs/todo.md` には置かない。
 
 | | 必要なもの |
 |---|---|
@@ -191,4 +191,4 @@ node deploy/check.mjs http://localhost:8788
 ---
 
 配信プラットフォームの挙動（Range・圧縮・キャッシュ階層）とその実測、
-およびローカル配信との差は `docs/PLATFORM.md`。
+およびローカル配信との差は `docs/platform.md`。

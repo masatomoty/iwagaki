@@ -2,7 +2,7 @@
 //
 // MapLibre がここで担っていたのはカメラ・投影・ギズモだけで、ベースマップは
 // 1 枚も描いていなかった（style の sources が空だった）。それに初期チャンクの
-// 約 1/3 を払っていたので外した（docs/WEB_RESULTS.md §8.1）。
+// 約 1/3 を払っていたので外した（docs/web_results.md §8.1）。
 //
 // 外向きの export 名は変えていない。src/ui/controls.ts がこのモジュールから
 // CAMERA_PRESETS / CameraPresetId を読んでいるため。
@@ -64,7 +64,7 @@ export function createViewer(container: HTMLElement, catalog: Catalog): Viewer {
  * 移行直後はここに 15.6 をそのまま書いていて、**実測で m/px が 1.282 対 2.567
  * （ちょうど 2 倍）、可視範囲が 4 倍**になっていた。要求するタイルも
  * z17 が 25 枚 -> z16 が 9 枚と 1 段粗く、配信性能の比較が成立していなかった。
- * ここを変えると `docs/WEB_RESULTS.md` の数字と比べられなくなる。
+ * ここを変えると `docs/web_results.md` の数字と比べられなくなる。
  *
  * **16.6 から 17.2 に寄せた** [実測]。既定の注視点を点群の帯にしたので、
  * 帯（426 × 799 m）が画面幅（17.2 で 843 m）に収まる倍率にしてある。
@@ -77,7 +77,7 @@ export function createViewer(container: HTMLElement, catalog: Catalog): Viewer {
  * | 17.2（新既定） | 733 ms | 1,468 ms | 64 | 4.84 MB |
  * | 17.6 | 1,090 ms | **13,348 ms** | **126** | **6.40 MB** |
  *
- * 要求本数と転送量は 16.6 と同じなので、`docs/WEB_RESULTS.md` の枚数・バイト数は
+ * 要求本数と転送量は 16.6 と同じなので、`docs/web_results.md` の枚数・バイト数は
  * そのまま比較できる。変わるのは時刻だけ。
  */
 export const INITIAL_ZOOM = 17.2
@@ -85,7 +85,7 @@ export const INITIAL_ZOOM = 17.2
 /**
  * CAD のように軸方向から見るためのプリセット。bearing はカメラが向く方位。
  *
- * `ortho` は正射投影に切り替えるもの（docs/TODO.md B1）。MapLibre は透視投影しか
+ * `ortho` は正射投影に切り替えるもの（docs/todo.md B1）。MapLibre は透視投影しか
  * 持たないので、6 方向のプリセットを入れても「断面のように」は見えていなかった。
  * three.js の OrthographicCamera でようやく要求を満たす。
  */

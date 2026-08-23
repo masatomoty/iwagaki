@@ -1,6 +1,6 @@
 // 単一の choke point。3D Tiles も COPC も タイルも GeoJSON も、ネットワークは全部ここを通る。
 // renderer は fetch を呼ばない。必要なもの（key + class + rank）を submit するだけ。
-// docs/WEB_DESIGN.md「リクエストスケジューラ」
+// docs/web_design.md「リクエストスケジューラ」
 
 import { ByteLru } from './cache'
 import { rangeFetch, RangeNotHonoured } from './rangefetch'
@@ -20,7 +20,7 @@ interface Live {
   received: number
 }
 
-/** 並列上限（docs/WEB_DESIGN.md「並列上限」）。すべて初期値であり、実測でチューニングする前提 */
+/** 並列上限（docs/web_design.md「並列上限」）。すべて初期値であり、実測でチューニングする前提 */
 const CAPS = {
   h1: { global: 6, group: { a: 4, b: 4, c: 3, d: 3, e: 1 } },
   h2: { global: 12, group: { a: 6, b: 6, c: 4, d: 6, e: 2 } },
@@ -243,7 +243,7 @@ export class Scheduler {
    * 旧実装は 1 リクエストごとに `wireBytes / 所要時間` を出して EMA していた。
    * **11 本並列に走っていれば 1 本あたりは 1/11 に見える**ので、
    * 実効の 1/5 以下しか出ていなかった（fast4g 実測 89 kB/s、実際は 500 kB/s。
-   * `docs/WEB_RESULTS.md`「点群 LOD の予算は事実上ただの下限だった」）。
+   * `docs/web_results.md`「点群 LOD の予算は事実上ただの下限だった」）。
    * 点群の LOD 予算がこの値から決まるので、下限がそのまま予算になっていた。
    *
    * 直近 `BW_WINDOW_MS` の完了分を合計し、**その間に実際に取得が走っていた時間**

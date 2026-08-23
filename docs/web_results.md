@@ -1,14 +1,14 @@
 # WEB_RESULTS — 配信性能の実測
 
-`docs/WEB_DESIGN.md` の設計を実装し、**実配信（Cloudflare）に対して cold cache で計測**した結果。
+`docs/web_design.md` の設計を実装し、**実配信（Cloudflare）に対して cold cache で計測**した結果。
 
 - 配信先: `https://iwagaki-viewer.tonbo.workers.dev`
 - 再現: `cd web && BASE=<URL> node perf/run.mjs`
 - 生データ: `web/perf/results/*.json`（git 管理外）
 - 環境: macOS / Chromium (Playwright, **headed**) / ビューポート 1100×750 / HTTP/2
 
-プラットフォーム側の挙動（Range・圧縮・キャッシュ階層）は `docs/PLATFORM.md`。
-残タスクは `docs/TODO.md`。
+プラットフォーム側の挙動（Range・圧縮・キャッシュ階層）は `docs/platform.md`。
+残タスクは `docs/todo.md`。
 
 ---
 
@@ -98,7 +98,7 @@ screen-space error が 1/2 に見えていた。three.js の `getZoom()` は 256
 移行と同時に正しくなった。
 
 したがって `fast4g` の PLATEAU 到達が遅れたのは**点群を 10 倍読むようになった結果**で、
-帯域の取り合いである。**「LOD を細い回線向けに浅く止める」（`docs/TODO.md`）は、
+帯域の取り合いである。**「LOD を細い回線向けに浅く止める」（`docs/todo.md`）は、
 これで初めて実測できる問題になった。**
 3. **同時実行は 11 で頭打ち。** `nextHopProtocol` から h2 を検出して上限を切り替える経路が効いている。
 4. **水位スライダ 31 段の掃引で発行リクエスト 0。** `h_conn` を 1 枚のテクスチャに持ち、
@@ -211,7 +211,7 @@ MapLibre 側は**アプリ本体が 120 kB しかない**。初期チャンク�
 | `unpkg.com/@loaders.gl/draco@4.4.5/dist/draco-worker.js` | 3 | 38,094 |
 | **合計** | **9** | **1,147,812** |
 
-すべて 200。`docs/TODO.md` に「現行ビルドでは発火しない（クロスオリジンのリクエストは
+すべて 200。`docs/todo.md` に「現行ビルドでは発火しない（クロスオリジンのリクエストは
 0 件）」「22 個の b3dm に `KHR_draco_mesh_compression` が無く」と書いていたが、
 **どちらも誤りだった。b3dm は 44 枚すべて Draco 圧縮されている**（バイナリを直接検査）。
 MapLibre + deck.gl のときも同じように出ていた。
@@ -278,12 +278,12 @@ MapLibre の zoom はタイル 512 px 基準、`three/mercator.ts` は 256 px �
 **1 段粗い地形を描いていた**ので、「terrain 完了 −9.1 秒」「地理データ @10 s +71 %」と
 出ていた最初の数字は捨てた。上の表は直した後のものである。
 
-規約は `docs/WEB_DESIGN.md`「ズームの規約」。`perf/tileorient.mjs` と
+規約は `docs/web_design.md`「ズームの規約」。`perf/tileorient.mjs` と
 `perf/zmix.mjs` が要求タイルの z ごと照合するので、次からはここで捕まる。
 
 ### `objects.geojson` のパースコストは 3 ms、遅延ロードの往復が 568 ms だった **[実測]**
 
-`docs/TODO.md` に「転送は wire 109 kB でバイトの問題ではない。残る理由は
+`docs/todo.md` に「転送は wire 109 kB でバイトの問題ではない。残る理由は
 **662 kB の JSON を一括 `JSON.parse` する CPU コスト**」と書いていた。**測ったら違った。**
 
 到着から地物メッシュが立つまでを 3 つに割って測る（マイルストーンを足した:
@@ -427,7 +427,7 @@ GPU アップロードは 0.3 ms 程度で、ボトルネックではない。
 
 ### 点群 LOD の予算は事実上ただの下限だった **[実測]**
 
-`docs/TODO.md`「細い回線向けに点群 LOD を浅く止める閾値」を実測しに行って、
+`docs/todo.md`「細い回線向けに点群 LOD を浅く止める閾値」を実測しに行って、
 **閾値の式がそもそも働いていない**ことが分かった。予算は
 `maxBytes = clamp(bandwidthBps * 6, 2 MB, 20 MB)` だったが:
 
@@ -533,7 +533,7 @@ pitch 0 で 1.00 倍になるのが、幾何が正しいことの確認になる
 12 秒窓の数字も、常駐点数・転送量ともに変わらなかった。
 
 直した理由は 2 つ。**近似が 1 つ減ること**と、**AOI より広い点群を受ける経路
-（`docs/TODO.md` の LAS アップロード）ではここが効くこと**。
+（`docs/todo.md` の LAS アップロード）ではここが効くこと**。
 **いまの配信物に対しては効果ゼロ**であり、そう書いておく。
 
 ### `slow-highrtt` では関係ない
@@ -609,7 +609,7 @@ LOD が選んだノードを `pointDataOffset` でソートし、gap < 64 KiB・
 `extraBytes = 0` で無損失なので既定 ON のままにしているが、**効果があるとは書けない。**
 `?coalesce=0` で無効化できる。
 
-飛び地の結合はできない。R2 がマルチレンジを受け付けないため（`docs/PLATFORM.md`）。
+飛び地の結合はできない。R2 がマルチレンジを受け付けないため（`docs/platform.md`）。
 
 ---
 
@@ -705,7 +705,7 @@ A/B は `perf/ab.mjs` で**交互に**複数回まわし、中央値と範囲を
 | 点群被覆の輪郭 | 118 kB | **24 kB** | 4.8× |
 | b3dm・PNG | — | ほぼ等しい | 1.0× |
 
-`fetch` のヘッダからは取れない（`docs/PLATFORM.md`）ので、
+`fetch` のヘッダからは取れない（`docs/platform.md`）ので、
 `PerformanceResourceTiming.encodedBodySize` を URL と開始時刻で引き当てる。
 引き当てられない場合は**デコード後の値に戻す**。過大に出る方に倒す。
 小さく見せる方に倒すと判断を誤る。
@@ -732,7 +732,7 @@ reap が LOD の更新より先に走る、の 3 つが重なっていた）。
 1. **AOI が 1 km 四方**しかない。市域全体を載せたときの負荷とは違う。
 2. **1 拠点からの測定**。日本国内・固定回線からで、地理的な RTT 分布は入っていない。
 3. **edge キャッシュが温まった状態（`cf-cache-status: HIT`）は測っていない。**
-   COPC はそもそも CDN に乗らない（`docs/PLATFORM.md`）。
+   COPC はそもそも CDN に乗らない（`docs/platform.md`）。
 4. **カメラ操作シナリオが 2 種類**（水位掃引 / 被覆外へ跳ぶ）しかない。
 5. **プロファイル別の表は 1 試行**。順位を読むには足りない。
    A/B が要る比較は `perf/ab.mjs` で複数回まわしている。

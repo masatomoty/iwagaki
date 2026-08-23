@@ -4,7 +4,7 @@
 // **ベースマップは 1 枚も描いていなかった**（旧 view/map.ts の style は sources: {}）。
 // その 4 つのために初期チャンクの約 1/3 を払っていたので、ここで自前に置き換える。
 //
-// ついでに **正射投影**（docs/TODO.md B1）を入れる。MapLibre は透視しか持たないため
+// ついでに **正射投影**（docs/todo.md B1）を入れる。MapLibre は透視しか持たないため
 // 「CAD のように断面で見る」が積み残しになっていた。
 
 import {
@@ -150,7 +150,7 @@ export class Viewer {
 
   /**
    * 画面 4 隅を地面に落とした経緯度。**外接矩形ではなく台形そのもの。**
-   * 点群 LOD の視野判定に渡す（`docs/WEB_DESIGN.md`「LOD」）。
+   * 点群 LOD の視野判定に渡す（`docs/web_design.md`「LOD」）。
    */
   getGroundPolygonLngLat(): [number, number][] {
     return this.groundCorners().map(([x, y]) => worldToLngLat(this.frame, x, y))

@@ -1,4 +1,4 @@
-// COPC の octree インデックス。IO は必ず Scheduler 経由（docs/WEB_DESIGN.md「4 つに割る」）。
+// COPC の octree インデックス。IO は必ず Scheduler 経由（docs/web_design.md「4 つに割る」）。
 // copc.js の Getter は (begin, end) => Promise<Uint8Array> なので、そこに差し込むだけで
 // 優先度・キャンセル・キャッシュがすべて効く。
 
@@ -67,7 +67,7 @@ export class CopcIndex {
    * COPC の hierarchy は「1 ページ読む → 子ページの位置が分かる → また読む」という
    * 依存チェーンで、往復回数がそのまま待ち時間になる。Cloudflare 実配信で測ると
    * 33 リクエスト・合計 0.20 MB で 13〜31 秒かかり、帯域 20 Mbps・RTT 400 ms の
-   * 回線でも 22.2 秒だった（docs/WEB_RESULTS.md）。バイト数ではなく往復回数が支配的で、
+   * 回線でも 22.2 秒だった（docs/web_results.md）。バイト数ではなく往復回数が支配的で、
    * 「COPC を採用したから Range で必要な分だけ取れている」では済んでいなかった。
    *
    * 仕様上、全ページは user_id='copc' / record_id=1000 の EVLR 1 個に連続して入っている。

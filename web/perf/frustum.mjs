@@ -9,7 +9,7 @@
 // pitch 0 で台形 = 外接矩形（比 1.00）になるのが、幾何が正しいことの確認になる。
 // **この AOI では比が 2 倍でも選ばれるノードは変わらない** — 点群の octree は
 // 427 x 799 m しかなく、台形（最小でも 1.4 km2）に丸ごと入るため
-// （docs/WEB_RESULTS.md「視錐台を厳密にしても、この点群では何も落ちない」）。
+// （docs/web_results.md「視錐台を厳密にしても、この点群では何も落ちない」）。
 import { chromium } from '@playwright/test'
 
 const BASE = process.env.BASE ?? 'https://localhost:8477'

@@ -15,7 +15,7 @@
 //
 // **状態そのものは削っていない。** `web/perf` の計測ハーネス 28 本が
 // `setLayer('flood'|'ground'|'semantics'|'pcCoverage')` や `setBuildingColor('class')` を
-// 叩いていて、`docs/WEB_RESULTS.md` の実測値はそこから出ている。
+// 叩いていて、`docs/web_results.md` の実測値はそこから出ている。
 // メニューに出さないだけで、`__iwagaki` からは全部触れる。
 
 import type { Catalog } from '../domain/catalog'
@@ -156,7 +156,7 @@ function pickChips(refs: [string, number][]): [string, number, string][] {
  * 頭のチップに出す 3 つ（普段・高潮想定・既往最高）以外もここから選べる。
  *
  * 出典と既知の限界の文章はここに置いていた。**画面には出さない**
- * （`README.md` と `docs/RESULTS.md` が持っている）。出典表記だけは
+ * （`README.md` と `docs/results.md` が持っている）。出典表記だけは
  * ライセンス上の要求なので画面下辺（`#attrib`）に常時出る。
  */
 function refListHtml(refs: [string, number][]): string {

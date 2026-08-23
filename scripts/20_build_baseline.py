@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PLATEAU 地形モデル(dem, LOD1 TIN) から粗地形ラスタ(5m)を作る。
 
-TIN の頂点間隔は実測 5.00〜5.05 m の規則格子（docs/DATA.md §1）なので、
+TIN の頂点間隔は実測 5.00〜5.05 m の規則格子（docs/data.md §1）なので、
 三角形補間は情報を増やさない。頂点を 5m 格子に集約するだけにする。
 """
 from __future__ import annotations

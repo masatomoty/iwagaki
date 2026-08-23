@@ -2,7 +2,7 @@
 // デプロイ後の配信条件を実測する。
 //
 // ローカル（web/serve.mjs）と Cloudflare は配信条件が違い、結論は配信条件に強く依存する
-// （docs/PLATFORM.md）。ここで確認するのは主に次の 3 点:
+// （docs/platform.md）。ここで確認するのは主に次の 3 点:
 //
 //   1. COPC が本当に 206 + 正しい Content-Range を返すか（返さなければ COPC の意味が消える）
 //   2. Workers Assets が Range をどう扱うか（206 か 200 か。docs では [未確認] のまま）
@@ -59,7 +59,7 @@ let catalog
 if (!catalog) { summary(); process.exit(1) }
 
 // catalog の URL はすべて相対でなければならない。絶対 URL が混ざると
-// クロスオリジンになり transferSize が 0 になる（docs/WEB_DESIGN.md「収集する量」）
+// クロスオリジンになり transferSize が 0 になる（docs/web_design.md「収集する量」）
 {
   const urls = []
   JSON.stringify(catalog, (k, v) => { if (k === 'url' && typeof v === 'string') urls.push(v); return v })
@@ -136,7 +136,7 @@ if (!copcUrl) {
 {
   const { res, buf } = await get('data/objects.geojson', { 'accept-encoding': 'br, gzip' })
   const wire = Number(h(res, 'content-length'))
-  // 570 kB の geojson は first_meaningful_render の 2 割を占めうる（docs/WEB_DESIGN.md「アセットの形式」）。
+  // 570 kB の geojson は first_meaningful_render の 2 割を占めうる（docs/web_design.md「アセットの形式」）。
   // application/geo+json が Cloudflare の圧縮対象から外れると静かに効く
   must('objects.geojson が圧縮されて来る', res.status === 200 && enc(res) !== '-',
     `${res.status} enc=${enc(res)} wire=${Number.isFinite(wire) ? wire : '?'} B / 実体 ${buf.length} B cache-control=${h(res, 'cache-control')}`)
@@ -165,7 +165,7 @@ if (!copcUrl) {
 // **ここだけブラウザを立てる。** fetch では分からない: 外部を叩くのは
 // ライブラリが動き出してからで、しかも Worker の中から出ることがある。
 // 実際 Draco のデコーダは worker 3 本がそれぞれ unpkg と gstatic を叩いていて、
-// 計 1.15 MB あった（docs/WEB_RESULTS.md）。
+// 計 1.15 MB あった（docs/web_results.md）。
 //
 // クロスオリジンでは `transferSize` も `encodedBodySize` も 0 になるので、
 // **こちらの転送量計測には最後まで映らない**。だから MUST で塞ぐ。

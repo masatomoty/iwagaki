@@ -1,4 +1,4 @@
-// catalog.json の型。ローカル配信と Cloudflare 配信の唯一の境界（docs/WEB_DESIGN.md「配信の境界」）。
+// catalog.json の型。ローカル配信と Cloudflare 配信の唯一の境界（docs/web_design.md「配信の境界」）。
 
 export interface TerrainAsset {
   url: string

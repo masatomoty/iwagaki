@@ -1,5 +1,5 @@
 // 開発者向けの計測表示。既定は非表示で ?perf=1 / P キーで開く。
-// FPS は出さない（docs/WEB_DESIGN.md「FPS は指標にしない」）。
+// FPS は出さない（docs/web_design.md「FPS は指標にしない」）。
 
 import type { Scheduler } from '../net/scheduler'
 import type { PerfRecorder } from '../perf/recorder'

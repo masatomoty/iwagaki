@@ -78,7 +78,7 @@ def main() -> int:
 
     # 解析が持っている 4 条件すべてを地物に結合する。
     # 以前は baseline / highres だけで、**点群融合地形での判定が地物単位で
-    # 出ていなかった**（docs/TODO.md A2）。0.5 m 格子のものは upsample しない。
+    # 出ていなかった**（docs/todo.md A2）。0.5 m 格子のものは upsample しない。
     terrains = {}
     for name, fname in (("baseline", "dtm_baseline_500.tif"),
                         ("highres", "dtm_highres_050.tif"),

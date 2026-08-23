@@ -1,11 +1,11 @@
 // 点群レンダラの three.js 版。deck.gl PointCloudLayer の置き換え。
 //
-// index / LOD / scheduler / decode は renderer に依存していないので（docs/WEB_DESIGN.md §10）、
+// index / LOD / scheduler / decode は renderer に依存していないので（docs/web_design.md §10）、
 // PointCloudRenderer インタフェースを満たすだけで差し替わる。
 //
 // deck 版で踏んだ罠は同じ形で避ける: **チャンクごとに Points を使い回す**。
 // 毎フレーム作り直すと属性が GPU へ再アップロードされ、カメラ操作中
-// 16.7 ms -> 81.3 ms/frame になっていた（docs/WEB_RESULTS.md §6.2）。
+// 16.7 ms -> 81.3 ms/frame になっていた（docs/web_results.md §6.2）。
 
 import {
   BufferAttribute, BufferGeometry, Group, Points, PointsMaterial,

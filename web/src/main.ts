@@ -1,8 +1,8 @@
 // アプリの組み立て。ここが唯一「全部を知っている」場所。
 // 依存の向き: ui -> view/three -> pointcloud -> net -> assets -> domain
-// （docs/WEB_DESIGN.md「層の分け方」）
+// （docs/web_design.md「層の分け方」）
 //
-// 描画は three.js。MapLibre + deck.gl は外した（docs/WEB_RESULTS.md「初期チャンクの内訳」）。
+// 描画は three.js。MapLibre + deck.gl は外した（docs/web_results.md「初期チャンクの内訳」）。
 // net / domain / perf / state / pointcloud の index・LOD・decode は renderer に
 // 依存しない設計だったので、そのまま再利用している。
 
@@ -25,7 +25,7 @@ import { createLocalFrame, worldToLngLat } from './three/mercator'
 import type { PlateauTiles } from './three/plateauTiles'
 // **地物メッシュは遅延しない。** 1.8 kB (br) を後回しにするために 1 往復払っていた。
 // 高 RTT では往復のほうが 2 桁高い（fatpipe-highrtt 405 ms / slow-highrtt 568 ms、
-// 対して JSON 解釈は 3〜7 ms・三角形化は 7〜9 ms。docs/WEB_RESULTS.md
+// 対して JSON 解釈は 3〜7 ms・三角形化は 7〜9 ms。docs/web_results.md
 // 「objects.geojson のパースコストは 3 ms、遅延ロードの往復が 568 ms」）
 import { createCoverageOutline, SemanticsMesh } from './three/semanticsMesh'
 import { TerrainTiles } from './three/terrainTiles'
@@ -46,7 +46,7 @@ const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_me
  * 「点群が見えた」とみなす、LOD が選んだ点数に対する割合。
  * 絶対値（旧: 20 万点）は合成点群向けの値で、実点群では LOD の選択が
  * 17.3〜21.6 万点と閾値をまたぎ、同じ画面でも計測できたりできなかったりした。
- * 割合にすればデータ密度・LOD 予算を変えても同じものを指す（docs/WEB_RESULTS.md「計測の方針」）。
+ * 割合にすればデータ密度・LOD 予算を変えても同じものを指す（docs/web_results.md「計測の方針」）。
  */
 const USEFUL_FRACTION = 0.5
 /**
@@ -55,7 +55,7 @@ const USEFUL_FRACTION = 0.5
  * 60 万点は deck.gl `PointCloudLayer`（1 点 = インスタンス化クアッド 6 頂点）での
  * 実測値だった。three.js の `Points` で測り直すと**桁が違う**: 6.0 M 点 /
  * draw call 132 / GPU 90 MB でもドラッグ中 p50 16.6 ms・p95 18.2 ms で 60 fps を保ち、
- * 崩れ始めるのは 9.9 M 点から（`docs/WEB_RESULTS.md`「点群の配信」）。
+ * 崩れ始めるのは 9.9 M 点から（`docs/web_results.md`「点群の配信」）。
  *
  * **測った上限をそのまま入れない。** 計測は開発機（Apple Silicon）で、
  * 配信先の庁内 PC の GPU は分かっていない [未確認]。実測の 1/3 に当たる
@@ -72,7 +72,7 @@ const PC_MAX_BYTES = Number(new URLSearchParams(location.search).get('maxbytes')
 const qs = new URLSearchParams(location.search)
 const OPT = {
   // coalescing は既定 ON。1 リクエスト内のストリーミングデコードを入れた結果、
-  // 「束ねると最初の点が遅れる」不利が消えて速い側になった（docs/WEB_RESULTS.md「range coalescing」）
+  // 「束ねると最初の点が遅れる」不利が消えて速い側になった（docs/web_results.md「range coalescing」）
   coalesce: qs.get('coalesce') !== '0',
   // 点群は既定 OFF。?pc=1 で有効化
   pointcloud: qs.get('pc') === '1',
@@ -287,7 +287,7 @@ async function boot() {
   /**
    * 点群の被覆輪郭（118 kB）。**クラスは prefetch** で、何かを待たせることが無いようにする。
    * 無くても地図は成立し、有ると「点群がどこに効いているか」が分かる、という性質の情報。
-   * AOI 100 ha に対し点群は 3.17 ha しかない（docs/RESULTS.md）。
+   * AOI 100 ha に対し点群は 3.17 ha しかない（docs/results.md）。
    */
   let coverage: import('three').LineSegments | undefined
   async function loadPcCoverage() {
@@ -403,8 +403,8 @@ async function boot() {
   let pcb: PcBundle | undefined
   /**
    * LOD 予算。点数にほぼ線形な描画コスト（deck.gl PointCloudLayer で約 23 ns/点/frame）
-   * から、60 fps を保てる上限として 60 万点に置いた（docs/WEB_RESULTS.md「点群の配信」）。
-   * three.js の Points に替えた影響は再計測が要る（docs/TODO.md）。
+   * から、60 fps を保てる上限として 60 万点に置いた（docs/web_results.md「点群の配信」）。
+   * three.js の Points に替えた影響は再計測が要る（docs/todo.md）。
    */
   const budget = (): LodBudget => {
     // **推定がまだ無いときは下限から始める。** 以前は 2 MB/s と仮定していて、
@@ -417,10 +417,10 @@ async function boot() {
       // 帯域推定から毎回決める。遅い回線では自動的に浅い LOD で止まる。
       // ?maxbytes= で上書きできる。**キャンセル経路の検証に必要**で、
       // 絞った回線ではこの予算が pcFine の発行そのものを止めてしまい、
-      // 「キャンセルすべき飛行中の要求」が作れない（docs/WEB_RESULTS.md「キャンセル」）。
+      // 「キャンセルすべき飛行中の要求」が作れない（docs/web_results.md「キャンセル」）。
       //
       // **係数 2 = 「点群に使ってよいのは 12 秒の窓のうち 2 秒ぶん」。**
-      // 12 秒で切るのは計測の窓と同じ（docs/WEB_RESULTS.md）。残りは地形・建物・地物に要る。
+      // 12 秒で切るのは計測の窓と同じ（docs/web_results.md）。残りは地形・建物・地物に要る。
       //
       // 以前は係数 6 / 下限 2 MB だったが、帯域推定が実効の 1/5 しか出ておらず
       // **下限がそのまま予算になっていた**（推定は net/scheduler.ts で直した）。
@@ -436,7 +436,7 @@ async function boot() {
    *
    * 換算そのものは `domain/camera.ts` に置いてある（レンダラに依らないため）。
    * **旧実装は `eye: [0, 0, cameraToCenterDistance / 8]` で視点が定数**になっており、
-   * LOD が働いていなかった（docs/WEB_RESULTS.md「キャンセル」）。three.js 移行時に
+   * LOD が働いていなかった（docs/web_results.md「キャンセル」）。three.js 移行時に
    * その定数版へ戻っていたので、`domain/camera.ts` 経由に直してある。
    */
   const viewState = (): ViewState => {
@@ -473,7 +473,7 @@ async function boot() {
    * `budget()` を評価していたのは点群の起動時とカメラ移動時だけで、
    * カメラを動かさなければ**起動直後の推定が最後まで残っていた**。
    * 帯域推定は最初の数リクエストでは当てにならないので、
-   * 大きく変わったときだけ組み直す（`docs/WEB_RESULTS.md`「点群 LOD の予算」）。
+   * 大きく変わったときだけ組み直す（`docs/web_results.md`「点群 LOD の予算」）。
    */
   let appliedMaxBytes = 0
   /** 予算がこの比率を超えて**増えた**ら LOD を組み直す */
@@ -567,7 +567,7 @@ async function boot() {
 
   // ---- カメラ連動 --------------------------------------------------------
   // カメラは 60ms デバウンス。毎フレーム epoch を進めるとキャンセル暴走する
-  // （docs/WEB_DESIGN.md「キャンセルの規則」）
+  // （docs/web_design.md「キャンセルの規則」）
   let moveTimer: number | undefined
   viewer.on('movestart', () => perf.cameraMoveStart())
   viewer.on('move', () => {
@@ -584,7 +584,7 @@ async function boot() {
         // それが書き換わるのは update() の中である。先に reap すると
         // 古い `wanted` を見て「まだ必要」と答えてしまい、
         // **視野から外れたノードが一度もキャンセルされない**
-        // （docs/WEB_RESULTS.md「キャンセル」）。
+        // （docs/web_results.md「キャンセル」）。
         const b = budget()
         appliedMaxBytes = b.maxBytes
         void pcb.controller.update(viewState(), b).then(() => scheduler.reap())
@@ -674,7 +674,7 @@ async function boot() {
   // ---- 計測パネル --------------------------------------------------------
   // PerfRecorder は常時走らせるが、パネルは既定で隠す。内訳を読むのは開発者だけで、
   // 浸水を見に来た人には要らない。?perf=1 か P キーで出す
-  // （docs/WEB_DESIGN.md「FPS は指標にしない」）
+  // （docs/web_design.md「FPS は指標にしない」）
   const perfEl = document.getElementById('perf')!
   let perfVisible = qs.get('perf') === '1'
   const drawPerf = () => {

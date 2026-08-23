@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """結果サマリを出す。
 
-差が出たと言うための指標は docs/DESIGN.md「差が出たと言うための指標」に定義がある。
+差が出たと言うための指標は docs/design.md「差が出たと言うための指標」に定義がある。
 """
 from __future__ import annotations
 

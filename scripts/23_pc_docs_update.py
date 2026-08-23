@@ -2,7 +2,7 @@
 """実点群 COPC の実測値をドキュメントに反映する。
 
 scripts/22 が書いた web/public/data/pointcloud_report.json の値を読んで、
-docs/WEB_RESULTS.md の「点群は合成データ」前提だった記述を差し替える。
+docs/web_results.md の「点群は合成データ」前提だった記述を差し替える。
 数値を手で写さないためのスクリプト。
 """
 from __future__ import annotations
@@ -28,10 +28,10 @@ def main() -> int:
     bpp = rep["bytes_per_point"]
     cell = rep["voxel_cell_m"]
 
-    p = ROOT / "docs" / "WEB_RESULTS.md"
+    p = ROOT / "docs" / "web_results.md"
     s = p.read_text()
 
-    old = """**点群は DTM 由来の合成データ**（`docs/DATA.md` §3、`scripts/81`）であり、
+    old = """**点群は DTM 由来の合成データ**（`docs/data.md` §3、`scripts/81`）であり、
 密度分布もノイズ特性も実測点群とは違う。**decode/LOD の結論は実 LAS で測り直す必要がある。**
 
 **表示上の注意**: 合成点群は地表面そのものなので、地形サーフェスとほぼ同じ高さに描かれる。
@@ -53,11 +53,11 @@ UI 上は点群を既定 ON にしているが、地形・差分を見るとき�
 **実点群は壁・建物・植生を含むので地表面の上に出る。**
 `scripts/81_build_pointcloud_sample.py` は残してあるが、配信には使っていない。"""
     if old not in s:
-        print("WEB_RESULTS.md: 置換対象が見つからない（すでに更新済みか）")
+        print("web_results.md: 置換対象が見つからない（すでに更新済みか）")
     else:
         s = s.replace(old, new)
         p.write_text(s)
-        print("WEB_RESULTS.md を更新")
+        print("web_results.md を更新")
 
     print(json.dumps({k: rep[k] for k in
                       ("point_count", "bytes", "bytes_per_point", "voxel_cell_m")},

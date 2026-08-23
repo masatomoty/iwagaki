@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""解析ラスタ -> Web 配信用 RGBA タイル（docs/WEB_DESIGN.md「RGBA タイルのパッキング」）。
+"""解析ラスタ -> Web 配信用 RGBA タイル（docs/web_design.md「RGBA タイルのパッキング」）。
 
 1 タイル = 1 地形条件。RGB に標高(Terrarium)、A に h_conn コードを詰める。
 
@@ -37,9 +37,9 @@ ORIGIN = math.pi * R_EARTH        # 20037508.342789244
 
 # 解析が持っている 4 条件をすべて配信する。
 # 以前は baseline / highres の 2 つしか焼いておらず、**点群を融合した地形の
-# 浸水判定を viewer から一切見られなかった**（docs/TODO.md A1）。
+# 浸水判定を viewer から一切見られなかった**（docs/todo.md A1）。
 # control は「解像度だけを落とした highres」で、データ源と解像度のどちらが
-# 効いているかを切り分けるための条件（docs/DESIGN.md「地形の生成」）。
+# 効いているかを切り分けるための条件（docs/design.md「地形の生成」）。
 CONDITIONS = {
     "baseline": ("dtm_baseline_500.tif", "h_conn_baseline.tif"),
     "highres": ("dtm_highres_050.tif", "h_conn_highres.tif"),
@@ -212,7 +212,7 @@ def main() -> int:
                 # **地形条件と同じ枚数を焼く。**
                 # 以前は「両条件とも h_conn が無いタイル」を落としていたので
                 # 地形 131 枚に対し差分 101 枚になり、差分モードで存在しない
-                # タイルへの 404 が毎回出ていた（docs/TODO.md F3）。
+                # タイルへの 404 が毎回出ていた（docs/todo.md F3）。
                 # 標高があるなら地形メッシュは描かれるので、差分タイルも要る。
                 # 中身が全て「どちらも浸水しない」でも PNG は数百バイトにしかならない。
                 elev, _ = sample(OUT / GEOMETRY_FOR_DIFF[name], z, x, y, Resampling.nearest)

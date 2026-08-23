@@ -2,7 +2,7 @@
 """Web 用の catalog.json と objects.geojson(WGS84) を作る。
 
 catalog.json は「ブラウザが最初に読む 1 ファイル」であり、
-**ローカル配信と Cloudflare 配信の唯一の境界**（docs/WEB_DESIGN.md「配信の境界」）。
+**ローカル配信と Cloudflare 配信の唯一の境界**（docs/web_design.md「配信の境界」）。
 URL を差し替えるだけで配信先を変えられるようにする。
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ KEEP_PROPS = [
     "section_type", "section_type_label", "water_fraction",
     "unreliable", "unreliable_reason",
     # 4 条件すべて。以前は baseline / highres だけで、点群融合地形での
-    # 判定を地物単位で見られなかった（docs/TODO.md A2）
+    # 判定を地物単位で見られなかった（docs/todo.md A2）
     "ground_elev_baseline", "ground_elev_highres",
     "ground_elev_control", "ground_elev_pointcloud",
     "h_conn_baseline", "h_conn_highres",

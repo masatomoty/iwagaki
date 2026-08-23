@@ -1,5 +1,5 @@
 // 地図のカメラを「AOI ローカル(メートル, ENU)」に直す。純関数。
-// maplibre-gl / deck.gl / three.js を import しない（docs/WEB_DESIGN.md「層の分け方」）。
+// maplibre-gl / deck.gl / three.js を import しない（docs/web_design.md「層の分け方」）。
 //
 // なぜドメイン側に置くか: 点群 LOD は「カメラからノードまでの距離」で
 // 詳細度を決める。この変換を描画層に置くと、レンダラを差し替えるたびに
@@ -12,7 +12,7 @@
 // **ズームに依存しない**ので、視点は事実上の定数だった。
 // 結果、LOD が選ぶノードはカメラをどう動かしても変わらず
 // （実測: zoom 18.4 と 12.5 で wantedPoints が完全に同一）、
-// 「近くは細かく遠くは粗く」が効いていなかった（docs/WEB_RESULTS.md「キャンセル」）。
+// 「近くは細かく遠くは粗く」が効いていなかった（docs/web_results.md「キャンセル」）。
 
 /** 緯度 1 度あたりの距離 [m]。WGS84 の子午線曲率から */
 export function metresPerDegreeLat(latDeg: number): number {
@@ -34,7 +34,7 @@ export function metresPerDegreeLon(latDeg: number): number {
  * `eyeInLocal` のカメラ距離が常に 2 倍になっていた。結果、既定の視点でも
  * 点群 LOD は最粗のノード集合しか選ばず（実測 `wantedPoints` = 12,174 = 引き切ったときと同値）、
  * 「近くは細かく」が既定視点で効いていなかった。three.js の `Viewer.getZoom()` は
- * 256 px 基準なので、そのまま渡してよい（docs/WEB_DESIGN.md「ズームの規約」）。
+ * 256 px 基準なので、そのまま渡してよい（docs/web_design.md「ズームの規約」）。
  */
 export function metresPerPixel(latDeg: number, zoom: number): number {
   return (156543.03392 * Math.cos((latDeg * Math.PI) / 180)) / 2 ** zoom
@@ -95,7 +95,7 @@ export function eyeInLocal(cam: CameraDescription, origin: LocalOrigin): [number
  *
  * 厳密な視錐台ではなく、地図の可視 bbox の外接矩形。
  * **これが無いと、視野から外れたノードが `wanted` に残り続け、
- * キャンセルが原理的に発火しない**（docs/WEB_RESULTS.md「キャンセル」）。
+ * キャンセルが原理的に発火しない**（docs/web_results.md「キャンセル」）。
  * 傾けた視野は台形なので外接矩形は広めに出るが、
  * 「不要になったものを落とす」目的には十分で、落としすぎるより安全。
  */

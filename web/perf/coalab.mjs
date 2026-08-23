@@ -1,7 +1,7 @@
 // coalescing の on/off を交互に n 回まわして中央値と範囲を出す。
 // §4.1 の on/off 比較はノード 11〜14 本の合成点群時代のもので、
 // 実点群（1,594 ノード）でやり直す必要があった。
-// 1 回ずつの比較では判断できない（docs/WEB_RESULTS.md「計測時の注意」）。
+// 1 回ずつの比較では判断できない（docs/web_results.md「計測時の注意」）。
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 

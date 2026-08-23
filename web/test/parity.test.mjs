@@ -1,4 +1,4 @@
-// docs/WEB_DESIGN.md「正しさを守るテスト」の「正しさを守るテスト」。
+// docs/web_design.md「正しさを守るテスト」の「正しさを守るテスト」。
 // 性能とは別に、パッキングと判定ロジックが Python 側とずれていないことを押さえる。
 //
 //   node test/parity.test.mjs

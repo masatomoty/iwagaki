@@ -522,7 +522,7 @@ export class SemanticsMesh {
 
 /**
  * 点群が地表面として効いている範囲の輪郭。
- * AOI 100 ha に対し点群は 3.17 ha しかない（docs/RESULTS.md）ので、
+ * AOI 100 ha に対し点群は 3.17 ha しかない（docs/results.md）ので、
  * 境界が無いと「点群で見た結果」が全域に効いているように読める。
  */
 export function createCoverageOutline(

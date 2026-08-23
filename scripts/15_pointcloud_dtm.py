@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LAS/LAZ 点群から 0.5m DTM と COPC を作る（PDAL）。
 
-**未検証**: 点群データが未入手のため実行確認ができていない（docs/DATA.md §3）。
+**未検証**: 点群データが未入手のため実行確認ができていない（docs/data.md §3）。
 点群を入手したら、まず `--inspect` で CRS・分類・標高の実態を確認すること。
 
   .venv/bin/python scripts/15_pointcloud_dtm.py path/to/input.laz --inspect
@@ -38,7 +38,7 @@ def run(cmd: list[str]) -> str:
 def inspect(src: Path) -> dict:
     """CRS・点数・標高範囲・classification の分布を出す。
 
-    docs/DATA.md §3 の「要確認事項」をこれで埋める。
+    docs/data.md §3 の「要確認事項」をこれで埋める。
     """
     info = json.loads(run(["pdal", "info", "--summary", str(src)]))
     summary = info.get("summary", {})

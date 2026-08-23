@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""タイルパッキングの往復検証（docs/WEB_DESIGN.md「正しさを守るテスト」）。
+"""タイルパッキングの往復検証（docs/web_design.md「正しさを守るテスト」）。
 
 GeoTIFF -> PNG タイル -> デコード が値を保つことを確認する。
 premultiply 事故やビット詰めのミスは絵を見ても気づけないので、数値で押さえる。

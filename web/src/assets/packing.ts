@@ -1,4 +1,4 @@
-// RGBA タイルのデコード（docs/WEB_DESIGN.md「RGBA タイルのパッキング」）。
+// RGBA タイルのデコード（docs/web_design.md「RGBA タイルのパッキング」）。
 // GLSL 側（view/floodMeshLayer.ts）と同じ式。両者の一致は test/parity で検証する。
 
 export const ELEV_BIAS = 32768

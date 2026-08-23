@@ -1,4 +1,4 @@
-// 座標系。ここは three も deck も import しない純関数（docs/WEB_DESIGN.md §1）。
+// 座標系。ここは three も deck も import しない純関数（docs/web_design.md §1）。
 //
 // MapLibre / deck.gl を外すと「経緯度をそのまま渡せば投影してくれる層」が無くなるので、
 // ワールド空間を自分で決める必要がある。

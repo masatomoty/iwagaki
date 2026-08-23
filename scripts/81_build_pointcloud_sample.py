@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """配信検証用の COPC を 0.5m DTM から生成する。
 
-**これは観測データではない。** 舞鶴の公開 LAS/LAZ は存在せず（docs/DATA.md §3）、
+**これは観測データではない。** 舞鶴の公開 LAS/LAZ は存在せず（docs/data.md §3）、
 実点群は別途提供予定。それまでの間、ネットワーク／LOD／デコードの経路を
 実際に動かして計測するための **負荷源** として、DTM の各セルを 1 点に変換したものを使う。
 
@@ -72,7 +72,7 @@ def main() -> int:
     print(json.dumps(report, indent=2))
     if size < 5_000_000:
         print("\n注意: COPC が 5 MB 未満。規則格子なので LAZ が効きすぎている可能性がある。"
-              "\nネットワーク負荷源としては弱い。docs/WEB_DESIGN.md「既知の制約」を参照。")
+              "\nネットワーク負荷源としては弱い。docs/web_design.md「既知の制約」を参照。")
     return 0
 
 

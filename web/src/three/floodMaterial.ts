@@ -17,7 +17,7 @@
 // 移植時に「luma.gl が暗黙に上下反転して上げているから元実装は素の uv で
 // 合っていたのだろう」と書いたが、**それは誤りだった**。luma.gl も
 // UNPACK_FLIP_Y_WEBGL を立てない。元実装は本当に南北が反転しており、
-// 独立に見つかって main で直された（`docs/WEB_RESULTS.md` §6.8 / commit b6b45d7）。
+// 独立に見つかって main で直された（`docs/web_results.md` §6.8 / commit b6b45d7）。
 // 結論の式 `vec2(uv.x, 1.0 - uv.y)` は両者で一致している。
 
 import {
@@ -291,7 +291,7 @@ export function floodGeometry(): BufferGeometry {
 
 /**
  * パックした値を線形補間すると標高が別の値になる。ミップマップも同じ理由で作らない。
- * premultiplyAlpha は decodeTileImage 側で切ってある（docs/WEB_DESIGN.md §5.2）。
+ * premultiplyAlpha は decodeTileImage 側で切ってある（docs/web_design.md §5.2）。
  */
 export function makeTileTexture(img: ImageBitmap): Texture {
   const t = new Texture(img)

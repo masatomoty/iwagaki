@@ -7,7 +7,7 @@
 //   unpkg.com/@loaders.gl/draco@x/dist/libs/draco_decoder.wasm     (283 kB)
 // を **worker 1 本につき 1 組** 取りに行く。実測で 3 本 x 342 kB = 1.03 MB。
 // 1 Mbps なら 8 秒分で、しかもクロスオリジンでは `transferSize` が 0 になるため
-// こちらの転送量計測に映らない（docs/WEB_RESULTS.md）。
+// こちらの転送量計測に映らない（docs/web_results.md）。
 //
 // 置き場所を loaders.gl の規約に合わせる。`options.CDN` を指定すると
 //   `${CDN}/draco@${loaders.gl のバージョン}/dist/libs/${ファイル名}`

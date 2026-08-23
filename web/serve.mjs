@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // production 相当の静的配信。計測の結論は配信条件に強く依存するので、
-// Cloudflare に載せたときと同じ性質を再現する（docs/WEB_DESIGN.md）。
+// Cloudflare に載せたときと同じ性質を再現する（docs/web_design.md）。
 //
 //   - HTTP/2（既定。自己署名 TLS）と HTTP/1.1（--http1）を切り替えられる
 //   - Range に 206 を返す
@@ -98,7 +98,7 @@ function handle(req, res) {
   if (range) {
     const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim())
     if (!m) {
-      // R2 と同じくマルチレンジは受け付けない（docs/WEB_DESIGN.md「range coalescing」）
+      // R2 と同じくマルチレンジは受け付けない（docs/web_design.md「range coalescing」）
       res.writeHead(400, { 'content-type': 'text/plain' })
       res.end('multi-range not supported')
       return

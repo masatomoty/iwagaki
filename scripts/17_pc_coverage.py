@@ -32,7 +32,7 @@ NotRepairable = _repair.NotRepairable
 repair_las = _repair.repair
 
 # SRS が書かれていないファイルは、座標域が他と同じなので同じ CRS とみなす
-# （docs/DATA.md §3。推測ではなく「同一測量の同一出力」という根拠に基づく）
+# （docs/data.md §3。推測ではなく「同一測量の同一出力」という根拠に基づく）
 FILES_WITHOUT_SRS = ("⑧", "⑨")
 
 

@@ -47,7 +47,7 @@ REF_POINTS = {
 RES_HIGHRES = 0.5
 RES_COARSE = 5.0
 
-# --- 潮位（docs/DATA.md §4）--------------------------------------------
+# --- 潮位（docs/data.md §4）--------------------------------------------
 # 気象庁 舞鶴(MZ) 実測値
 TP_OF_TIDE_TABLE_DATUM = -0.066   # 潮位表基準面の標高 [m T.P.]
 TP_OF_OBSERVATION_DATUM = -1.517  # 観測基準面の標高 [m T.P.]
@@ -83,7 +83,7 @@ PLATEAU_CITYGML_URL = (
     "https://assets.cms.plateau.reearth.io/assets/8f/8ad134-6969-4a6c-a7c2-4ac370a73096/"
     "26202_maizuru-shi_city_2025_citygml_1_op.zip"
 )
-# AOI を含む CityGML メンバー（docs/DATA.md §1）。
+# AOI を含む CityGML メンバー（docs/data.md §1）。
 # dem は 2次メッシュを 3次メッシュ 5x5 の 4 象限に割ったファイル構成のため複数枚必要になる。
 # AOI が象限境界（lat 35.45833）をまたぐので "05"(3次メッシュ行0-4) と "55"(行5-9) の両方を使う。
 PLATEAU_MEMBERS = {
