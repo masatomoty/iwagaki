@@ -807,8 +807,11 @@ renderer に依存しない設計（`docs/WEB_DESIGN.md` §1・§10）がその�
    `from_bounds(west, south, east, north, 256, 256)` は北上がりの transform を作る。
    実測（z17/114808/51713）: row0 平均 78.4 m / row255 平均 36.5 m に対し、
    同緯度の `dtm_highres_050.tif` は北端 80.4 m / 南端 28.0 m。
-   luma.gl は ImageBitmap を既定で上下反転して上げるため元実装は素の uv で合っていたが、
-   **three には暗黙の反転が無いので `flipY = false` + シェーダ側で `1 - v`** にした。
+   three 側は `flipY = false` + シェーダで `1 - v` にした。
+   **[訂正]** ここで当初「luma.gl が暗黙に上下反転して上げるので元実装は素の uv で
+   合っていた」と書いたが、誤りだった。luma.gl も `UNPACK_FLIP_Y_WEBGL` を立てない。
+   **元実装は本当に南北が反転していた**（独立に発見され main で修正済み）。
+   両者の結論の式 `vec2(uv.x, 1.0 - uv.y)` は一致している。
 2. **PLATEAU の b3dm は `rtcCenter`（ECEF）からの ECEF オフセットで頂点を持ち、
    `rotateYtoZ: true` が立っている。** tileset.json に `transform` が無く、
    standalone の `parse()` では `cartographicOrigin` も `modelMatrix` も付いてこない。

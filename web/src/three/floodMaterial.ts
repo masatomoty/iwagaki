@@ -13,8 +13,12 @@
 //   同じ緯度の dtm_highres_050.tif: 北端 80.4 m / 南端 28.0 m
 // three は flipY を明示 false で上げるので t=0 が row 0 = 北を指す。
 // 一方 aUv.y=0 は bounds の南側なので、**サンプルは 1-v で引く**。
-// （luma.gl は ImageBitmap を既定で上下反転して上げるため、元実装は素の uv で
-//   一致していた。three では暗黙の反転が無いので、ここで明示する。）
+//
+// 移植時に「luma.gl が暗黙に上下反転して上げているから元実装は素の uv で
+// 合っていたのだろう」と書いたが、**それは誤りだった**。luma.gl も
+// UNPACK_FLIP_Y_WEBGL を立てない。元実装は本当に南北が反転しており、
+// 独立に見つかって main で直された（`docs/WEB_RESULTS.md` §6.8 / commit b6b45d7）。
+// 結論の式 `vec2(uv.x, 1.0 - uv.y)` は両者で一致している。
 
 import {
   BufferAttribute, BufferGeometry, DoubleSide, GLSL3, NearestFilter,
