@@ -38,12 +38,19 @@ self.onmessage = async (ev: MessageEvent<DecodeMsg>) => {
       getter,
       { header: m.header, vlrs: [], info: {} as never, eb: m.eb } as never,
       m.node as never,
-      { lazPerf, include: ['X', 'Y', 'Z'] },
+      // **RGB も読む。** バイト列は既に取得・展開してあるので追加の通信は 0 で、
+      // 増えるのは getter 3 本ぶんの CPU だけ
+      { lazPerf, include: ['X', 'Y', 'Z', 'Red', 'Green', 'Blue'] },
     )
     const n = view.pointCount
     const gx = view.getter('X')
     const gy = view.getter('Y')
     const gz = view.getter('Z')
+    // 合成点群など RGB を持たない配信物もあるので、無ければ標高ランプに落ちる
+    const hasRgb = ['Red', 'Green', 'Blue'].every((d) => d in view.dimensions)
+    const gr = hasRgb ? view.getter('Red') : undefined
+    const gg = hasRgb ? view.getter('Green') : undefined
+    const gb = hasRgb ? view.getter('Blue') : undefined
     const positions = new Float32Array(n * 3)
     const elevations = new Float32Array(n)
     const colors = new Uint8Array(n * 3)
@@ -57,22 +64,41 @@ self.onmessage = async (ev: MessageEvent<DecodeMsg>) => {
       positions[i * 3 + 1] = c * dx + d * dy
       positions[i * 3 + 2] = z + m.geoid       // 3D Tiles(楕円体高) に合わせる
       elevations[i] = z
-      // 標高で色付け。メインスレッドで回すと 300 万点でフリーズするのでここでやる。
+      // **色は点群自身の RGB を使う。** バックパック SLAM（LiBackpack）は
+      // カメラ付きで、配信している COPC は PDRF 7 / 36 バイトで
+      // Red/Green/Blue を実データとして持っている（min 2〜255・mean 126〜140）。
+      // 標高ランプで塗り直すと、その実測色を捨てて別の意味を被せることになる。
       //
-      // **単一色相（紫）にしてある。** 以前は 0〜12 m を青→緑→橙に振る虹だったが、
-      // 2 つ問題があった。
-      //   1. 吉原の市街は T.P. 0〜3 m しか無いので、**肝心の帯がランプの下 1/4 に潰れる**。
-      //      12 m 以上は全部同じ色で、街の中はほぼ単色の青だった
-      //   2. 青は浸水深、赤と黄は判定差、黄は点群の被覆線が使っている。
-      //      **虹はそのどれとも衝突する**ので、点群と主張の区別が付かない
-      // 紫はどの主張も使っていない色なので、「これは観測であって判定ではない」が
-      // 色だけで分かる。明るさだけを標高に振る（0〜8 m、低い側にランプを寄せる）。
-      // 上端は白に寄せない。白にすると紫という手掛かりが消えて、陰影の地形と
-      // 見分けが付かなくなる（かつ眩しい）。全域で紫のままにする
-      const t = Math.pow(Math.min(Math.max(z / 8, 0), 1), 0.6)
-      colors[i * 3] = 100 + 106 * t
-      colors[i * 3 + 1] = 80 + 106 * t
-      colors[i * 3 + 2] = 140 + 110 * t
+      // ランプをやめた理由は 3 つ。
+      //   1. **絶対標高は点群の役に立たない。** 市街は T.P. 0〜3 m しか無いので
+      //      どんなランプでも肝心の帯が潰れる。地面と 3 m 先の壁が別色になるだけ
+      //   2. **どの色相を選んでも主張と衝突する。** 青は浸水深、赤と黄は判定差、
+      //      黄は点群の被覆線、緑は断面の系列が使っている
+      //   3. 実測色なら **「これは現況の観測、青いのは我々の判定」** が
+      //      説明なしで分かる（`README.md`「役割を分けて突き合わせる」）
+      //
+      // LAS の RGB は 16 bit 幅だが、この配信物は 0〜255 に収まっている
+      // （実測 max 255）ので 8 bit としてそのまま使う。16 bit で入っている
+      // 配信物に当たったら 8 bit に落とす。
+      if (gr && gg && gb) {
+        const r = gr(i), g = gg(i), bl = gb(i)
+        const k = r > 255 || g > 255 || bl > 255 ? 1 / 257 : 1
+        // 彩度をわずかに起こす。**強くしない。** 1.35 まで上げると SLAM の
+        // ノイズ点（空に散る水色）まで目立つ。実測色として読ませたいので 1.15 に留める
+        const rr = r * k, gg2 = g * k, bb = bl * k
+        const lum = 0.299 * rr + 0.587 * gg2 + 0.114 * bb
+        const sat = 1.15
+        colors[i * 3] = Math.min(255, Math.max(0, lum + (rr - lum) * sat))
+        colors[i * 3 + 1] = Math.min(255, Math.max(0, lum + (gg2 - lum) * sat))
+        colors[i * 3 + 2] = Math.min(255, Math.max(0, lum + (bb - lum) * sat))
+      } else {
+        // RGB を持たない配信物（DTM から作った合成点群）向けの退避。
+        // 紫にしてあるのは、主張が使っていない唯一の色相だから
+        const t = Math.pow(Math.min(Math.max(z / 8, 0), 1), 0.6)
+        colors[i * 3] = 100 + 106 * t
+        colors[i * 3 + 1] = 80 + 106 * t
+        colors[i * 3 + 2] = 140 + 110 * t
+      }
     }
     const decodeMs = performance.now() - t0
     ;(self as unknown as Worker).postMessage(
