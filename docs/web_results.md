@@ -45,7 +45,8 @@
 
 ## プロファイル別の実測
 
-配信物: タイル 9.21 MB / 3D Tiles 6.35 MB / 点群 COPC 272 MB / geojson 0.66 MB。
+配信物（**この表を測った時点**）: タイル 9.21 MB（6 本）/ 3D Tiles 6.35 MB /
+点群 COPC 272 MB / geojson 0.66 MB。差分を 2 本足した現在は下記。
 
 `?pc=1`、`perf/run.mjs`。**MapLibre + deck.gl（`3ddf78b`）と three.js を同じ機械で、
 交互に 2 巡**して測ったもの。交互にするのは、この機械の負荷（load average 6〜10）が
@@ -207,6 +208,11 @@ MapLibre 側は**アプリ本体が 120 kB しかない**。初期チャンク�
 
 既定視点を点群の帯に寄せ（`INITIAL_ZOOM` 16.6 → 17.2）、断面に条件を 1 つ足し、
 差分タイルを 2 本増やしたあとの再測。`?pc=1`、`perf/run.mjs`、**2 巡**。
+
+配信物: **タイル 10.00 MB（8 本）** / 3D Tiles 6.35 MB / 点群 COPC 272 MB /
+geojson 0.66 MB（`catalog.json` の `totals_bytes`）。増えた 0.79 MB は
+`diff_src` 0.21 MB と `diff_res` 0.58 MB。**初回描画には効かない**
+（選んだ条件のピラミッドしか引かない）。
 
 | profile | FMR | terrain | PLATEAU | 点群 useful | req |
 |---|---:|---:|---:|---:|---:|

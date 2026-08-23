@@ -102,6 +102,23 @@ COPC が 315 MB を超える場合は `wrangler r2 object put` では上げら�
 
 ---
 
+### URL のフラグ
+
+viewer の挙動を**既定値を変えずに**切り替える口。計測とデバッグに使う。
+
+| クエリ | 既定 | 何が変わるか |
+|---|---|---|
+| `?pc=1` | OFF | 点群を出す。**計測では必ず付ける**（既定 OFF なので付けないと decode も LOD も測れない） |
+| `?perf=1` | OFF | 計測パネルを開く（`P` キーでも開く） |
+| `?z=` | `INITIAL_ZOOM`（17.2） | 起動時のズーム。要求するタイルの z が変わる |
+| `?ortho=1` | OFF | 正射投影で起動する |
+| `?sse=` | 1.0 | 点間隔の下限 [px]。**小さくするほど深い LOD まで取る** |
+| `?maxpts=` | 2,000,000 | 常駐点数の上限 |
+| `?maxbytes=` | 帯域推定 × 2（上限 20 MB） | LOD のバイト予算。**帯域推定の揺れを外して比べたいとき固定する** |
+| `?rgb=0` | RGB を使う | 点の色を標高ランプに戻す（RGB を読む decode コストの A/B 用） |
+| `?coalesce=0` | ON | range coalescing を切る |
+| `?defer=1` | OFF | 地物メッシュを遅延ロードする |
+
 ## 計測する
 
 ```bash
@@ -109,6 +126,8 @@ cd web
 node perf/run.mjs                          # 4 プロファイルで実測
 BASE=https://... node perf/run.mjs         # 実配信に対して
 ROUNDS=3 node perf/ab.mjs                  # A/B を交互に n 回、中央値と範囲
+FLAG=rgb ROUNDS=3 node perf/ab.mjs         # 比べるフラグを変える（既定は defer）
+FLAG=rgb KEYS=decode_p50 PROFILES=normal node perf/ab.mjs
 node test/camera.test.mjs                  # 純関数の単体テスト
 node test/pair.test.mjs                    # 比較のペアと判定の件数
 node test/parity.test.mjs                  # 解析（Python）との一致
