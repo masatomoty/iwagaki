@@ -36,6 +36,19 @@ export const DIFF_GEOMETRY: Record<'diff' | 'diff_pc', TerrainCondition> = {
   diff_pc: 'pointcloud',
 }
 
+/**
+ * 判定を比べる 2 条件。`from` が基準（出発点）で `to` がいま見ている条件。
+ *
+ * **判定が変わるかどうかは、常にこのペアに対して決まる。** 以前は
+ * `domain/flood.ts` が baseline と highres をハードコードしていて、
+ * 「差分 0.5m↔点群」を選んでいても地物の赤は 5m↔0.5m のままだった
+ * （地形の色と地物の色が別の比較を示していた）。
+ */
+export interface ComparisonPair {
+  from: TerrainCondition
+  to: TerrainCondition
+}
+
 /** PLATEAU 建物をどの属性で塗り分けるか。コード -> 色 は view/buildingColor.ts */
 export type BuildingColorMode = 'none' | 'class' | 'usage'
 

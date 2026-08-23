@@ -6,7 +6,7 @@
 // 配信物の構造（catalog.terrain のキーと差分タイルの意味）はレンダラに依らないので、
 // ここに 1 か所だけ置く。
 
-import type { SurfaceMode, TerrainCondition } from './types'
+import type { ComparisonPair, SurfaceMode, TerrainCondition } from './types'
 import { DIFF_GEOMETRY } from './types'
 
 /** catalog.terrain の 1 エントリ。必要な分だけを構造として要求する */
@@ -50,4 +50,24 @@ export function resolveSurface(
   }
   const geom = terrain[surface]
   return geom ? { geom, isDiff: false, condition: surface } : undefined
+}
+
+/**
+ * いま選んでいる surface に対して、**判定を比べる 2 条件**を決める。
+ *
+ * - 差分モード      … その差分タイルが持っている 2 条件そのもの
+ * - 1 条件モード    … 出発点（`baseline`）対 その条件
+ * - `baseline` 自身 … 比較相手が自分なので、判定は常に「変わらない」
+ *
+ * 既定は `surface: 'highres'` なので既定のペアは `(baseline, highres)` で、
+ * これは以前ハードコードしていた組と同じである（`docs/RESULTS.md` の件数と整合する）。
+ *
+ * **`control` がここで初めて使えるようになる。** 差分タイルは
+ * `diff` / `diff_pc` の 2 本しか無いので「源だけを替えた差」は地形の面では
+ * 見られないが、`control` を選べば地物単位では赤で出る。
+ */
+export function comparisonPair(surface: SurfaceMode): ComparisonPair {
+  if (surface === 'diff') return { from: 'baseline', to: 'highres' }
+  if (surface === 'diff_pc') return { from: 'highres', to: 'pointcloud' }
+  return { from: 'baseline', to: surface }
 }

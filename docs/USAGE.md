@@ -110,6 +110,9 @@ node perf/run.mjs                          # 4 プロファイルで実測
 BASE=https://... node perf/run.mjs         # 実配信に対して
 ROUNDS=3 node perf/ab.mjs                  # A/B を交互に n 回、中央値と範囲
 node test/camera.test.mjs                  # 純関数の単体テスト
+node test/pair.test.mjs                    # 比較のペアと判定の件数
+node test/parity.test.mjs                  # 解析（Python）との一致
+node test/png.test.mjs                     # PNG 復号が Pillow と一致するか
 ```
 
 計測で守ること:

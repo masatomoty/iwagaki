@@ -13,7 +13,7 @@ import {
 } from 'three'
 
 import { decisionChanged, featureDepth } from '../domain/flood'
-import type { FeatureAssertion, TerrainCondition } from '../domain/types'
+import type { ComparisonPair, FeatureAssertion, TerrainCondition } from '../domain/types'
 import type { RawFeature } from '../view/semantics'
 import { lngLatToWorld, type LocalFrame } from './mercator'
 
@@ -22,6 +22,14 @@ export interface SemanticsStyle {
   condition: TerrainCondition
   roadThresholds: number[]
   changedOnly: boolean
+  /** 判定を比べる 2 条件。`domain/terrain.ts` の comparisonPair() から来る */
+  pair: ComparisonPair
+}
+
+/** 選択中・ホバー中の地物。強調は色属性だけで表す（ジオメトリは不変） */
+export interface SemanticsHighlight {
+  selected?: string
+  hovered?: string
 }
 
 const VS = /* glsl */ `
@@ -150,13 +158,50 @@ function buildOutline(frame: LocalFrame, features: RawFeature[], grounds: number
   return { geometry: g, faceFeature: new Int32Array(0), vertFeature: Int32Array.from(vertFeature) }
 }
 
-function material(zBias: number, opacity: number): ShaderMaterial {
+/**
+ * 選択・ホバーの輪郭は 1 地物ぶんだけ別に作る。
+ *
+ * **色属性を書き換えるだけでは強調が見えない。** 地物ポリゴンは地面の高さにあり、
+ * PLATEAU 建物（3D Tiles）の箱がその上に立つので、真上から見ると箱に隠れる。
+ * ここだけ `depthTest: false` にして、必ず手前に描く。
+ */
+function buildOneOutline(
+  frame: LocalFrame, feature: RawFeature, ground: number,
+): BufferGeometry {
+  const pos: number[] = []
+  const g: number[] = []
+  const polys: number[][][][] =
+    feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates as number[][][]]
+    : feature.geometry.type === 'MultiPolygon' ? (feature.geometry.coordinates as number[][][][])
+    : []
+  for (const poly of polys) {
+    for (const ring of poly) {
+      const w = ringToWorld(frame, ring)
+      for (let i = 0; i < w.length; i++) {
+        const a = w[i]
+        const b = w[(i + 1) % w.length]
+        pos.push(a.x, a.y, 0, b.x, b.y, 0)
+        g.push(ground, ground)
+      }
+    }
+  }
+  const geo = new BufferGeometry()
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
+  geo.setAttribute('aGround', new BufferAttribute(new Float32Array(g), 1))
+  const col = new Float32Array(pos.length)
+  geo.setAttribute('aColor', new BufferAttribute(col, 3))
+  geo.computeBoundingSphere()
+  return geo
+}
+
+function material(zBias: number, opacity: number, alwaysOnTop = false): ShaderMaterial {
   return new ShaderMaterial({
     glslVersion: GLSL3,
     vertexShader: VS,
     fragmentShader: FS,
     transparent: true,
     depthWrite: false,
+    depthTest: !alwaysOnTop,
     side: DoubleSide,
     uniforms: {
       uExaggeration: { value: 1 },
@@ -177,6 +222,15 @@ export class SemanticsMesh {
   private lineMat: ShaderMaterial
   private assertions: FeatureAssertion[]
   private raycaster = new Raycaster()
+  private byGmlId = new Map<string, number>()
+  private style?: SemanticsStyle
+  private highlight: SemanticsHighlight = {}
+  private grounds: number[] = []
+  /** 選択・ホバーの輪郭。1 地物ぶんだけ作り直す（建物の箱より手前に描く） */
+  private selLine: LineSegments
+  private hovLine: LineSegments
+  private selMat: ShaderMaterial
+  private hovMat: ShaderMaterial
 
   constructor(
     private readonly frame: LocalFrame,
@@ -184,7 +238,9 @@ export class SemanticsMesh {
     private readonly geoid: number,
   ) {
     this.assertions = features.map((f) => f.properties.__a as FeatureAssertion)
+    this.assertions.forEach((a, i) => { if (a?.gmlId) this.byGmlId.set(a.gmlId, i) })
     const grounds = this.assertions.map((a) => a?.groundElev.highres ?? 0)
+    this.grounds = grounds
     this.fill = buildFill(frame, features, grounds)
     this.outline = buildOutline(frame, features, grounds)
     // 地形メッシュと同じ高さに置くと z-fight する。少しだけ持ち上げる
@@ -196,7 +252,17 @@ export class SemanticsMesh {
     this.lineMesh = new LineSegments(this.outline.geometry, this.lineMat)
     this.fillMesh.renderOrder = 10
     this.lineMesh.renderOrder = 11
-    this.group.add(this.fillMesh, this.lineMesh)
+    // 強調の輪郭。深度テストを切って必ず手前に出す
+    this.selMat = material(0.12, 1, true)
+    this.hovMat = material(0.12, 0.9, true)
+    this.selMat.uniforms.uGeoid.value = geoid
+    this.hovMat.uniforms.uGeoid.value = geoid
+    this.selLine = new LineSegments(new BufferGeometry(), this.selMat)
+    this.hovLine = new LineSegments(new BufferGeometry(), this.hovMat)
+    this.selLine.renderOrder = 20
+    this.hovLine.renderOrder = 19
+    this.selLine.visible = this.hovLine.visible = false
+    this.group.add(this.fillMesh, this.lineMesh, this.hovLine, this.selLine)
   }
 
   setVisible(v: boolean) { this.group.visible = v }
@@ -204,29 +270,96 @@ export class SemanticsMesh {
   setExaggeration(k: number) {
     this.fillMat.uniforms.uExaggeration.value = k
     this.lineMat.uniforms.uExaggeration.value = k
+    this.selMat.uniforms.uExaggeration.value = k
+    this.hovMat.uniforms.uExaggeration.value = k
   }
 
   /** 水位・条件が変わったら色属性だけ書き換える。ジオメトリは触らない */
   setStyle(s: SemanticsStyle) {
+    this.style = s
+    this.recolor()
+  }
+
+  /**
+   * 選択とホバーの強調。**`setStyle` とは別の入口にしている。**
+   * ホバーはマウス移動ごとに変わるので、store 経由で全体を refresh すると
+   * 地形の uniform 更新と断面の再描画まで毎フレーム走る。ここは色属性だけ触る。
+   */
+  setHighlight(h: SemanticsHighlight) {
+    if (h.selected === this.highlight.selected && h.hovered === this.highlight.hovered) return
+    this.highlight = { ...h }
+    this.rebuildOutline(this.selLine, h.selected, [1, 1, 1])
+    this.rebuildOutline(this.hovLine, h.hovered === h.selected ? undefined : h.hovered,
+      [0.55, 0.78, 1])
+    if (this.style) this.recolor()
+  }
+
+  private rebuildOutline(
+    line: LineSegments, gmlId: string | undefined, rgb: [number, number, number],
+  ) {
+    line.geometry.dispose()
+    const fi = gmlId ? this.byGmlId.get(gmlId) : undefined
+    if (fi === undefined) {
+      line.geometry = new BufferGeometry()
+      line.visible = false
+      return
+    }
+    const geo = buildOneOutline(this.frame, this.features[fi], this.grounds[fi])
+    const col = geo.getAttribute('aColor') as BufferAttribute
+    const arr = col.array as Float32Array
+    for (let v = 0; v < arr.length; v += 3) { arr[v] = rgb[0]; arr[v + 1] = rgb[1]; arr[v + 2] = rgb[2] }
+    col.needsUpdate = true
+    line.geometry = geo
+    line.visible = true
+  }
+
+  /** gml_id -> features[] の添字。強調の対象を引くのに使う */
+  indexOf(gmlId: string): number | undefined { return this.byGmlId.get(gmlId) }
+
+  private recolor() {
+    const s = this.style
+    if (!s) return
     const fillCol = this.fill.geometry.getAttribute('aColor') as BufferAttribute
     const lineCol = this.outline.geometry.getAttribute('aColor') as BufferAttribute
     const fa = fillCol.array as Float32Array
     const la = lineCol.array as Float32Array
+
+    // **絞り込みが先、強調が後。** changedOnly で残ったものの中で選択を目立たせる
+    const sel = this.highlight.selected
+      ? this.byGmlId.get(this.highlight.selected) : undefined
+    const hov = this.highlight.hovered ? this.byGmlId.get(this.highlight.hovered) : undefined
+    // 選択中は周りを落とす。**落とすのは色だけ**で、隠しはしない
+    // （何が選ばれているかを見せるためで、他を消したいわけではない）
+    const dim = sel !== undefined ? 0.42 : 1
 
     // 地物ごとに 1 回だけ判定する（頂点ごとに呼ぶと 3 万頂点で効く）
     const rgb = new Float32Array(this.assertions.length * 3)
     const hide = new Uint8Array(this.assertions.length)
     const lrgb = new Float32Array(this.assertions.length * 3)
     this.assertions.forEach((a, i) => {
-      const changed = a ? decisionChanged(a, s.waterLevel, s.roadThresholds) : false
+      const changed = a ? decisionChanged(a, s.waterLevel, s.roadThresholds, s.pair) : false
       let c: [number, number, number]
       if (s.changedOnly && !changed) { hide[i] = 1; c = [0, 0, 0] }
       else if (a?.unreliable) c = [0.43, 0.43, 0.47]
       else if (changed) c = [0.95, 0.27, 0.20]
       else if (a && featureDepth(a, s.condition, s.waterLevel) > 0) c = [0.27, 0.51, 0.78]
       else c = [0.75, 0.76, 0.80]
+      let l: [number, number, number] = changed ? [1.0, 0.86, 0.47] : [0.08, 0.09, 0.13]
+
+      if (i === sel) {
+        // 選択中だけは減光を掛けず、輪郭を白にして最前面に見せる
+        c = [Math.min(1, c[0] * 1.35 + 0.1), Math.min(1, c[1] * 1.35 + 0.1),
+             Math.min(1, c[2] * 1.35 + 0.1)]
+        l = [1, 1, 1]
+      } else if (i === hov) {
+        l = [0.75, 0.85, 1.0]
+        c = [c[0] * dim * 1.4, c[1] * dim * 1.4, c[2] * dim * 1.4]
+      } else if (dim !== 1) {
+        c = [c[0] * dim, c[1] * dim, c[2] * dim]
+        l = [l[0] * dim, l[1] * dim, l[2] * dim]
+      }
       rgb.set(c, i * 3)
-      lrgb.set(changed ? [1.0, 0.86, 0.47] : [0.08, 0.09, 0.13], i * 3)
+      lrgb.set(l, i * 3)
     })
 
     // changedOnly で隠すものは色を落とすのではなく、原点に潰して描画から外す
@@ -269,8 +402,12 @@ export class SemanticsMesh {
   dispose() {
     this.fill.geometry.dispose()
     this.outline.geometry.dispose()
+    this.selLine.geometry.dispose()
+    this.hovLine.geometry.dispose()
     this.fillMat.dispose()
     this.lineMat.dispose()
+    this.selMat.dispose()
+    this.hovMat.dispose()
   }
 }
 

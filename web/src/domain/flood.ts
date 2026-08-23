@@ -1,7 +1,7 @@
 // 浸水判定。docs/DESIGN.md「任意の水位を定数時間で評価できること」の h_conn をそのまま使う。
 // GLSL 側（view/floodMeshLayer.ts）と同じ式であることを test/parity で検証する。
 
-import type { FeatureAssertion, MTP, TerrainCondition } from './types'
+import type { ComparisonPair, FeatureAssertion, MTP, TerrainCondition } from './types'
 
 /** そのセル/地物が水位 H で海側と連結して浸水しているか */
 export function wet(hConn: MTP | undefined, H: MTP): boolean {
@@ -30,26 +30,37 @@ export function roadClass(d: number, thresholds: number[]): number {
 }
 
 /**
- * baseline と highres で判定が変わるか。
+ * **ペアで指定した 2 条件**の間で判定が変わるか。
  * 道路は通行支障クラスの変化、建物は浸水/非浸水の変化で見る（scripts/50 と同じ規則）。
+ *
+ * ペアは呼び側が `domain/terrain.ts` の `comparisonPair(surface)` から取る。
+ * 以前ここで baseline / highres を固定していたため、**どの条件を見ていても
+ * 「判定が変わる」が 5m↔0.5m の話になっていた**（地形の色と地物の色が食い違う）。
  */
-export function decisionChanged(a: FeatureAssertion, H: MTP, roadThresholds: number[]): boolean {
+export function decisionChanged(
+  a: FeatureAssertion, H: MTP, roadThresholds: number[], pair: ComparisonPair,
+): boolean {
   if (a.unreliable) return false
-  const db = featureDepth(a, 'baseline', H)
-  const dh = featureDepth(a, 'highres', H)
+  if (pair.from === pair.to) return false        // 出発点そのものを見ているとき
+  const df = featureDepth(a, pair.from, H)
+  const dt = featureDepth(a, pair.to, H)
+  // 片方の条件に値が無い地物（点群は歩いた帯にしか無い）は「変わった」と言えない
+  if (a.hConn[pair.from] === undefined || a.hConn[pair.to] === undefined) return false
   if (a.featureType === 'tran:Road') {
-    return roadClass(db, roadThresholds) !== roadClass(dh, roadThresholds)
+    return roadClass(df, roadThresholds) !== roadClass(dt, roadThresholds)
   }
-  return db > 0 !== dh > 0
+  return df > 0 !== dt > 0
 }
 
 /**
- * 判定が変わる水位帯 [lo, hi)。h_conn の差そのもの。
+ * 判定が変わる水位帯 [lo, hi)。ペアの h_conn の差そのもの。
  * H がこの帯に入っているとき decision が割れる。
  */
-export function changeBand(a: FeatureAssertion): [MTP, MTP] | undefined {
-  const b = a.hConn.baseline
-  const h = a.hConn.highres
-  if (b === undefined || h === undefined || b === h) return undefined
-  return b < h ? [b, h] : [h, b]
+export function changeBand(
+  a: FeatureAssertion, pair: ComparisonPair,
+): [MTP, MTP] | undefined {
+  const f = a.hConn[pair.from]
+  const t = a.hConn[pair.to]
+  if (f === undefined || t === undefined || f === t) return undefined
+  return f < t ? [f, t] : [t, f]
 }

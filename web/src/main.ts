@@ -12,7 +12,7 @@ import { sampleLine } from './assets/terrainSampler'
 import { type CameraDescription, eyeInLocal, visibleBoxLocal,
          visiblePolygonLocal } from './domain/camera'
 import type { Catalog } from './domain/catalog'
-import { resolveSurface } from './domain/terrain'
+import { comparisonPair, resolveSurface } from './domain/terrain'
 import type { BuildingColorMode, FeatureAssertion, SurfaceMode,
               TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
@@ -188,6 +188,12 @@ async function boot() {
   // ---- 地物 -------------------------------------------------------------
   let semantics: SemanticsMesh | undefined
   let rawFeatures: RawFeature[] = []
+  /**
+   * ホバー中の地物の gml_id。**store に置かない。**
+   * マウス移動ごとに store.set すると購読側の refresh()（地形 uniform の更新と
+   * 断面の再描画まで）が毎フレーム走る。強調は色属性だけで済む
+   */
+  let hovered: string | undefined
   const assertions = new Map<string, FeatureAssertion>()
 
   void (async () => {
@@ -292,7 +298,7 @@ async function boot() {
   const SECTION_SERIES: { condition: TerrainCondition; label: string; color: string }[] = [
     { condition: 'highres', label: '0.5m', color: '#e2e8f0' },
     { condition: 'baseline', label: 'PLATEAU 5m', color: '#f7d129' },
-    { condition: 'pointcloud', label: '点群融合', color: '#4ade80' },
+    { condition: 'pointcloud', label: '0.5m ＋ 点群', color: '#4ade80' },
   ]
   const secEl = document.getElementById('section')!
   const secCanvas = document.getElementById('sec-canvas') as HTMLCanvasElement
@@ -315,6 +321,7 @@ async function boot() {
     secLine = [from, to]
     showSectionLine(viewer, from, to)
     secEl.style.display = 'block'
+    document.body.classList.add('section-open')
     secNote.textContent = '読み込み中…'
     const zoom = catalog.terrain.highres?.max_zoom ?? 18
     const got = await Promise.all(SECTION_SERIES.map(async (s) => {
@@ -367,7 +374,16 @@ async function boot() {
   document.addEventListener('click', (e) => {
     const t = e.target as HTMLElement
     if (t.id === 'secbtn') sectionTool.toggle()
-    if (t.id === 'sec-close') { secEl.style.display = 'none'; secSeries = []; secLine = null }
+    if (t.id === 'sec-close') {
+      secEl.style.display = 'none'
+      document.body.classList.remove('section-open')
+      secSeries = []; secLine = null
+    }
+    // 選択を外す。地図の強調も一緒に消える
+    if (t.id === 'insp-close') store.set({ selected: undefined })
+    // 視点。メニューに出すのは 平面 と ホームの 2 つで、残りはキーとビューキューブ
+    const cam = t.closest<HTMLElement>('[data-cam]')?.dataset.cam
+    if (cam) { applyPreset(viewer, cam as never); refresh() }
     if (t.id === 'sec-fit') {
       secFit = secFit === 'water' ? 'all' : 'water'
       t.textContent = secFit === 'water' ? '全体を見る' : '水位まわり'
@@ -521,7 +537,12 @@ async function boot() {
         condition: resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
         roadThresholds: catalog.semantics.road_depth_classes_m,
         changedOnly: s.layers.changedOnly,
+        // **判定が変わるかは選んでいる条件に対して決める。** 以前は
+        // domain/flood.ts が baseline/highres を固定していたので、
+        // 「判定差 0.5m↔点群」でも赤い地物は 5m↔0.5m のままだった
+        pair: comparisonPair(s.surface),
       })
+      semantics.setHighlight({ selected: s.selected?.gmlId, hovered })
     }
     // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない
     if (coverage) coverage.visible = s.layers.pcCoverage
@@ -582,9 +603,61 @@ async function boot() {
     store.set({ selected: semantics.pick(ndc, viewer.camera) })
   })
 
+  /**
+   * 点群の有効範囲は「点群が関わる条件を選んだとき」に出す。
+   *
+   * **毎回の refresh で計算してはいけない。** `perf/waterlevel.mjs` は
+   * `setLayer('pcCoverage', false)` で切ってから計測しているので、
+   * 毎回上書きすると計測条件が勝手に戻る。**条件が変わった瞬間だけ**既定値を入れて、
+   * そのあとの setLayer は生かす（UI から変えられない ≠ 値が固定）。
+   */
+  let pcRelevant: boolean | undefined
+  function syncCoverageDefault() {
+    const pair = comparisonPair(store.state.surface)
+    const rel = pair.to === 'pointcloud' || pair.from === 'pointcloud'
+    if (rel === pcRelevant) return
+    pcRelevant = rel
+    if (store.state.layers.pcCoverage !== rel) store.setLayer({ pcCoverage: rel })
+  }
+
+  // 地物のホバー。**カーソルが変わらないと「押せる」ことが分からない。**
+  // pointermove ごとに raycast すると jank.mjs が測るフレーム時間に乗るので、
+  // rAF で 1 フレーム 1 回に間引き、ポインタが止まっている間は走らせない
+  let hoverPending: { x: number; y: number } | null = null
+  let hoverQueued = false
+  const runHover = () => {
+    hoverQueued = false
+    const pt = hoverPending
+    hoverPending = null
+    if (!pt || !semantics || !store.state.layers.semantics || sectionTool.isActive) return
+    const r = viewer.canvas.getBoundingClientRect()
+    const ndc = new Vector2(
+      ((pt.x - r.left) / r.width) * 2 - 1,
+      -((pt.y - r.top) / r.height) * 2 + 1,
+    )
+    const hit = semantics.pick(ndc, viewer.camera)
+    const id = hit?.gmlId
+    if (id === hovered) return
+    hovered = id
+    viewer.canvas.style.cursor = id ? 'pointer' : ''
+    semantics.setHighlight({ selected: store.state.selected?.gmlId, hovered })
+  }
+  viewer.canvas.addEventListener('pointermove', (e) => {
+    hoverPending = { x: e.clientX, y: e.clientY }
+    if (!hoverQueued) { hoverQueued = true; requestAnimationFrame(runHover) }
+  })
+  viewer.canvas.addEventListener('pointerleave', () => {
+    hoverPending = null
+    if (hovered === undefined) return
+    hovered = undefined
+    viewer.canvas.style.cursor = ''
+    semantics?.setHighlight({ selected: store.state.selected?.gmlId, hovered })
+  })
+
   store.subscribe((s) => {
     if (s.layers.pointcloud && !pcStarted) void startPointCloud()
     if (s.layers.plateau) void ensurePlateau()
+    syncCoverageDefault()
     refresh()
   })
 
