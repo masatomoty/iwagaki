@@ -131,7 +131,9 @@ await mkdir(path.join(HERE, 'results'), { recursive: true })
 const out = []
 
 if (SCENARIO === 'profiles') {
-  for (const p of Object.keys(PROFILES)) {
+  // --profiles= で絞れる。A/B のときは条件を減らして往復数を稼ぐ
+  const only = opt('profiles', '').split(',').filter(Boolean)
+  for (const p of (only.length ? only : Object.keys(PROFILES))) {
     process.stdout.write(`measuring ${p} ... `)
     out.push(await measure(browser, p, `${BASE}/${SUFFIX}`))
     console.log('done')

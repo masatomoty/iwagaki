@@ -58,6 +58,13 @@ DIFFS = {
     "diff_pc": ("h_conn_highres.tif", "h_conn_pointcloud.tif"),
 }
 
+# 差分モードで地形メッシュの形を取る条件（viewer の domain/terrain.ts と同じ規則）。
+# 焼く枚数をその条件に合わせるために使う
+GEOMETRY_FOR_DIFF = {
+    "diff": "dtm_highres_050.tif",
+    "diff_pc": "dtm_pointcloud_050.tif",
+}
+
 
 def lonlat_to_3857(lon: float, lat: float) -> tuple[float, float]:
     x = math.radians(lon) * R_EARTH
@@ -202,7 +209,15 @@ def main() -> int:
             for _, x, y in tiles_for_bounds(b3857, z):
                 hb, _ = sample(OUT / left, z, x, y, Resampling.nearest)
                 hh, _ = sample(OUT / right, z, x, y, Resampling.nearest)
-                if not np.isfinite(hb).any() and not np.isfinite(hh).any():
+                # **地形条件と同じ枚数を焼く。**
+                # 以前は「両条件とも h_conn が無いタイル」を落としていたので
+                # 地形 131 枚に対し差分 101 枚になり、差分モードで存在しない
+                # タイルへの 404 が毎回出ていた（docs/TODO.md F3）。
+                # 標高があるなら地形メッシュは描かれるので、差分タイルも要る。
+                # 中身が全て「どちらも浸水しない」でも PNG は数百バイトにしかならない。
+                elev, _ = sample(OUT / GEOMETRY_FOR_DIFF[name], z, x, y, Resampling.nearest)
+                if (not np.isfinite(elev).any()
+                        and not np.isfinite(hb).any() and not np.isfinite(hh).any()):
                     continue
                 p = outdir / str(z) / str(x) / f"{y}.png"
                 p.parent.mkdir(parents=True, exist_ok=True)
