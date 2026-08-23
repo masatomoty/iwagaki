@@ -7,6 +7,8 @@ export type Milestone =
   | 'app_start' | 'catalog_loaded' | 'first_meaningful_render'
   | 'time_to_terrain' | 'time_to_plateau'
   | 'time_to_first_useful_pc' | 'time_to_pc_refined'
+  // 地物は「取得 -> JSON 解釈 -> 三角形化」で費用の質が違う。分けて測る
+  | 'semantics_loaded' | 'semantics_parsed' | 'semantics_mesh_built'
 
 export interface CameraEvent { at: number; settledAt?: number; latencyMs?: number }
 

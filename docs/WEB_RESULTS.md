@@ -281,6 +281,46 @@ MapLibre の zoom はタイル 512 px 基準、`three/mercator.ts` は 256 px �
 規約は `docs/WEB_DESIGN.md`「ズームの規約」。`perf/tileorient.mjs` と
 `perf/zmix.mjs` が要求タイルの z ごと照合するので、次からはここで捕まる。
 
+### `objects.geojson` のパースコストは 3 ms、遅延ロードの往復が 568 ms だった **[実測]**
+
+`docs/TODO.md` に「転送は wire 109 kB でバイトの問題ではない。残る理由は
+**662 kB の JSON を一括 `JSON.parse` する CPU コスト**」と書いていた。**測ったら違った。**
+
+到着から地物メッシュが立つまでを 3 つに割って測る（マイルストーンを足した:
+`semantics_loaded` / `semantics_parsed` / `semantics_mesh_built`）。
+
+| profile | JSON 解釈 + assertion | **遅延 module の取得** | 三角形化 |
+|---|---:|---:|---:|
+| normal | 3 ms | 68 ms | 9 ms |
+| fast4g | 6 ms | 116 ms | 8 ms |
+| fatpipe-highrtt（RTT 400） | 3 ms | **405 ms** | 7 ms |
+| slow-highrtt（RTT 400） | 7 ms | **568 ms** | 7 ms |
+
+**`JSON.parse` は 3〜7 ms。** 単体で測っても 2.7〜3.2 ms（662 kB / 約 2,000 地物）。
+CPU を 6 倍に絞っても JSON 25 ms・三角形化 45 ms で、12 秒の窓に対して問題にならない。
+
+**時間を食っていたのは `three/semanticsMesh.ts` を遅延ロードする 1 往復だった。**
+このチャンクは **1.8 kB (br)** しかない。1.8 kB を初期チャンクから外すために、
+高 RTT では 400〜570 ms 払っていたことになる。**守っていた相手（3 ms のパース）より
+2 桁高い。**
+
+静的 import に戻した結果:
+
+| profile | 到着 -> メッシュ 前 | 後 |
+|---|---:|---:|
+| normal | 77 ms | **18 ms** |
+| fast4g | 124 ms | **15 ms** |
+| fatpipe-highrtt | 412 ms | **13 ms** |
+| slow-highrtt | 575 ms | **17 ms** |
+
+初期チャンクは **131,264 -> 132,828 B (br)、+1,564 B (+1.2 %)**。
+FMR は 4 プロファイルとも変わらない（測定のばらつきの中）。
+リクエストは 1 本減る。
+
+**遅延ロードは往復と天秤に掛けること。** 残っている遅延チャンク
+（`plateauTiles` 61 kB br / `lazy`（点群）27 kB br / `decode.worker` 24 kB br）は
+どれも 1 往復に見合う大きさがある。**`semanticsMesh` だけが桁を間違えていた。**
+
 ### b3dm の 70 % は使っていない属性だった
 
 実配信の HAR を分解したところ、b3dm 1 枚（2.34 MB）の内訳は:

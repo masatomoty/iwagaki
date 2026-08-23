@@ -451,6 +451,25 @@ b3dm には色が無い（texture・頂点色・`baseColorFactor` すべて無�
 
 ---
 
+## 何を遅延ロードするか **[実測]**
+
+**チャンクの大きさと 1 往復を天秤に掛ける。** 高 RTT では 1 往復が 400〜570 ms かかる
+（`slow-highrtt` / `fatpipe-highrtt` はどちらも RTT 400 ms）ので、
+**それより小さいチャンクを切り出すと損をする。**
+
+| チャンク | br | 遅延する |
+|---|---:|---|
+| `plateauTiles`（b3dm パース + 3D Tiles） | 61 kB | する |
+| `lazy`（点群 index / LOD / decode 管理） | 27 kB | する |
+| `decode.worker`（laz-perf） | 24 kB | する（Worker） |
+| `semanticsMesh`（三角形化） | 1.8 kB | **しない** |
+
+`semanticsMesh` は一度遅延していた。守っていたのは `objects.geojson` の
+`JSON.parse`（3 ms）で、**払っていたのは往復 568 ms** だった
+（`docs/WEB_RESULTS.md`「objects.geojson のパースコストは 3 ms」）。
+
+---
+
 ## 計測のしかけ
 
 ### FPS は指標にしない

@@ -23,7 +23,11 @@ import { initialState, Store } from './state'
 import { FLOOD_MODE } from './three/floodMaterial'
 import { createLocalFrame, worldToLngLat } from './three/mercator'
 import type { PlateauTiles } from './three/plateauTiles'
-import type { SemanticsMesh } from './three/semanticsMesh'
+// **地物メッシュは遅延しない。** 1.8 kB (br) を後回しにするために 1 往復払っていた。
+// 高 RTT では往復のほうが 2 桁高い（fatpipe-highrtt 405 ms / slow-highrtt 568 ms、
+// 対して JSON 解釈は 3〜7 ms・三角形化は 7〜9 ms。docs/WEB_RESULTS.md
+// 「objects.geojson のパースコストは 3 ms、遅延ロードの往復が 568 ms」）
+import { createCoverageOutline, SemanticsMesh } from './three/semanticsMesh'
 import { TerrainTiles } from './three/terrainTiles'
 import { FOV_Y_DEG, type Viewer } from './three/viewer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
@@ -190,6 +194,8 @@ async function boot() {
     const b = await scheduler.submit({
       key: 'semantics', url: catalog.semantics.url, cls: 'semantics',
     })
+    perf.mark('semantics_loaded')
+    // **取得・JSON 解釈・三角形化は費用の質が違う。** 分けて測る
     const fc = JSON.parse(new TextDecoder().decode(b)) as { features: RawFeature[] }
     rawFeatures = fc.features
     for (const f of rawFeatures) {
@@ -197,11 +203,9 @@ async function boot() {
       assertions.set(a.gmlId, a)
       ;(f.properties as Record<string, unknown>).__a = a
     }
-    perf.mark('semantics_loaded')
-    // 三角形化とジオメトリ構築はここで初めて読む
-    const { SemanticsMesh: SM } = await import('./three/semanticsMesh')
-    perf.mark('semantics_module_loaded')
-    semantics = new SM(frame, rawFeatures, geoid)
+    perf.mark('semantics_parsed')
+    semantics = new SemanticsMesh(frame, rawFeatures, geoid)
+    perf.mark('semantics_mesh_built')
     viewer.world.add(semantics.group)
     refresh()
     void loadPcCoverage()
@@ -273,7 +277,6 @@ async function boot() {
     try {
       const b = await scheduler.submit({ key: 'pc-coverage', url: a.url, cls: 'prefetch' })
       const data = JSON.parse(new TextDecoder().decode(b))
-      const { createCoverageOutline } = await import('./three/semanticsMesh')
       coverage = createCoverageOutline(frame, data, geoid)
       viewer.world.add(coverage)
       refresh()
