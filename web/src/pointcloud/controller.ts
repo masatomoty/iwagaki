@@ -1,6 +1,7 @@
 // index -> LOD -> Scheduler(coalescing) -> decode worker -> renderer をつなぐ。
 // ここが唯一 4 者を知っている場所。renderer を差し替えてもここ以外は変わらない。
 
+import { boxesOverlap } from '../domain/camera'
 import { coalesce, type RangeMember } from '../net/coalesce'
 import type { Scheduler } from '../net/scheduler'
 import type { PerfRecorder } from '../perf/recorder'
@@ -79,6 +80,15 @@ export class PointCloudController {
       nodes: this.index.allNodes,
       view, budget,
       toLocal: this.toLocal,
+      // ノード境界は EPSG:6674。画面範囲はローカル メートルで来るので、
+      // ここで同じ空間に揃える
+      isVisible: view.visible ? (b) => {
+        const [x0, y0] = this.toLocal(b[0], b[1])
+        const [x1, y1] = this.toLocal(b[3], b[4])
+        return boxesOverlap(
+          [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)],
+          view.visible!)
+      } : undefined,
     })
     this.wanted = new Set(wanted.map((w) => w.key))
     this.wantedPoints = wanted.reduce((s, w) => s + w.pointCount, 0)

@@ -307,8 +307,49 @@ return { eye: [0, 0, Math.max(alt / 8, 60)], viewportHeight, fovY }
 - `perf/pccancelprobe.mjs`: `wanted` / `inFlight` / epoch を時系列で出す。
   「wanted が減らない」のか「飛行中の要求が無い」のかを切り分ける
 
-受信途中でのキャンセル（= 無駄バイトが実際に出る経路）は依然として未発火。
-原因 2 を直さないと点群では作れない。
+#### 原因 3: reap が LOD の更新より先に走っていた **[修正済み]**
+
+原因 1・2 を直しても発火しなかった。`main.ts` のカメラ移動ハンドラが
+
+```ts
+scheduler.setEpoch(+1)
+scheduler.reap()                    // ← ここで判定
+void controller.update(...)         // ← wanted が書き換わるのはこの中
+```
+
+の順だった。点群の `stillNeeded` は controller の `wanted` を見るので、
+**reap の時点ではまだ古い集合**を見て「まだ必要」と答えていた。
+
+地形は `isTileNeeded` が `map` を直接見るのでこの順でも正しい。
+点群だけ `update()` の後にもう一度 reap するようにした。
+
+#### 直した結果 **[実測]**
+
+| profile | cancelled | 内訳 | 無駄バイト |
+|---|---:|---|---:|
+| normal | 3 | pcFine 3 | 0 |
+| fast4g | 35 | terrainFine 34 / **pcCoarse 1** | **30.0 kB** |
+| fatpipe-highrtt | 34 | terrainFine 33 / **pcCoarse 1** | **490.5 kB** |
+
+**受信途中でのキャンセル（無駄バイトが実際に出る経路）が初めて発火した。**
+`fatpipe-highrtt` の 490.5 kB は 1.3 MB の pcCoarse を約 38 % 受信した時点で
+中断したもの。8 割ガード（`CANCEL_PROGRESS_GUARD`）の下側で正しく切れている。
+
+LOD がカメラに追従するようになった効果も出ている。`wantedPoints` は
+zoom 18.4 で 546,804、zoom 12.5 で **12,174**（45 分の 1）。
+以前はどちらも 587,481 で一定だった。
+
+#### この 3 つに共通していること
+
+どれも**画面を見ても分からない**。点群はそれらしく描かれるし、
+キャンセルが 0 件でも「たまたま切る場面が無かった」で説明がついてしまう。
+`docs/WEB_RESULTS.md` に「点群のキャンセルは 0 件」と書いたまま
+放置していたのは、**0 件を測定結果として受け入れて、
+機構が動いているかを確かめなかった**ためである。
+
+`web/test/camera.test.mjs` を足した。カメラ換算は純関数なので、
+画面を出さずに「ズームで高度が変わる」「注視点を動かすと視点も動く」を
+検査できる。**旧実装はこの 2 つのどちらも満たさない。**
 
 ---
 

@@ -7,6 +7,7 @@ import { MapboxOverlay } from '@deck.gl/mapbox'
 import type { Layer } from '@deck.gl/core'
 
 import type { Catalog } from './domain/catalog'
+import { type CameraDescription, eyeInLocal, visibleBoxLocal } from './domain/camera'
 import { resolveSurface } from './domain/terrain'
 import type { BuildingColorMode, FeatureAssertion, SurfaceMode } from './domain/types'
 import { Scheduler } from './net/scheduler'
@@ -64,6 +65,8 @@ async function boot() {
   const store = new Store(initialState(catalog))
   if (OPT.pointcloud) store.setLayer({ pointcloud: true })
   const geoid = catalog.vertical.geoid_undulation_m
+  /** ローカル ENU の原点 [lon, lat]。カメラの換算に使う */
+  const localOrigin = catalog.local_frame.origin_wgs84
   const [ox, oy] = catalog.local_frame.origin_epsg6674
   const matrix = catalog.local_frame.matrix_2x2_row_major as [number, number, number, number]
 
@@ -354,14 +357,39 @@ async function boot() {
       coarseDepth: 1,
     }
   }
+  /**
+   * 地図のカメラを LOD が使える形（ローカル メートル）に直す。
+   *
+   * 旧実装は `eye: [0, 0, cameraToCenterDistance / 8]` で、
+   * **水平成分を AOI 中心の真上に固定**していた。しかも
+   * `cameraToCenterDistance` はキャンバス高さと fov だけで決まり
+   * **ズームに依存しない**ので、視点は事実上の定数だった。
+   * 実測で zoom 18.4 と 12.5 の `wantedPoints` が完全に一致し、
+   * LOD が働いていないことが分かった（docs/WEB_RESULTS.md §5.1）。
+   * 換算そのものは `domain/camera.ts` に置いてある（レンダラに依らないため）。
+   */
   const viewState = (): ViewState => {
-    // ローカル原点は AOI 中心なので、視点は中心の真上として扱えば十分（AOI は 1 km 四方）
-    const alt = ((map as unknown as { transform?: { cameraToCenterDistance?: number } })
+    const c = map.getCenter()
+    const px = ((map as unknown as { transform?: { cameraToCenterDistance?: number } })
       .transform?.cameraToCenterDistance) ?? 1000
-    return {
-      eye: [0, 0, Math.max(alt / 8, 60)],
+    const cam: CameraDescription = {
+      centre: [c.lng, c.lat],
+      zoom: map.getZoom(),
+      pitchDeg: map.getPitch(),
+      bearingDeg: map.getBearing(),
       viewportHeight: map.getCanvas().clientHeight,
       fovY: (Math.PI / 180) * 36.87,
+      cameraToCentrePx: px,
+    }
+    const b = map.getBounds()
+    return {
+      eye: eyeInLocal(cam, localOrigin),
+      viewportHeight: cam.viewportHeight,
+      fovY: cam.fovY,
+      // 余白を少し取る。傾けた視野の外接矩形なので厳密ではないが、
+      // 落としすぎるより広めに残すほうが安全
+      visible: visibleBoxLocal(
+        [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], localOrigin, 50),
     }
   }
 
@@ -396,9 +424,16 @@ async function boot() {
     window.clearTimeout(moveTimer)
     moveTimer = window.setTimeout(() => {
       scheduler.setEpoch(scheduler.currentEpoch + 1)
+      // 地形は `isTileNeeded` が map を直接見るので、この時点で判定できる
       scheduler.reap()
       if (pcb?.controller.ready && store.state.layers.pointcloud) {
-        void pcb.controller.update(viewState(), budget())
+        // **点群は update() の後にもう一度 reap する。**
+        // 点群の stillNeeded は controller の `wanted` を見るが、
+        // それが書き換わるのは update() の中である。先に reap すると
+        // 古い `wanted` を見て「まだ必要」と答えてしまい、
+        // **視野から外れたノードが一度もキャンセルされない**
+        // （docs/WEB_RESULTS.md §5.1）。
+        void pcb.controller.update(viewState(), budget()).then(() => scheduler.reap())
       }
     }, 60)
   })

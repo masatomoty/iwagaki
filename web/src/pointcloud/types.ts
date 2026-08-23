@@ -24,6 +24,12 @@ export interface ViewState {
   /** 画面高さ [px] */
   viewportHeight: number
   fovY: number
+  /**
+   * 画面に入っている範囲 [minE, minN, maxE, maxN]（ローカル メートル）。
+   * これを渡さないと視野外のノードが `wanted` に残り続け、
+   * キャンセルが原理的に発火しない（docs/WEB_RESULTS.md §5.1）。
+   */
+  visible?: [number, number, number, number]
 }
 
 export interface LodBudget {
