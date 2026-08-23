@@ -128,9 +128,15 @@ export class TerrainTiles {
       stillNeeded: () => this.isTileNeeded(id.z, id.x, id.y),
     }))
     try {
+      // 差分ピラミッドは疎（実測 101 枚 / 地形 131 枚）。差分タイルが無い場所で
+      // タイルごと落とすと地形に穴が開くので、**欠損は許容して地形だけ描く**。
+      // 「差分の情報が無い」と「判定差が無い」は別物なので、色は
+      // シェーダ側で地面だけにする（floodMaterial.ts の uHasDiff < 0.5 の枝）。
       const [image, diffImage] = await Promise.all([
         get(url(this.o.urlTemplate)),
-        this.o.diffUrlTemplate ? get(url(this.o.diffUrlTemplate)) : Promise.resolve(null),
+        this.o.diffUrlTemplate
+          ? get(url(this.o.diffUrlTemplate)).catch(() => null)
+          : Promise.resolve(null),
       ])
       const entry = this.tiles.get(k)
       if (!entry) return                       // 待っている間に捨てられた

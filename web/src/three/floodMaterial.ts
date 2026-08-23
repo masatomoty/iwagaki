@@ -181,6 +181,14 @@ void main() {
   vec2 cu = cellUv(vUv);
 
   vec4 outColor;
+  if (uMode > 0.5 && uHasDiff < 0.5) {
+    // 差分モードだが差分タイルが無い区画。判定差が「無い」のではなく
+    // 「分からない」ので、浸水色は出さず地面だけ描く
+    if (uShowGround < 0.5) discard;
+    float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
+    fragColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
+    return;
+  }
   if (uMode > 0.5 && uHasDiff > 0.5) {
     vec4 d = texture(diffTexture, cu);
     bool wb = decodeHConn(d.r) <= uWaterLevel;

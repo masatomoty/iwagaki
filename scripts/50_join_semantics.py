@@ -76,14 +76,19 @@ def main() -> int:
     grid = Grid.for_aoi(AOI, RES_HIGHRES)
     factor = int(round(RES_COARSE / RES_HIGHRES))
 
+    # 解析が持っている 4 条件すべてを地物に結合する。
+    # 以前は baseline / highres だけで、**点群融合地形での判定が地物単位で
+    # 出ていなかった**（docs/TODO.md A2）。0.5 m 格子のものは upsample しない。
     terrains = {}
     for name, fname in (("baseline", "dtm_baseline_500.tif"),
-                        ("highres", "dtm_highres_050.tif")):
+                        ("highres", "dtm_highres_050.tif"),
+                        ("control", "dtm_control_500.tif"),
+                        ("pointcloud", "dtm_pointcloud_050.tif")):
         e, _, nd = read(OUT / fname)
         e[e == nd] = np.nan
         hc, _, nd2 = read(OUT / f"h_conn_{name}.tif")
         hc[hc == nd2] = np.inf
-        if name != "highres":
+        if name in ("baseline", "control"):   # 5 m 格子。0.5 m 格子に合わせる
             e = upsample_nearest(e, factor)
             hc = upsample_nearest(hc, factor)
         terrains[name] = (e, hc)
@@ -175,7 +180,7 @@ def main() -> int:
                                     else "mostly_open_water" if water_frac[i] > 0.5
                                     else None)
         changed_any = False
-        for name in ("baseline", "highres"):
+        for name in terrains:
             ge = stats[name]["ground"][i]
             hc = stats[name]["hconn"][i]
             rec[f"ground_elev_{name}"] = round(ge, 3) if ge is not None else None

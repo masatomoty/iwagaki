@@ -8,10 +8,15 @@ import { CAMERA_PRESETS, type CameraPresetId } from '../view/map'
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 
 function legendHtml(surface: SurfaceMode): string {
-  return surface === 'diff'
+  // 差分タイルは R/G の 2 チャンネルで、R が「左の条件」G が「右の条件」。
+  // どちらの組を見ているかで語が変わるので、凡例も分ける
+  const pair = surface === 'diff'
+    ? { left: 'PLATEAU 5m', right: '高解像度 0.5m' }
+    : { left: '高解像度 0.5m', right: '点群融合' }
+  return surface === 'diff' || surface === 'diff_pc'
     ? `<div class="legend">
-         <div><i style="background:#ed3830"></i>高解像度でのみ浸水</div>
-         <div><i style="background:#f7d129"></i>PLATEAU でのみ浸水</div>
+         <div><i style="background:#ed3830"></i>${pair.right} でのみ浸水</div>
+         <div><i style="background:#f7d129"></i>${pair.left} でのみ浸水</div>
          <div><i style="background:#2a5794"></i>どちらも浸水</div>
        </div>`
     : `<div class="legend">
@@ -43,10 +48,18 @@ function coverageNote(catalog: Catalog): string {
     黄線の外側は京都府 0.5m DEM のままで、点群は効いていない。</div>`
 }
 
-const SURFACES: { id: SurfaceMode; label: string }[] = [
-  { id: 'baseline', label: 'PLATEAU 5m' },
-  { id: 'highres', label: '高解像度 0.5m' },
-  { id: 'diff', label: '差分' },
+/**
+ * 解析が持っている 4 条件と、2 組の差分。
+ * 以前は baseline / highres / diff の 3 つで、**点群融合地形と対照条件が
+ * 画面から見られなかった**（docs/TODO.md A1・A4）。
+ */
+const SURFACES: { id: SurfaceMode; label: string; hint: string }[] = [
+  { id: 'baseline', label: 'PLATEAU 5m', hint: 'PLATEAU 地形モデル LOD1 TIN（5 m 格子）' },
+  { id: 'highres', label: '高解像度 0.5m', hint: '京都府 数値標高モデル 0.5 m（航空レーザ 2019-2023）' },
+  { id: 'control', label: '5m 対照', hint: '0.5m DEM を 5 m に平均集約。解像度効果だけを切り離す対照条件' },
+  { id: 'pointcloud', label: '点群融合', hint: '0.5m DEM に地上点群（バックパック SLAM 2026-07）の地表面を融合' },
+  { id: 'diff', label: '差分 5m↔0.5m', hint: 'PLATEAU 5m と 0.5m DEM の判定差' },
+  { id: 'diff_pc', label: '差分 0.5m↔点群', hint: '0.5m DEM と点群融合地形の判定差。点群が何を変えたか' },
 ]
 
 const LAYERS: { key: keyof Store['state']['layers']; label: string }[] = [
@@ -80,6 +93,8 @@ export function renderControls(
     for (const b of el.querySelectorAll<HTMLButtonElement>('#surf button')) {
       b.setAttribute('aria-pressed', String(s.surface === b.dataset.s))
     }
+    const sh = el.querySelector<HTMLElement>('#surfhint')
+    if (sh) sh.textContent = SURFACES.find((x) => x.id === s.surface)?.hint ?? ''
     for (const cb of el.querySelectorAll<HTMLInputElement>('input[data-l]')) {
       const k = cb.dataset.l as keyof typeof s.layers
       if (cb.checked !== s.layers[k]) cb.checked = s.layers[k]
@@ -115,8 +130,9 @@ export function renderControls(
     <p class="sub">PLATEAU 5m 地形 vs 0.5m 高解像度地形</p>
 
     <fieldset><legend>Terrain</legend>
-      <div class="seg" id="surf">${SURFACES.map((x) =>
-        `<button data-s="${x.id}" aria-pressed="${s.surface === x.id}">${x.label}</button>`).join('')}</div>
+      <div class="seg wrap" id="surf">${SURFACES.map((x) =>
+        `<button data-s="${x.id}" title="${x.hint}" aria-pressed="${s.surface === x.id}">${x.label}</button>`).join('')}</div>
+      <div class="note" id="surfhint">${SURFACES.find((x) => x.id === s.surface)?.hint ?? ''}</div>
     </fieldset>
 
     <fieldset><legend>PLATEAU 建物の色</legend>

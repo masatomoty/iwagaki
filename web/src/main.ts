@@ -8,7 +8,8 @@
 import { Vector2 } from 'three'
 
 import type { Catalog } from './domain/catalog'
-import type { BuildingColorMode, FeatureAssertion, TerrainCondition } from './domain/types'
+import { resolveSurface } from './domain/terrain'
+import type { BuildingColorMode, FeatureAssertion, SurfaceMode } from './domain/types'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
@@ -75,7 +76,8 @@ async function boot() {
     return {
       waterLevel: s.waterLevel,
       hStep: catalog.packing.h_step,
-      mode: s.surface === 'diff' ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
+      mode: resolveSurface(catalog.terrain, s.surface)?.isDiff
+        ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
       exaggeration: s.exaggeration,
       geoid,
       floodOpacity: 0.82,
@@ -99,11 +101,12 @@ async function boot() {
     coarse = fine = undefined
     if (!s.layers.flood) return
 
-    // 差分モードでも地形メッシュは必要なので、高解像度の標高タイルを土台に使い、
-    // 判定だけ diff タイル（2 条件の h_conn）から取る
-    const geomAsset = catalog.terrain[s.surface === 'diff' ? 'highres' : s.surface]
-    if (!geomAsset) return
-    const diffUrl = s.surface === 'diff' ? catalog.terrain.diff?.url : undefined
+    // 差分モードでも地形メッシュは必要なので、元条件の標高タイルを土台に使い、
+    // 判定だけ差分タイル（2 条件の h_conn）から取る。
+    // どの条件を土台にするかは domain/terrain.ts が決める（描画側に分岐を置かない）
+    const resolved = resolveSurface(catalog.terrain, s.surface)
+    if (!resolved) return
+    const { geom: geomAsset, diffUrl } = resolved
     const common = {
       viewer, frame, scheduler, extent,
       urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl,
@@ -160,6 +163,7 @@ async function boot() {
     semantics = new SM(frame, rawFeatures, geoid)
     viewer.world.add(semantics.group)
     refresh()
+    void loadPcCoverage()
   })()
 
   // ---- PLATEAU ----------------------------------------------------------
@@ -213,6 +217,28 @@ async function boot() {
       plateauLoading = false
     }
     refresh()
+  }
+
+  // ---- 点群が効いている範囲の輪郭 ----------------------------------------
+  /**
+   * 点群の被覆輪郭（118 kB）。**クラスは prefetch** で、何かを待たせることが無いようにする。
+   * 無くても地図は成立し、有ると「点群がどこに効いているか」が分かる、という性質の情報。
+   * AOI 100 ha に対し点群は 3.17 ha しかない（docs/RESULTS.md）。
+   */
+  let coverage: import('three').LineSegments | undefined
+  async function loadPcCoverage() {
+    const a = catalog.pointcloud_coverage
+    if (!a?.url || coverage) return
+    try {
+      const b = await scheduler.submit({ key: 'pc-coverage', url: a.url, cls: 'prefetch' })
+      const data = JSON.parse(new TextDecoder().decode(b))
+      const { createCoverageOutline } = await import('./three/semanticsMesh')
+      coverage = createCoverageOutline(frame, data, geoid)
+      viewer.world.add(coverage)
+      refresh()
+    } catch {
+      // 表示の補助なので、取れなくても地図は動かす
+    }
   }
 
   // ---- 点群 --------------------------------------------------------------
@@ -277,12 +303,14 @@ async function boot() {
       semantics.setExaggeration(s.exaggeration)
       semantics.setStyle({
         waterLevel: s.waterLevel,
-        condition: (s.surface === 'diff' ? 'highres' : s.surface) as TerrainCondition,
+        // 地物の色は「いま見ている条件」で塗る。差分モードでは土台にした条件を使う
+        condition: resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
         roadThresholds: catalog.semantics.road_depth_classes_m,
         changedOnly: s.layers.changedOnly,
       })
     }
     // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない
+    if (coverage) coverage.visible = s.layers.pcCoverage
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     pcb?.renderer.setVisible(s.layers.pointcloud)
     pcb?.renderer.setExaggeration(s.exaggeration, geoid)
@@ -380,7 +408,7 @@ async function boot() {
       projection: viewer.projectionMode,
     }),
     setWaterLevel: (v: number) => store.set({ waterLevel: v }),
-    setSurface: (v: string) => store.set({ surface: v as never }),
+    setSurface: (v: SurfaceMode) => store.set({ surface: v }),
     setExaggeration: (v: number) => store.set({ exaggeration: v }),
     setCamera: (id: string) => applyPreset(viewer, id as never),
     setProjection: (m: 'perspective' | 'orthographic') => { viewer.setProjection(m); refresh() },

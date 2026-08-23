@@ -19,8 +19,15 @@ export function toAssertion(p: Record<string, unknown>): FeatureAssertion {
     sectionTypeLabel: p.section_type_label ? String(p.section_type_label) : undefined,
     unreliable: p.unreliable === true,
     unreliableReason: p.unreliable_reason ? String(p.unreliable_reason) : undefined,
-    groundElev: { baseline: num('ground_elev_baseline'), highres: num('ground_elev_highres') },
-    hConn: { baseline: num('h_conn_baseline'), highres: num('h_conn_highres') },
+    // 4 条件すべて。属性が無い条件は undefined のまま（inspector が「—」を出す）
+    groundElev: {
+      baseline: num('ground_elev_baseline'), highres: num('ground_elev_highres'),
+      control: num('ground_elev_control'), pointcloud: num('ground_elev_pointcloud'),
+    },
+    hConn: {
+      baseline: num('h_conn_baseline'), highres: num('h_conn_highres'),
+      control: num('h_conn_control'), pointcloud: num('h_conn_pointcloud'),
+    },
   }
 }
 
