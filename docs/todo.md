@@ -27,7 +27,6 @@
 |---|---|---|
 | 4 | **`Points` の先の custom point-cloud renderer** | `docs/web_design.md`「レンダラを差し替える条件」に届いていない。deck.gl `PointCloudLayer` からの差し替えは済んでおり、いま `Points` で困っている兆候は無い |
 | 5 | **タイル URL のバージョニング** | `data/tiles` と `data/3dtiles` は `immutable` だが URL に内容ハッシュが無い。**データを更新する運用に入るとここが最初に効く**（`docs/infra.md`） |
-| 6 | **decode の A/B に実行時フラグを足す** | 点群の色を実測 RGB にした decode コストが**単発の測定では負荷と分離できなかった**（同一ビルドで `normal` の p50 が 42.9 と 161.4 の両方を出した。`docs/web_results.md`）。`?sat=` のようなフラグを decode worker に渡して `perf/ab.mjs` の形で交互に回せば測れる。**いま困っていないので急がない** |
 
 ---
 

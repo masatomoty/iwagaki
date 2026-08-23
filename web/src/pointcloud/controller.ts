@@ -19,6 +19,11 @@ export interface PcControllerOptions {
   origin6674: [number, number]
   matrix: [number, number, number, number]
   geoid: number
+  /**
+   * 点の色に COPC の RGB を使うか。**計測専用の逃げ道**（`?rgb=0` で標高ランプ）。
+   * 既定は true。`docs/web_results.md`「点群の色を実測 RGB に」
+   */
+  useRgb?: boolean
   /** coalescing の設定。off にして比較計測できるようにしておく */
   coalesceGap: number
   maxSpan: number
@@ -80,6 +85,8 @@ export class PointCloudController {
       nodes: this.index.allNodes,
       view, budget,
       toLocal: this.toLocal,
+      // 常駐しているノードはもう取ってあるので、バイト予算には数えない
+      isHeld: (key) => this.resident.has(key),
       // ノード境界は EPSG:6674。画面範囲はローカル メートルで来るので、
       // ここで同じ空間に揃える。**多角形があるならそちらを使う**
       // （外接矩形は傾けた視野で実際の 2 倍近く残す）
@@ -191,6 +198,7 @@ export class PointCloudController {
       origin: this.o.origin6674,
       matrix: this.o.matrix,
       geoid: this.o.geoid,
+      useRgb: this.o.useRgb !== false,
     }, [buf])
     this.o.perf.noteDecode(chunk.decodeMs)
     this.resident.add(chunk.key)

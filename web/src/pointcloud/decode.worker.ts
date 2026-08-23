@@ -16,6 +16,8 @@ interface DecodeMsg {
   origin: [number, number]
   matrix: [number, number, number, number]
   geoid: number
+  /** false なら RGB を読まず標高ランプで塗る（計測用。既定は true） */
+  useRgb?: boolean
 }
 
 let lazPerfPromise: Promise<Awaited<ReturnType<typeof LazPerf.create>>> | null = null
@@ -39,15 +41,18 @@ self.onmessage = async (ev: MessageEvent<DecodeMsg>) => {
       { header: m.header, vlrs: [], info: {} as never, eb: m.eb } as never,
       m.node as never,
       // **RGB も読む。** バイト列は既に取得・展開してあるので追加の通信は 0 で、
-      // 増えるのは getter 3 本ぶんの CPU だけ
-      { lazPerf, include: ['X', 'Y', 'Z', 'Red', 'Green', 'Blue'] },
+      // 増えるのは getter 3 本ぶんの CPU だけ。
+      // `?rgb=0` のときは読まない（A/B 計測用。docs/web_results.md）
+      { lazPerf, include: m.useRgb === false
+          ? ['X', 'Y', 'Z'] : ['X', 'Y', 'Z', 'Red', 'Green', 'Blue'] },
     )
     const n = view.pointCount
     const gx = view.getter('X')
     const gy = view.getter('Y')
     const gz = view.getter('Z')
     // 合成点群など RGB を持たない配信物もあるので、無ければ標高ランプに落ちる
-    const hasRgb = ['Red', 'Green', 'Blue'].every((d) => d in view.dimensions)
+    const hasRgb = m.useRgb !== false
+      && ['Red', 'Green', 'Blue'].every((d) => d in view.dimensions)
     const gr = hasRgb ? view.getter('Red') : undefined
     const gg = hasRgb ? view.getter('Green') : undefined
     const gb = hasRgb ? view.getter('Blue') : undefined

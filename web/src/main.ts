@@ -67,6 +67,14 @@ const USEFUL_FRACTION = 0.5
 const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 2_000_000
 /** LOD のバイト予算の上書き。計測専用（既定は帯域推定から決める） */
 const PC_MAX_BYTES = Number(new URLSearchParams(location.search).get('maxbytes')) || undefined
+/**
+ * 点間隔の下限 [px]。**これより細かいノードは取らない。**
+ *
+ * `?sse=` で上書きできる。値の意味は「画面上で点が何 px 離れているか」で、
+ * 小さくするほど深い LOD まで取る。点の大きさが 1.4 px なので、
+ * 2.0 だと点の間に必ず隙間が空く（`docs/web_results.md`「点間隔の下限」）。
+ */
+const PC_SSE = Number(new URLSearchParams(location.search).get('sse')) || 1.0
 
 /** 計測用のスイッチ。既定値を変えずに条件だけ切り替えられるようにする */
 const qs = new URLSearchParams(location.search)
@@ -78,6 +86,12 @@ const OPT = {
   pointcloud: qs.get('pc') === '1',
   /** ?ortho=1 で正射投影から始める */
   ortho: qs.get('ortho') === '1',
+  /**
+   * 点の色に COPC の RGB を使うか。**計測専用**（`?rgb=0` で標高ランプに戻す）。
+   * RGB を読む decode コストを `perf/ab.mjs` の形で交互に測るために置いてある
+   * （単発だとこの機械の負荷と分離できなかった。docs/web_results.md）
+   */
+  rgb: qs.get('rgb') !== '0',
 }
 
 async function boot() {
@@ -432,7 +446,7 @@ async function boot() {
       // 直した推定で測り直して係数を決めた。`fast4g` の 12 秒窓で
       // **建物 20/22 は変えずに常駐点数が 56,448 -> 68,622 に増える**。
       maxBytes: PC_MAX_BYTES ?? Math.max(1e6, Math.min(20e6, bw * 2)),
-      screenSpaceError: 2.0,
+      screenSpaceError: PC_SSE,
       coarseDepth: 1,
     }
   }
@@ -516,7 +530,7 @@ async function boot() {
       pcb = createPointCloud({
         url: catalog.pointcloud.url, scheduler, perf,
         origin6674: [ox, oy], originWgs84: catalog.aoi.centre_wgs84,
-        matrix, geoid,
+        matrix, geoid, useRgb: OPT.rgb,
         coalesceGap: OPT.coalesce ? 64 * 1024 : 0,
         usefulFraction: USEFUL_FRACTION,
         onChange: () => { viewer.invalidate(); refresh() },

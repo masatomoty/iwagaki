@@ -19,6 +19,8 @@ export function createPointCloud(opts: {
   originWgs84: [number, number]
   matrix: [number, number, number, number]
   geoid: number
+  /** 計測用。false で RGB を読まない */
+  useRgb?: boolean
   coalesceGap: number
   usefulFraction: number
   onChange: () => void
@@ -32,6 +34,7 @@ export function createPointCloud(opts: {
     origin6674: opts.origin6674,
     matrix: opts.matrix,
     geoid: opts.geoid,
+    useRgb: opts.useRgb,
     coalesceGap: opts.coalesceGap,
     maxSpan: 4 * 1024 * 1024,
     usefulFraction: opts.usefulFraction,

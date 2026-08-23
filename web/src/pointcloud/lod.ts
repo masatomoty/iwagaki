@@ -40,6 +40,15 @@ export interface SelectInput {
   toLocal: (x: number, y: number) => [number, number]
   /** 画面内かどうか。undefined なら全部通す */
   isVisible?: (b: PcNode['bounds']) => boolean
+  /**
+   * そのノードが**もう手元にあるか**（常駐かキャッシュ済み）。
+   *
+   * `maxBytes` は「この視点にネットワークで払ってよいバイト数」なので、
+   * **既に持っているノードは数えない**。数えていたせいで、寄っても予算が
+   * 取得済みのぶんで埋まり、**ズームインしても点が増えなかった**
+   * （実測: zoom 17.2 で 125,384 点 -> 19.6 で 124,112 点）。
+   */
+  isHeld?: (key: string) => boolean
 }
 
 export function selectNodes(inp: SelectInput): NodeRequest[] {
@@ -69,7 +78,8 @@ export function selectNodes(inp: SelectInput): NodeRequest[] {
   let pts = 0
   let bytes = 0
   for (const s of scored) {
-    const nb = s.byteRange[1] - s.byteRange[0]
+    // **既に持っているノードは wire 0 バイト。** 点数の予算には数える
+    const nb = inp.isHeld?.(s.key) ? 0 : s.byteRange[1] - s.byteRange[0]
     if (pts + s.pointCount > budget.maxPoints || bytes + nb > budget.maxBytes) break
     out.push(s)
     pts += s.pointCount
