@@ -77,6 +77,25 @@ const TEX = 256
 const DECODE = /* glsl */ `
 const float TEX = ${TEX}.0;
 
+/**
+ * uv（v=0 が南）-> テクスチャ座標（t=0 が北）。
+ *
+ * タイル画像は **1 行目が北**（scripts/80_build_web_tiles.py が north-up の
+ * dst_transform で焼き、createImageBitmap も premultiply 以外は素通し）。
+ * luma.gl は UNPACK_FLIP_Y_WEBGL を立てないので、t=0 が画像 1 行目 = 北辺になる。
+ * 一方この層の uv は mix(bounds.xy, bounds.zw, aUv) で使う都合上 **v=0 が南**。
+ * 反転せずに引くと **タイル 1 枚の中で南北がひっくり返る**（deck.gl の
+ * BitmapLayer が texCoords に 1-v を入れているのと同じ理由:
+ * @deck.gl/layers の bitmap-layer/create-mesh.js）。
+ *
+ * ずれ量はタイルの高さそのもの（z15 で 1.2 km, z18 で 150 m）で、しかも
+ * ズームによらず同じ向きに間違うので、粗→細の平行移動を見る perf/tileshift.mjs
+ * では捕まらない。perf/tileorient.mjs が焼いたタイルと画面を直接照合する。
+ */
+vec2 texUv(vec2 uv) {
+  return vec2(uv.x, 1.0 - uv.y);
+}
+
 /** uv -> 最寄りセル中心のテクスチャ座標。area-registered なので 0.5 ずらす */
 vec2 cellUv(vec2 uv) {
   return (clamp(floor(uv * TEX), 0.0, TEX - 1.0) + 0.5) / TEX;
@@ -108,7 +127,7 @@ ${DECODE}
 
 /** 最寄りセルの値。nodata 判定にはこちらを使う（補間すると nodata が混ざる） */
 float sampleElevNearest(vec2 uv) {
-  return decodeElev(texture(elevTexture, cellUv(clamp(uv, 0.0, 1.0))).rgb);
+  return decodeElev(texture(elevTexture, cellUv(texUv(clamp(uv, 0.0, 1.0)))).rgb);
 }
 
 /**
@@ -119,7 +138,7 @@ float sampleElevNearest(vec2 uv) {
  * -9999 と実標高のランプができ、海際に平らな棚が生える（既知の症状）。
  */
 float sampleElev(vec2 uv) {
-  vec2 t = clamp(uv * TEX - 0.5, vec2(0.0), vec2(TEX - 1.0));
+  vec2 t = clamp(texUv(uv) * TEX - 0.5, vec2(0.0), vec2(TEX - 1.0));
   vec2 b = floor(t);
   vec2 f = t - b;
   vec2 b1 = min(b + 1.0, TEX - 1.0);
@@ -141,15 +160,19 @@ void main(void) {
   // 判定は最寄りセルで行う（補間側は nodata を含む時点で最寄りに落ちている）
   vValid = sampleElevNearest(aUv) < -9000.0 ? 0.0 : 1.0;
 
-  // 近傍差分で法線を作る。テクスチャ 1 テクセル分の実距離は uniform で渡す
+  // 近傍差分で法線を作る。テクスチャ 1 テクセル分の実距離は uniform で渡す。
+  // 面 z = f(x, y) の法線は (-fx, -fy, 1) なので、y も x と同じ向き
+  // （引いた側 - 足した側）でなければならない。uv.y は北向きなので「南 - 北」。
+  // 以前は y だけ逆で、南北が反転したサンプルと打ち消し合って陰影だけは
+  // それらしく見えていた（だから向きの誤りに気づけなかった）。
   float d = 1.0 / 256.0;
-  float hl = sampleElev(aUv - vec2(d, 0.0));
-  float hr = sampleElev(aUv + vec2(d, 0.0));
-  float hu = sampleElev(aUv - vec2(0.0, d));
-  float hd = sampleElev(aUv + vec2(0.0, d));
+  float hw = sampleElev(aUv - vec2(d, 0.0));   // 西
+  float he = sampleElev(aUv + vec2(d, 0.0));   // 東
+  float hs = sampleElev(aUv - vec2(0.0, d));   // 南
+  float hn = sampleElev(aUv + vec2(0.0, d));   // 北
   vNormal = normalize(vec3(
-    (hl - hr) * fmesh.exaggeration,
-    (hd - hu) * fmesh.exaggeration,
+    (hw - he) * fmesh.exaggeration,
+    (hs - hn) * fmesh.exaggeration,
     2.0 * fmesh.metersPerTexel));
 
   float base = e < -9000.0 ? 0.0 : e;
@@ -197,7 +220,7 @@ void main(void) {
 
   vec4 outColor;
   if (fmesh.mode > 0.5 && fmesh.hasDiff > 0.5) {
-    vec4 d = texture(diffTexture, cellUv(vUv));
+    vec4 d = texture(diffTexture, cellUv(texUv(vUv)));
     bool wb = decodeHConn(d.r) <= fmesh.waterLevel;
     bool wh = decodeHConn(d.g) <= fmesh.waterLevel;
     if (!wb && !wh) {
@@ -208,7 +231,7 @@ void main(void) {
     else if (wh)         outColor = vec4(vec3(0.93, 0.22, 0.18) * shade, 0.95);
     else                 outColor = vec4(vec3(0.97, 0.82, 0.16) * shade, 0.95);
   } else {
-    float hConn = decodeHConn(texture(elevTexture, cellUv(vUv)).a);
+    float hConn = decodeHConn(texture(elevTexture, cellUv(texUv(vUv))).a);
     bool isWet = hConn <= fmesh.waterLevel;
     float depth = isWet ? max(0.0, fmesh.waterLevel - vElev) : 0.0;
     if (isWet && depth > 0.0) {
