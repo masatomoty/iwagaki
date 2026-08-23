@@ -7,7 +7,7 @@
 // ハードコードされていて、`diff_pc` を選んでも赤い地物は 5m↔0.5m のままだった。
 //
 // parity.test.mjs と同じ方針で、**TS を import せず式そのものを二重化して**
-// 実データ（public/data/objects.geojson）に対する件数を突き合わせる。
+// 実データ（catalog.semantics.url が指す geojson）に対する件数を突き合わせる。
 // 相対 import に拡張子が無いので node からは TS を直接読めない。
 
 import assert from 'node:assert/strict'
@@ -50,7 +50,10 @@ const decisionChanged = (p, H, th, pair) => {
 }
 
 const catalog = JSON.parse(readFileSync(path.join(DATA, 'catalog.json'), 'utf8'))
-const features = JSON.parse(readFileSync(path.join(DATA, 'objects.geojson'), 'utf8')).features
+// ファイル名には内容ハッシュが入る（docs/infra.md）。直書きしない
+const features = JSON.parse(
+  readFileSync(path.join(DATA, catalog.semantics.url.replace(/^data\//, '')), 'utf8'),
+).features
 const TH = catalog.semantics.road_depth_classes_m
 
 let checks = 0
@@ -79,7 +82,7 @@ deepEq(comparisonPair('baseline'), { from: 'baseline', to: 'baseline' }, 'pair(b
 deepEq(comparisonPair('highres'), comparisonPair('diff'), 'default pair == 旧ハードコード')
 
 // --- 2. ペアごとの件数（実データ） -------------------------------------------
-// 数字は public/data/objects.geojson から数えたもの。判定規則が変わると動く。
+// 数字は配信中の geojson から数えたもの。判定規則が変わると動く。
 const count = (surface, H) => {
   const pair = comparisonPair(surface)
   return features.filter((f) => decisionChanged(f.properties, H, TH, pair)).length

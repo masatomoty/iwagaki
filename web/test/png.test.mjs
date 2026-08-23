@@ -13,7 +13,11 @@ import { fileURLToPath } from 'node:url'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '../..')
 const TILE = process.env.TILE
-  ?? path.join(ROOT, 'web/public/data/tiles/highres/18/229614/103429.png')
+  // ディレクトリ名には内容ハッシュが入る（docs/infra.md）。catalog の url から組む
+  ?? path.join(ROOT, 'web/public', JSON.parse(
+       readFileSync(path.join(ROOT, 'web/public/data/catalog.json'), 'utf8'),
+     ).terrain.highres.url
+       .replace('{z}', '18').replace('{x}', '229614').replace('{y}', '103429'))
 
 const out = mkdtempSync(path.join(tmpdir(), 'iwagaki-png-'))
 execFileSync('pnpm', ['exec', 'tsc', 'src/assets/png.ts', '--outDir', out,
