@@ -74,6 +74,8 @@ const depth = (elev: MTP, hConn: MTP, H: MTP) => (wet(hConn, H) ? Math.max(0, H 
 |---|---|---|
 | `baseline` / `highres` / `control` / `pointcloud` | 同名の条件 | 同じタイル（RGB=標高, A=h_conn） |
 | `diff` | `highres` | `diff`（R=h_conn(baseline), G=h_conn(highres)） |
+| `diff_src` | `control` | `diff_src`（R=h_conn(baseline), G=h_conn(control)） |
+| `diff_res` | `highres` | `diff_res`（R=h_conn(control), G=h_conn(highres)） |
 | `diff_pc` | `pointcloud` | `diff_pc`（R=h_conn(highres), G=h_conn(pointcloud)） |
 
 差分モードでも地形メッシュは要るので、**幾何は元の条件から取る**。
@@ -103,6 +105,9 @@ const depth = (elev: MTP, hConn: MTP, H: MTP) => (wet(hConn, H) ? Math.max(0, H 
 メッシュを 2 枚出すと数十 cm 差で交差する（粗メッシュと細メッシュで
 同じ問題を避けているのと同じ理由）。だからチェックボックスではなく 1 つ選ぶ。
 **断面図だけは例外**で、線は z-fight しないので複数条件を重ねられる。
+`main.ts` の `SECTION_SERIES` は **4 条件すべて**を引く。代償は測線ごとに
+条件 1 つぶんタイルを引くことで、実測では起動後の要求が 64 → 67 本、
+転送が 4.84 → 4.85 MB（3 タイルぶん）だった。
 
 UI は `<select>` にしてある。ボタン 4 つは 268 px 幅で 2 行に折り返すうえ、
 頭には水位も入るので場所が無い。**梯子の順序は option の並びとして残る**ので、
@@ -130,10 +135,20 @@ baseline と highres を**ハードコード**していた。呼び側は
 既定は `surface: 'highres'` なので既定のペアは `(baseline, highres)` で、
 以前のハードコードと同じ組である（`docs/results.md` の件数と整合する）。
 
-**配信されている差分タイルは 2 本しかない。** 鎖は 3 段に分解できるのに
-「源だけの差」「解像度だけの差」の面は無い。ただし**地物単位なら出せる**ので、
-`control` を選べば「源だけを替えて判定が変わった地物」が赤で出る
-（面で見られない分は `docs/todo.md`）。
+**差分は鎖の辺として 4 本焼いてある** [実測]。
+
+| 差分 | 辺 | 切り分けるもの | 枚数 / 容量 |
+|---|---|---|---|
+| `diff_src` | baseline → control | **データ源だけ**（どちらも 5 m 格子） | 131 / 0.21 MB |
+| `diff_res` | control → highres | **解像度だけ**（どちらも航空レーザ源） | 131 / 0.58 MB |
+| `diff_pc` | highres → pointcloud | 地上観測が足した分 | 131 / 0.63 MB |
+| `diff` | baseline → highres | 上 2 段をまとめたもの | 131 / 0.57 MB |
+
+`ui/controls.ts` の `DIFF_OF` が `判定差` ボタンに割り当てるのは
+`control → diff_src` / `highres → diff` / `pointcloud → diff_pc` の 3 つ。
+**`diff_res` は載せていない。** `highres` に割り当てると「0.5m の判定差」の意味が
+合計 12.7 % から解像度だけの 3.4 % に変わり、`README.md` と `docs/results.md` の
+見出しと食い違うため。`__iwagaki.setSurface('diff_res')` で触れる。
 
 ### 鉛直基準 **[実測]**
 

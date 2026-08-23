@@ -51,17 +51,34 @@ CONDITIONS = {
 # 専用ピラミッドを 1 枚作っておけば、ブラウザ側のシェーダは常に単一テクスチャで済む。
 #   R = h_conn(左) コード, G = h_conn(右) コード, B = 0, A = 255
 #
-# 2 組焼く。1 つ目が「PLATEAU 5m と 0.5m DEM の差」、
-# 2 つ目が「0.5m DEM と点群融合地形の差」= 点群が何を変えたか。
+# 4 組焼く。条件は 1 段ごとに 1 要素だけ変えた鎖（docs/design.md「地形の生成」）
+# なので、鎖の「辺」がそのまま差分になる。
+#
+#   baseline --源を替える--> control --解像度を上げる--> highres --観測を足す--> pointcloud
+#
+# | 差分 | 辺 | 切り分けるもの |
+# |---|---|---|
+# | `diff_src` | baseline -> control | **データ源だけ**（どちらも 5 m 格子） |
+# | `diff_res` | control -> highres | **解像度だけ**（どちらも航空レーザ源） |
+# | `diff_pc` | highres -> pointcloud | 地上観測が足した分 |
+# | `diff` | baseline -> highres | 上 2 段をまとめたもの（README の見出しの図） |
+#
+# 以前は `diff` と `diff_pc` の 2 本だけで、**解析には数字があるのに
+# 「源だけ」「解像度だけ」の差を面で見られなかった**（docs/results.md
+# 「差の要因分解」: 源 10.5 % / 解像度 3.4 %）。docs/todo.md 中 4。
 DIFFS = {
     "diff": ("h_conn_baseline.tif", "h_conn_highres.tif"),
+    "diff_src": ("h_conn_baseline.tif", "h_conn_control.tif"),
+    "diff_res": ("h_conn_control.tif", "h_conn_highres.tif"),
     "diff_pc": ("h_conn_highres.tif", "h_conn_pointcloud.tif"),
 }
 
 # 差分モードで地形メッシュの形を取る条件（viewer の domain/terrain.ts と同じ規則）。
-# 焼く枚数をその条件に合わせるために使う
+# **鎖の「到達する側」から取る。** 焼く枚数をその条件に合わせるために使う
 GEOMETRY_FOR_DIFF = {
     "diff": "dtm_highres_050.tif",
+    "diff_src": "dtm_control_500.tif",
+    "diff_res": "dtm_highres_050.tif",
     "diff_pc": "dtm_pointcloud_050.tif",
 }
 

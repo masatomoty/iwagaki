@@ -22,17 +22,24 @@ export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud'
  * 画面に出す地形レイヤの種類。
  *
  * `diff` 系は 2 条件の h_conn を R/G に詰めた専用ピラミッドで、判定差だけを出す。
- * - `diff`    PLATEAU 5m と 0.5m DEM の差（データ源 + 解像度の合計）
- * - `diff_pc` 0.5m DEM と点群融合地形の差（**点群が何を変えたか**）
+ *
+ * 条件は 1 段ごとに 1 要素だけ変えた鎖なので、**辺がそのまま差分**になる。
+ * - `diff_src` baseline -> control（**データ源だけ**。どちらも 5 m 格子）
+ * - `diff_res` control -> highres（**解像度だけ**。どちらも航空レーザ源）
+ * - `diff_pc`  highres -> pointcloud（地上観測が足した分）
+ * - `diff`     baseline -> highres（上 2 段をまとめたもの。README の見出しの図）
  */
-export type SurfaceMode = TerrainCondition | 'diff' | 'diff_pc'
+export type SurfaceMode = TerrainCondition | 'diff' | 'diff_src' | 'diff_res' | 'diff_pc'
 
 export const TERRAIN_CONDITIONS: TerrainCondition[] =
   ['baseline', 'highres', 'control', 'pointcloud']
 
 /** 差分モードごとに、幾何をどの条件から取るか。差分タイルは色だけを与える */
-export const DIFF_GEOMETRY: Record<'diff' | 'diff_pc', TerrainCondition> = {
+export const DIFF_GEOMETRY:
+  Record<'diff' | 'diff_src' | 'diff_res' | 'diff_pc', TerrainCondition> = {
   diff: 'highres',
+  diff_src: 'control',
+  diff_res: 'highres',
   diff_pc: 'pointcloud',
 }
 

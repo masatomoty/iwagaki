@@ -267,6 +267,24 @@ worker は `@loaders.gl/draco/draco-worker.js?url` でバンドルに同梱す�
 動き出してからで、しかも Worker の中から出る）。playwright が無い環境では
 **通過にせず MUST を落とす** — 「測っていない」を「通った」と読ませないため。
 
+#### バンドルに残る `unpkg.com` の文字列は発火しない **[実測]**
+
+Draco を自オリジン配信に直したあとも `dist/assets/plateauTiles-*.js` に
+`https://unpkg.com/@loaders.gl` が残る。追ったところ **`@loaders.gl/core` の
+既定オプション**（`CDN: "https://unpkg.com/@loaders.gl"`, `useLocalLibraries: false`）で、
+worker の URL を組み立てるときに使われる文字列だった。発火条件は
+「loaders.gl が worker を要求し、かつ `CDN` が既定のまま」。
+
+**呼び出し側で潰してある。** `three/plateauTiles.ts` の `DRACO_LOCAL` が
+唯一の `parse()` に `CDN: abs('vendor')` と `draco.workerUrl` を渡すので、
+既定値に落ちる経路が無い。`deploy/check.mjs` の「外部オリジンへのリクエストが 0 件」
+も毎回通っている。
+
+**文字列そのものを消すには依存の patch が要る**（ライブラリの既定値なので
+tree-shake で落ちない）。割に合わないので消さない。
+なお `webgl-debug` と `cdn.jsdelivr.net/npm/spectorjs` は
+**もうバンドルに無い**（MapLibre を外した時点で消えていた）。
+
 ### ズームの基準を取り違えていた **[実測]**
 
 three.js 移行の最初の実測は**比較として成立していなかった**。両方とも `getZoom()` は

@@ -52,14 +52,26 @@ const CONDITIONS: { id: TerrainCondition; label: string; hint: string }[] = [
     hint: '0.5m DEM に地上点群（バックパック SLAM 2026-07）の地表面を融合' },
 ]
 
-/** 判定差の面（差分タイル）が配信されている条件だけ。2 本しか作っていない */
+/**
+ * 条件を選んだときに `判定差` が出す差分。
+ *
+ * - `control`    源だけを替えた差（`diff_src`）
+ * - `highres`    源 ＋ 解像度の合計（`diff`）。**README と docs/results.md の見出しの図**
+ * - `pointcloud` 地上観測が足した分（`diff_pc`）
+ *
+ * `diff_res`（解像度だけ）も焼いてあるが、ここには載せていない。`highres` に
+ * 割り当てると「0.5m の判定差」の意味が合計 12.7 % から解像度だけの 3.4 % に
+ * 変わり、公表済みの見出しと食い違うため。`setSurface('diff_res')` で触れる。
+ */
 const DIFF_OF: Partial<Record<TerrainCondition, SurfaceMode>> = {
+  control: 'diff_src',
   highres: 'diff',
   pointcloud: 'diff_pc',
 }
 
 const surfaceCondition = (s: SurfaceMode): TerrainCondition => comparisonPair(s).to
-const isDiff = (s: SurfaceMode) => s === 'diff' || s === 'diff_pc'
+const isDiff = (s: SurfaceMode) =>
+  s === 'diff' || s === 'diff_src' || s === 'diff_res' || s === 'diff_pc'
 
 /** メニューに出すレイヤ。`flood` / `ground` / `semantics` / `pcCoverage` は出さない */
 const LAYERS: { key: 'plateau' | 'pointcloud'; label: string }[] = [

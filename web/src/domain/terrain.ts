@@ -40,7 +40,8 @@ export interface ResolvedSurface {
 export function resolveSurface(
   terrain: Partial<Record<string, TerrainAsset>>, surface: SurfaceMode,
 ): ResolvedSurface | undefined {
-  if (surface === 'diff' || surface === 'diff_pc') {
+  if (surface === 'diff' || surface === 'diff_src'
+      || surface === 'diff_res' || surface === 'diff_pc') {
     const condition = DIFF_GEOMETRY[surface]
     const geom = terrain[condition]
     const diff = terrain[surface]
@@ -62,12 +63,13 @@ export function resolveSurface(
  * 既定は `surface: 'highres'` なので既定のペアは `(baseline, highres)` で、
  * これは以前ハードコードしていた組と同じである（`docs/results.md` の件数と整合する）。
  *
- * **`control` がここで初めて使えるようになる。** 差分タイルは
- * `diff` / `diff_pc` の 2 本しか無いので「源だけを替えた差」は地形の面では
- * 見られないが、`control` を選べば地物単位では赤で出る。
+ * 差分は 4 本ある（`diff` / `diff_src` / `diff_res` / `diff_pc`）。鎖の辺が
+ * そのまま差分になっていて、`diff` だけは上 2 段をまとめたもの（README の見出しの図）。
  */
 export function comparisonPair(surface: SurfaceMode): ComparisonPair {
   if (surface === 'diff') return { from: 'baseline', to: 'highres' }
+  if (surface === 'diff_src') return { from: 'baseline', to: 'control' }
+  if (surface === 'diff_res') return { from: 'control', to: 'highres' }
   if (surface === 'diff_pc') return { from: 'highres', to: 'pointcloud' }
   return { from: 'baseline', to: surface }
 }
