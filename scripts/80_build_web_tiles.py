@@ -35,15 +35,28 @@ TILE = 256
 R_EARTH = 6378137.0
 ORIGIN = math.pi * R_EARTH        # 20037508.342789244
 
+# 解析が持っている 4 条件をすべて配信する。
+# 以前は baseline / highres の 2 つしか焼いておらず、**点群を融合した地形の
+# 浸水判定を viewer から一切見られなかった**（docs/TODO.md A1）。
+# control は「解像度だけを落とした highres」で、データ源と解像度のどちらが
+# 効いているかを切り分けるための条件（docs/DESIGN.md §4.4）。
 CONDITIONS = {
     "baseline": ("dtm_baseline_500.tif", "h_conn_baseline.tif"),
     "highres": ("dtm_highres_050.tif", "h_conn_highres.tif"),
+    "control": ("dtm_control_500.tif", "h_conn_control.tif"),
+    "pointcloud": ("dtm_pointcloud_050.tif", "h_conn_pointcloud.tif"),
 }
 
 # 差分は 2 条件の h_conn だけあれば任意の水位で判定できる（浸水深は使わない）。
 # 専用ピラミッドを 1 枚作っておけば、ブラウザ側のシェーダは常に単一テクスチャで済む。
-#   R = h_conn(baseline) コード, G = h_conn(highres) コード, B = 0, A = 255
-DIFF_SOURCES = ("h_conn_baseline.tif", "h_conn_highres.tif")
+#   R = h_conn(左) コード, G = h_conn(右) コード, B = 0, A = 255
+#
+# 2 組焼く。1 つ目が「PLATEAU 5m と 0.5m DEM の差」、
+# 2 つ目が「0.5m DEM と点群融合地形の差」= 点群が何を変えたか。
+DIFFS = {
+    "diff": ("h_conn_baseline.tif", "h_conn_highres.tif"),
+    "diff_pc": ("h_conn_highres.tif", "h_conn_pointcloud.tif"),
+}
 
 
 def lonlat_to_3857(lon: float, lat: float) -> tuple[float, float]:
@@ -180,33 +193,34 @@ def main() -> int:
         print(f"{cond}: {n_tiles} tiles, {total/1e6:.2f} MB")
 
     # --- 差分ピラミッド ---------------------------------------------------
-    outdir = WEB_DATA / "tiles" / "diff"
-    n_tiles = total = 0
-    per_zoom = {}
-    for z in range(args.min_zoom, args.max_zoom + 1):
-        zn = zt = 0
-        for _, x, y in tiles_for_bounds(b3857, z):
-            hb, _ = sample(OUT / DIFF_SOURCES[0], z, x, y, Resampling.nearest)
-            hh, _ = sample(OUT / DIFF_SOURCES[1], z, x, y, Resampling.nearest)
-            if not np.isfinite(hb).any() and not np.isfinite(hh).any():
-                continue
-            p = outdir / str(z) / str(x) / f"{y}.png"
-            p.parent.mkdir(parents=True, exist_ok=True)
-            Image.fromarray(encode_diff(hb, hh), "RGBA").save(p, "PNG", optimize=True)
-            zn += 1
-            zt += p.stat().st_size
-        per_zoom[z] = {"tiles": zn, "bytes": zt}
-        n_tiles += zn
-        total += zt
-        print(f"  diff z{z}: {zn} tiles, {zt/1e3:.0f} kB")
-    report["conditions"]["diff"] = {
-        "tiles": n_tiles, "bytes": total,
-        "min_zoom": args.min_zoom, "max_zoom": args.max_zoom,
-        "per_zoom": per_zoom,
-        "url": "data/tiles/diff/{z}/{x}/{y}.png",
-        "packing": "R=hconn_baseline code, G=hconn_highres code, A=255",
-    }
-    print(f"diff: {n_tiles} tiles, {total/1e6:.2f} MB")
+    for name, (left, right) in DIFFS.items():
+        outdir = WEB_DATA / "tiles" / name
+        n_tiles = total = 0
+        per_zoom = {}
+        for z in range(args.min_zoom, args.max_zoom + 1):
+            zn = zt = 0
+            for _, x, y in tiles_for_bounds(b3857, z):
+                hb, _ = sample(OUT / left, z, x, y, Resampling.nearest)
+                hh, _ = sample(OUT / right, z, x, y, Resampling.nearest)
+                if not np.isfinite(hb).any() and not np.isfinite(hh).any():
+                    continue
+                p = outdir / str(z) / str(x) / f"{y}.png"
+                p.parent.mkdir(parents=True, exist_ok=True)
+                Image.fromarray(encode_diff(hb, hh), "RGBA").save(p, "PNG", optimize=True)
+                zn += 1
+                zt += p.stat().st_size
+            per_zoom[z] = {"tiles": zn, "bytes": zt}
+            n_tiles += zn
+            total += zt
+            print(f"  {name} z{z}: {zn} tiles, {zt/1e3:.0f} kB")
+        report["conditions"][name] = {
+            "tiles": n_tiles, "bytes": total,
+            "min_zoom": args.min_zoom, "max_zoom": args.max_zoom,
+            "per_zoom": per_zoom,
+            "url": f"data/tiles/{name}/{{z}}/{{x}}/{{y}}.png",
+            "packing": f"R=hconn({left[7:-4]}) code, G=hconn({right[7:-4]}) code, A=255",
+        }
+        print(f"{name}: {n_tiles} tiles, {total/1e6:.2f} MB")
 
     (WEB_DATA / "tiles_report.json").parent.mkdir(parents=True, exist_ok=True)
     (WEB_DATA / "tiles_report.json").write_text(json.dumps(report, indent=2))

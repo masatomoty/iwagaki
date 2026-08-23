@@ -4,11 +4,37 @@
 /** 標高・水位 [m T.P.] */
 export type MTP = number
 
-export type TerrainCondition = 'baseline' | 'highres'
-/** 画面に出す地形レイヤの種類。diff は 2 条件の判定差 */
-export type SurfaceMode = TerrainCondition | 'diff'
+/**
+ * 解析が持っている地形条件（docs/DESIGN.md §4）。
+ *
+ * - `baseline`   PLATEAU 地形モデル LOD1 TIN（5 m 格子）
+ * - `highres`    京都府 数値標高モデル 0.5 m（航空レーザ 2019-2023）
+ * - `control`    highres を 5 m に平均集約。**解像度効果だけを切り離すための対照**
+ * - `pointcloud` 0.5m DEM に地上点群（バックパック SLAM 2026-07）の地表面を融合
+ *
+ * 以前は baseline / highres の 2 つしか配信していなかった。
+ * control は `docs/DESIGN.md` §6 の UI 最小要件に挙がっていたのに実装されておらず、
+ * pointcloud は解析結果が出ているのに画面から見られなかった（docs/TODO.md A1・A4）。
+ */
+export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud'
 
-export const TERRAIN_CONDITIONS: TerrainCondition[] = ['baseline', 'highres']
+/**
+ * 画面に出す地形レイヤの種類。
+ *
+ * `diff` 系は 2 条件の h_conn を R/G に詰めた専用ピラミッドで、判定差だけを出す。
+ * - `diff`    PLATEAU 5m と 0.5m DEM の差（データ源 + 解像度の合計）
+ * - `diff_pc` 0.5m DEM と点群融合地形の差（**点群が何を変えたか**）
+ */
+export type SurfaceMode = TerrainCondition | 'diff' | 'diff_pc'
+
+export const TERRAIN_CONDITIONS: TerrainCondition[] =
+  ['baseline', 'highres', 'control', 'pointcloud']
+
+/** 差分モードごとに、幾何をどの条件から取るか。差分タイルは色だけを与える */
+export const DIFF_GEOMETRY: Record<'diff' | 'diff_pc', TerrainCondition> = {
+  diff: 'highres',
+  diff_pc: 'pointcloud',
+}
 
 /** PLATEAU 建物をどの属性で塗り分けるか。コード -> 色 は view/buildingColor.ts */
 export type BuildingColorMode = 'none' | 'class' | 'usage'

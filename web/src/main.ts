@@ -7,7 +7,8 @@ import { MapboxOverlay } from '@deck.gl/mapbox'
 import type { Layer } from '@deck.gl/core'
 
 import type { Catalog } from './domain/catalog'
-import type { BuildingColorMode, FeatureAssertion, TerrainCondition } from './domain/types'
+import { resolveSurface } from './domain/terrain'
+import type { BuildingColorMode, FeatureAssertion, SurfaceMode } from './domain/types'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
@@ -141,7 +142,8 @@ async function boot() {
     return {
       waterLevel: s.waterLevel,
       hStep: catalog.packing.h_step,
-      mode: s.surface === 'diff' ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
+      mode: resolveSurface(catalog.terrain, s.surface)?.isDiff
+        ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
       exaggeration: s.exaggeration,
       geoid,
       floodOpacity: 0.82,
@@ -175,11 +177,12 @@ async function boot() {
   function terrainLayers() {
     const s = store.state
     if (!s.layers.flood) return []
-    // 差分モードでも地形メッシュは必要なので、高解像度の標高タイルを土台に使い、
-    // 判定だけ diff タイル（2 条件の h_conn）から取る
-    const geomAsset = catalog.terrain[s.surface === 'diff' ? 'highres' : s.surface]
-    if (!geomAsset) return []
-    const diffUrl = s.surface === 'diff' ? catalog.terrain.diff?.url : undefined
+    // 差分モードでも地形メッシュは必要なので、元条件の標高タイルを土台に使い、
+    // 判定だけ差分タイル（2 条件の h_conn）から取る。
+    // どの条件を土台にするかは domain/terrain.ts が決める（描画側に分岐を置かない）
+    const resolved = resolveSurface(catalog.terrain, s.surface)
+    if (!resolved) return []
+    const { geom: geomAsset, diffUrl } = resolved
     const common = {
       urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl, extent, scheduler,
       uniforms: floodProps(), opacity: 1, isTileNeeded,
@@ -302,7 +305,8 @@ async function boot() {
     return [makeSemantics({
       features,
       waterLevel: s.waterLevel,
-      condition: (s.surface === 'diff' ? 'highres' : s.surface) as TerrainCondition,
+      // 地物の色は「いま見ている条件」で塗る。差分モードでは土台にした条件を使う
+      condition: resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
       roadThresholds: catalog.semantics.road_depth_classes_m,
       changedOnly: s.layers.changedOnly,
       onClick: (a) => store.set({ selected: a }),
@@ -449,7 +453,7 @@ async function boot() {
                  coloured: plateauStats.coloured, buildings: plateauStats.buildings },
     }),
     setWaterLevel: (v: number) => store.set({ waterLevel: v }),
-    setSurface: (v: 'baseline' | 'highres' | 'diff') => store.set({ surface: v }),
+    setSurface: (v: SurfaceMode) => store.set({ surface: v }),
     setExaggeration: (v: number) => store.set({ exaggeration: v }),
     setCamera: (id: string) => applyPreset(map, id as never),
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),

@@ -28,15 +28,33 @@
 | `control` | `dtm_control_500.tif` / `h_conn_control.tif` | **無い** |
 | `pointcloud` | `dtm_pointcloud_050.tif` / `h_conn_pointcloud.tif` | **無い** |
 
+> **A1〜A4 は完了した。** `scripts/50` / `scripts/80` / `scripts/83` を 4 条件に広げ、
+> viewer の地形切替を 6 択（4 条件 + 差分 2 組）にした。実配信で 6 モードすべての
+> 描画を確認済み（`web/perf/surfaces.mjs`）。以下は完了記録として残す。
+
 | # | 優先 | 内容 | 根拠 |
 |---|---|---|---|
-| A1 | **高** | **点群融合地形を viewer の地形条件に足す** | `scripts/80_build_web_tiles.py` の `CONDITIONS` が baseline / highres の 2 つだけで、`catalog.json` にも出ていない。**⑨ の EVLR まで直して 10 本すべてで出した点群の結果が、画面から一切見られない。** viewer に載っている点群は表示専用で、融合地形の浸水判定とはつながっていない |
-| A2 | **高** | **地物属性に点群条件を足す** | `scripts/50_join_semantics.py` が join しているのは baseline / highres のみ（`objects.geojson` の属性も同じ）。既往最高潮位 T.P.+0.93 m で **18 件の判定が変わる**ことは分かっているのに、**その 18 件を画面上で特定できない。** README の成功条件「浸水判定が変わる地点を地物IDつきで確認できること」を、点群条件については満たしていない |
-| A3 | **高** | **差分に「highres vs pointcloud」を足す** | 現在の差分タイルは `DIFF_SOURCES = (h_conn_baseline, h_conn_highres)` 固定。**点群が何を変えたかを見るための差分が無い。** 差分は h_conn を 2 チャンネルに詰めた専用ピラミッドなので、組を変えたもう 1 枚を焼けばよい |
-| A4 | 中 | `control` 地形を viewer に足す | `docs/DESIGN.md` §6 の「UI（最小）」に **`baseline / highres / control` の 3 つ**と明記されているが、実装は baseline / highres / diff になっている。データ源 10.5 % / 解像度 3.4 % という分解（`docs/RESULTS.md`）の根拠を、画面で確かめられない |
+| ~~A1~~ | **完了** | **点群融合地形を viewer の地形条件に足す** | `scripts/80_build_web_tiles.py` の `CONDITIONS` が baseline / highres の 2 つだけで、`catalog.json` にも出ていない。**⑨ の EVLR まで直して 10 本すべてで出した点群の結果が、画面から一切見られない。** viewer に載っている点群は表示専用で、融合地形の浸水判定とはつながっていない |
+| ~~A2~~ | **完了** | **地物属性に点群条件を足す** | `scripts/50_join_semantics.py` が join しているのは baseline / highres のみ（`objects.geojson` の属性も同じ）。既往最高潮位 T.P.+0.93 m で **18 件の判定が変わる**ことは分かっているのに、**その 18 件を画面上で特定できない。** README の成功条件「浸水判定が変わる地点を地物IDつきで確認できること」を、点群条件については満たしていない |
+| ~~A3~~ | **完了** | **差分に「highres vs pointcloud」を足す** | 現在の差分タイルは `DIFF_SOURCES = (h_conn_baseline, h_conn_highres)` 固定。**点群が何を変えたかを見るための差分が無い。** 差分は h_conn を 2 チャンネルに詰めた専用ピラミッドなので、組を変えたもう 1 枚を焼けばよい |
+| ~~A4~~ | **完了** | `control` 地形を viewer に足す | `docs/DESIGN.md` §6 の「UI（最小）」に **`baseline / highres / control` の 3 つ**と明記されているが、実装は baseline / highres / diff になっている。データ源 10.5 % / 解像度 3.4 % という分解（`docs/RESULTS.md`）の根拠を、画面で確かめられない |
 
-A1〜A3 はどれも「解析側の成果物は既にあり、配信物に載せていないだけ」である。
-新しい解析は要らない。
+A1〜A3 はどれも「解析側の成果物は既にあり、配信物に載せていないだけ」だった。
+新しい解析はしていない。
+
+**やったこと**
+- `scripts/80_build_web_tiles.py`: `CONDITIONS` を 4 条件に、差分を 2 組（`diff` / `diff_pc`）に
+- `scripts/50_join_semantics.py`: 4 条件すべてを地物に結合
+- `scripts/83_build_catalog.py`: `KEEP_PROPS` に 4 条件分を追加
+- `scripts/60_report.py`: 新条件のラベル
+- `web/src/domain/terrain.ts`（新規）: surface → 幾何タイル / 差分タイルの解決を
+  ドメイン側の純関数に切り出した。描画側に分岐を置くと、レンダラを差し替えるたびに書き写すことになる
+- `web/src/domain/types.ts`: `TerrainCondition` 4 つ、`SurfaceMode` 6 つ
+- `web/src/ui/controls.ts`: 6 択 + 選択中の条件の説明。差分の凡例を組ごとに出し分け
+- `web/src/ui/inspector.ts`: 4 条件を並べる。属性が無い条件は「—」
+
+**配信物の増分**: タイル 4.45 → 9.17 MB、`objects.geojson` 570 → 662 kB（デコード後）。
+既定は `highres` のままなので**初回転送は変わらない**。他の条件は選んだ時に初めて取る。
 
 ---
 
