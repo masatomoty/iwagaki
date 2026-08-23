@@ -36,6 +36,8 @@ const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_me
 const USEFUL_FRACTION = 0.5
 /** 実測で決めた常駐点数の上限（docs/WEB_RESULTS.md §6.2）。?maxpts= で上書きできる */
 const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 600_000
+/** LOD のバイト予算の上書き。計測専用（既定は帯域推定から決める） */
+const PC_MAX_BYTES = Number(new URLSearchParams(location.search).get('maxbytes')) || undefined
 
 /** 計測用のスイッチ。既定値を変えずに条件だけ切り替えられるようにする */
 const qs = new URLSearchParams(location.search)
@@ -343,8 +345,11 @@ async function boot() {
     const bw = scheduler.bandwidthBps || 2e6
     return {
       maxPoints: PC_MAX_POINTS,
-      // 帯域推定から毎回決める。遅い回線では自動的に浅い LOD で止まる
-      maxBytes: Math.max(2e6, Math.min(20e6, bw * 6)),
+      // 帯域推定から毎回決める。遅い回線では自動的に浅い LOD で止まる。
+      // ?maxbytes= で上書きできる。**キャンセル経路の検証に必要**で、
+      // 絞った回線ではこの予算が pcFine の発行そのものを止めてしまい、
+      // 「キャンセルすべき飛行中の要求」が作れない（docs/WEB_RESULTS.md §5）
+      maxBytes: PC_MAX_BYTES ?? Math.max(2e6, Math.min(20e6, bw * 6)),
       screenSpaceError: 2.0,
       coarseDepth: 1,
     }

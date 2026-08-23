@@ -140,7 +140,10 @@ if (SCENARIO === 'profiles') {
   // キャンセル経路の検証。これまでのカメラ操作（中心から 260px パン）では
   // 可視集合がほとんど変わらず、キャンセルが 1 件も出ていなかった。
   // 大きくズームアウト / 対角へ飛ぶ / すぐ引き返す、を読み込み中にぶつける。
-  for (const p of ['fast4g', 'fatpipe-highrtt']) {
+  // **normal を入れる。** 絞った回線では LOD 予算（maxBytes = 帯域 × 6）が
+  // 効いて pcCoarse 1 本で打ち止めになり、pcFine が 1 度も発行されない。
+  // 発行されないものはキャンセルできないので、点群経路の検証にならない。
+  for (const p of (opt('profiles', 'normal,fast4g,fatpipe-highrtt')).split(',')) {
     process.stdout.write(`measuring cancel ${p} ... `)
     const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: VIEWPORT })
     const page = await ctx.newPage()
@@ -148,10 +151,22 @@ if (SCENARIO === 'profiles') {
     await cdp.send('Network.enable')
     await cdp.send('Network.clearBrowserCache')
     await cdp.send('Network.emulateNetworkConditions', PROFILES[p])
-    await page.goto(`${BASE}/?pc=1`, { waitUntil: 'commit' })
+    // ?maxbytes= を渡せるようにする。絞った回線では LOD 予算が pcFine の
+    // 発行を止めてしまい、キャンセルすべき飛行中の要求が作れない
+    const mb = opt('maxbytes', '')
+    await page.goto(`${BASE}/?pc=1${mb ? `&maxbytes=${mb}` : ''}`, { waitUntil: 'commit' })
     await page.waitForFunction(
       () => globalThis.__iwagaki?.snapshot?.().milestones?.first_meaningful_render !== undefined,
       null, { timeout: 20_000 }).catch(() => {})
+    // **点群の index が揃うまで待つ。** ここを待たずにカメラを振ると、
+    // pcCoarse / pcFine がまだ 1 本も発行されていない状態でシナリオが終わり、
+    // キャンセルされるのは地形タイルだけになる（実測: terrainFine 36 件に対し点群 0 件）。
+    // 検証したいのは点群経路なので、要求が出ている状態を作ってから振る。
+    await page.waitForFunction(
+      () => globalThis.__iwagaki?.snapshot?.().milestones?.pc_index_loaded !== undefined,
+      null, { timeout: 60_000 }).catch(() => {})
+    // 細ノードの要求が飛ぶまでの猶予。飛ぶ前に振ると切る対象が無い
+    await page.waitForTimeout(1500)
 
     // 読み込みが走っている最中に、視野を大きく変える操作を連続で当てる。
     //
@@ -178,8 +193,13 @@ if (SCENARIO === 'profiles') {
         })
       }, m)
       // 発行はされたが完了はしていない、という間に次を当てたい。
-      // 完了まで待つとキャンセルの対象が残らない
-      await page.waitForTimeout(500)
+      //
+      // **滞在時間はキャンセルが出るかを直接決める。** 実測すると、
+      // 500 ms では絞りなしの回線で点群のノードが取り切れてしまい
+      // （pcFine 3 本 4.32 MB が完了、キャンセル 0 件）、
+      // 逆に絞った回線では LOD 予算が足りず pcFine が 1 本も出ない。
+      // 「発行されるだけの帯域があり、かつ飛行中である」窓を作るために短くする。
+      await page.waitForTimeout(Number(opt('dwell', '200')))
     }
     await page.waitForTimeout(4000)
     const snap = await page.evaluate(() => globalThis.__iwagaki.snapshot())

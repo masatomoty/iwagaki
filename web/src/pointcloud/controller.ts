@@ -113,7 +113,18 @@ export class PointCloudController {
     g: { begin: number; end: number; members: RangeMember<NodeRequest>[]; extraBytes: number },
   ) {
     const anyCoarse = g.members.some((m) => m.item.coarse)
-    const epochAtIssue = this.epoch
+    /**
+     * **Scheduler の epoch を渡す。コントローラ自身の `this.epoch` ではない。**
+     *
+     * `Scheduler.stale()` は `task.epoch < scheduler.epoch` で古さを判定する。
+     * ここに別のカウンタを渡すと比較が成立しない。実際、
+     * `main.ts` はカメラ移動のたびに `scheduler.setEpoch(+1)` してから
+     * `controller.update()` を呼ぶので、コントローラの epoch は常に
+     * Scheduler より 1 進んでいた。結果 `stale()` が恒真で false になり、
+     * **点群の要求は一度もキャンセルされなかった**（実測: 高 RTT 回線で
+     * pcFine が飛行中でもキャンセル 0 件）。
+     */
+    const epochAtIssue = this.o.scheduler.currentEpoch
     const byKey = new Map(g.members.map((m) => [m.item.key, m]))
     const decoding: Promise<void>[] = []
     try {
