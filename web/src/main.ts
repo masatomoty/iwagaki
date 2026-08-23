@@ -363,6 +363,8 @@ async function boot() {
 
   const sectionTool = new SectionTool({
     viewer,
+    // 地表は z = geoid + 標高 * 鉛直強調 に描かれる。0 で交えると 2 点目が外れる
+    planeZ: geoid,
     onLine: (a, b) => void buildSection(a, b),
     onState: ({ active, hasFirst }) => {
       // **作図中はパネルがクリックを飲まないようにする。**

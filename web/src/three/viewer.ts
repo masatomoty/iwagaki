@@ -169,14 +169,20 @@ export class Viewer {
   }
 
   /**
-   * 画面座標 [px] -> 地面 (z=0) の経緯度。MapLibre の `map.unproject()` 相当。
+   * 画面座標 [px] -> 経緯度。MapLibre の `map.unproject()` 相当。
    *
-   * 断面の測線（2 点クリック）と `perf/tileorient.mjs` の照合がこれを使う。
+   * **`planeZ` を渡すこと。既定の 0 は「描かれている地面」ではない。**
+   * 地表は `z = geoid(36.955 m) + 標高 * 鉛直強調` に描かれるので、z=0 平面と
+   * 交えると視線の仰角に応じて地上でずれる（実測: pitch 52° で 47 m、
+   * pitch 84° で 352 m）。断面の測線はこれで 2 点目が大きく外れていた。
+   *
+   * 既定を 0 のままにしてあるのは `perf/tileorient.mjs` のため。
+   * あちらは z=0 前提でずれを `parallax()` で自前に補正しているので、
+   * ここで既定を変えると二重補正になる。
+   *
    * **地平線より上を指した場合は null** を返す（交点が無限遠に飛ぶ）。
-   * 起伏は無視して z=0 平面と交える。旧 MapLibre も terrain を使っていない
-   * ので、移行前後で同じ点を指す。
    */
-  unproject(px: number, py: number): [number, number] | null {
+  unproject(px: number, py: number, planeZ = 0): [number, number] | null {
     const c = this.canvas
     const w = c.clientWidth || 1
     const h = c.clientHeight || 1
@@ -184,7 +190,7 @@ export class Viewer {
     const near = ndc.clone().unproject(this.camera)
     const dir = new Vector3(ndc.x, ndc.y, 1).unproject(this.camera).sub(near).normalize()
     if (Math.abs(dir.z) < 1e-9) return null
-    const t = -near.z / dir.z
+    const t = (planeZ - near.z) / dir.z
     if (t < 0) return null
     return worldToLngLat(this.frame, near.x + dir.x * t, near.y + dir.y * t)
   }

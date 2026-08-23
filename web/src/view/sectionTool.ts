@@ -1,7 +1,7 @@
 // 地図上で測線を引く操作。描画ライブラリに触るのはここだけにして、
 // 断面の計算（assets/terrainSampler.ts）と描画（ui/section.ts）から分離する。
 //
-// 画面座標 -> 経緯度は `Viewer.unproject`（地面 z=0 との交点）に任せる。
+// 画面座標 -> 経緯度は `Viewer.unproject` に任せる（平面の高さは planeZ で渡す）。
 // 旧実装は MapLibre の `map.on('click')` の `e.lngLat` で、これも terrain を
 // 使わない z=0 交点だったので、**同じ点を指す**。
 
@@ -11,6 +11,12 @@ export type LonLat = [number, number]
 
 export interface SectionToolOptions {
   viewer: Viewer
+  /**
+   * 測線を交える平面の高さ [m]。**ジオイド高を渡す。**
+   * 0 のままだと z=0 平面と交わり、俯瞰で 47 m・軸方向で 352 m ずれる。
+   * 市街の起伏 0〜3 m ぶんの残差（俯瞰で 4 m 弱）は無視する。
+   */
+  planeZ?: number
   /** 測線が確定した */
   onLine: (from: LonLat, to: LonLat) => void
   /** 作図中の状態が変わった（UI のボタン表示用） */
@@ -38,7 +44,7 @@ export class SectionTool {
       if (!this.active || !d) return
       if (Math.hypot(e.clientX - d[0], e.clientY - d[1]) > DRAG_SLOP) return
       const r = canvas.getBoundingClientRect()
-      const p = o.viewer.unproject(e.clientX - r.left, e.clientY - r.top)
+      const p = o.viewer.unproject(e.clientX - r.left, e.clientY - r.top, o.planeZ ?? 0)
       // 地平線より上をクリックした。測線の端点にできない
       if (!p) return
       if (!this.first) {

@@ -171,6 +171,69 @@ function buildOutline(frame: LocalFrame, features: RawFeature[], grounds: number
  * 角は辺ごとの矩形だけでは隙間が開くので、頂点に正方形を置いて埋める。
  * 描くときは `depthTest: false` で必ず手前に出す。
  */
+/**
+ * 当たり判定用のリング（ワールド XY）と AABB。
+ *
+ * **`Raycaster` でメッシュを撃ってはいけない。** 地物ポリゴンの
+ * `position.z` は 0 で、実際の高さは頂点シェーダが
+ * `z = geoid + aGround * exaggeration` で与えている。レイキャスタは CPU 側の
+ * ジオメトリしか見ないので z=0 の平面と交わり、**画面上でカーソルより
+ * 奥（上）の地物が当たる**（実測: pitch 52° で地上 47 m ≈ 79 px のずれ）。
+ *
+ * なので地物ごとに「その地物が描かれている高さの水平面」とレイを交え、
+ * ワールド XY で内外判定する。穴のあるポリゴンも扱えるよう even-odd で数える。
+ */
+interface PickShape {
+  /** リングごとの [x0,y0, x1,y1, ...] */
+  rings: Float32Array[]
+  minx: number; miny: number; maxx: number; maxy: number
+  ground: number
+}
+
+function buildPickShape(
+  frame: LocalFrame, feature: RawFeature, ground: number,
+): PickShape | undefined {
+  const polys: number[][][][] =
+    feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates as number[][][]]
+    : feature.geometry.type === 'MultiPolygon' ? (feature.geometry.coordinates as number[][][][])
+    : []
+  const rings: Float32Array[] = []
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity
+  for (const poly of polys) {
+    for (const ring of poly) {
+      const w = ringToWorld(frame, ring)
+      if (w.length < 3) continue
+      const a = new Float32Array(w.length * 2)
+      for (let i = 0; i < w.length; i++) {
+        a[i * 2] = w[i].x
+        a[i * 2 + 1] = w[i].y
+        if (w[i].x < minx) minx = w[i].x
+        if (w[i].x > maxx) maxx = w[i].x
+        if (w[i].y < miny) miny = w[i].y
+        if (w[i].y > maxy) maxy = w[i].y
+      }
+      rings.push(a)
+    }
+  }
+  return rings.length ? { rings, minx, miny, maxx, maxy, ground } : undefined
+}
+
+/** even-odd。穴（内側リング）を持つ footprint でも正しく外になる */
+function pointInShape(sh: PickShape, x: number, y: number): boolean {
+  let inside = false
+  for (const r of sh.rings) {
+    const n = r.length / 2
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = r[i * 2], yi = r[i * 2 + 1]
+      const xj = r[j * 2], yj = r[j * 2 + 1]
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+        inside = !inside
+      }
+    }
+  }
+  return inside
+}
+
 function buildOutlineBand(
   frame: LocalFrame, feature: RawFeature, ground: number, widthM: number,
 ): BufferGeometry {
@@ -250,6 +313,8 @@ export class SemanticsMesh {
   private style?: SemanticsStyle
   private highlight: SemanticsHighlight = {}
   private grounds: number[] = []
+  private pickShapes: (PickShape | undefined)[] = []
+  private exaggeration = 1
   /** 選択・ホバーの枠線。1 地物ぶんだけ作り直す（建物の箱より手前に描く） */
   private selLine: Mesh
   private hovLine: Mesh
@@ -265,6 +330,7 @@ export class SemanticsMesh {
     this.assertions.forEach((a, i) => { if (a?.gmlId) this.byGmlId.set(a.gmlId, i) })
     const grounds = this.assertions.map((a) => a?.groundElev.highres ?? 0)
     this.grounds = grounds
+    this.pickShapes = features.map((f, i) => buildPickShape(frame, f, grounds[i]))
     this.fill = buildFill(frame, features, grounds)
     this.outline = buildOutline(frame, features, grounds)
     // 地形メッシュと同じ高さに置くと z-fight する。少しだけ持ち上げる
@@ -292,6 +358,7 @@ export class SemanticsMesh {
   setVisible(v: boolean) { this.group.visible = v }
 
   setExaggeration(k: number) {
+    this.exaggeration = k
     this.fillMat.uniforms.uExaggeration.value = k
     this.lineMat.uniforms.uExaggeration.value = k
     this.selMat.uniforms.uExaggeration.value = k
@@ -409,19 +476,36 @@ export class SemanticsMesh {
 
   /**
    * 画面クリック -> 地物。deck.gl の pickable の置き換え。
+   *
+   * **メッシュへのレイキャストはしない。** 高さは頂点シェーダが与えていて
+   * CPU 側のジオメトリは z=0 なので、`Raycaster.intersectObject` は
+   * カーソルより奥（画面では上）の地物を返す。地物ごとに
+   * 「描かれている高さの水平面」とレイを交えて XY で内外判定する。
+   *
    * @param ndc 正規化デバイス座標 [-1,1]
    */
   pick(ndc: Vector2, camera: Parameters<Raycaster['setFromCamera']>[1]): FeatureAssertion | undefined {
     this.raycaster.setFromCamera(ndc, camera)
-    const hits = this.raycaster.intersectObject(this.fillMesh, false)
-    for (const h of hits) {
-      if (h.faceIndex === undefined || h.faceIndex === null) continue
-      const fi = this.fill.faceFeature[h.faceIndex]
-      if (fi === undefined || fi < 0) continue
-      if (this.hidden[fi]) continue
-      return this.assertions[fi]
+    const o = this.raycaster.ray.origin
+    const d = this.raycaster.ray.direction
+    if (Math.abs(d.z) < 1e-9) return undefined
+    let bestT = Infinity
+    let bestI = -1
+    for (let i = 0; i < this.pickShapes.length; i++) {
+      const sh = this.pickShapes[i]
+      if (!sh || this.hidden[i]) continue
+      // 塗りメッシュと同じ高さ（material の zBias 0.05 を含む）
+      const z = this.geoid + sh.ground * this.exaggeration + 0.05
+      const t = (z - o.z) / d.z
+      if (t <= 0 || t >= bestT) continue
+      const x = o.x + d.x * t
+      const y = o.y + d.y * t
+      if (x < sh.minx || x > sh.maxx || y < sh.miny || y > sh.maxy) continue
+      if (!pointInShape(sh, x, y)) continue
+      bestT = t
+      bestI = i
     }
-    return undefined
+    return bestI >= 0 ? this.assertions[bestI] : undefined
   }
 
   dispose() {
