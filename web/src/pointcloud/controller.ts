@@ -6,7 +6,7 @@ import { coalesce, type RangeMember } from '../net/coalesce'
 import type { Scheduler } from '../net/scheduler'
 import type { PerfRecorder } from '../perf/recorder'
 import { CopcIndex, schedulerGetter } from './copcIndex'
-import type { DeckPointCloudRenderer } from './deckRenderer'
+import type { PointCloudRenderer } from './renderer'
 import { DecodePool } from './decodePool'
 import { selectNodes } from './lod'
 import type { LodBudget, NodeRequest, ViewState } from './types'
@@ -15,7 +15,7 @@ export interface PcControllerOptions {
   url: string
   scheduler: Scheduler
   perf: PerfRecorder
-  renderer: DeckPointCloudRenderer
+  renderer: PointCloudRenderer
   origin6674: [number, number]
   matrix: [number, number, number, number]
   geoid: number

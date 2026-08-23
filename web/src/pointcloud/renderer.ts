@@ -14,5 +14,6 @@ export interface PointCloudRenderer {
   evict(keys: NodeKey[]): void
   setStyle(s: PointStyle): void
   stats(): { residentPoints: number; drawCalls: number; gpuBytes: number }
+  readonly residentKeys: NodeKey[]
   dispose(): void
 }

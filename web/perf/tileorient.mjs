@@ -5,11 +5,14 @@
 // 検出できない。ここでは画面を真上から撮り、各画素の lng/lat を map.unproject で
 // 取り出して、**焼いた PNG の同じ座標の (標高, h_conn)** と直接照合する。
 //
-//   使い方: node perf/tileorient.mjs      （既定 https://localhost:8443, zoom 17, H=1.0 m）
+//   使い方: node perf/tileorient.mjs      （既定 https://localhost:8443, zoom 18, H=1.0 m）
 //     BASE=  配信元   ZOOM=  画面の zoom   REF_Z=  参照に使うタイルの z
 //     WATER= 水位 H   TILES= 参照タイルの置き場   MARGIN= 判定が紙一重とみなす幅（m）
 //
-//   ZOOM は REF_Z - 1 にする（TileLayer は tileSize 256 なので zoom+1 の z を要求する）。
+//   **ZOOM は REF_Z と同じにする。** Viewer の zoom はタイル 1 枚 = 256 px 基準で、
+//   `Math.round(getZoom())` がそのまま要求する z になる（docs/WEB_DESIGN.md「ズームの規約」）。
+//   MapLibre + deck.gl 時代は画面 zoom が 512 px 基準で、tileSize 256 の TileLayer が
+//   zoom+1 の z を要求していたため ZOOM = REF_Z - 1 だった。**数字が 1 ずれる。**
 //   pitch 0 を前提にしている（視差の補正が中心対称であることを使っている）。
 import { existsSync } from 'node:fs'
 import path from 'node:path'
@@ -19,8 +22,8 @@ import sharp from 'sharp'
 const BASE = process.env.BASE ?? 'https://localhost:8443'
 const TILES = process.env.TILES ?? 'public/data/tiles/highres'
 const OUT = 'perf/shots'
-// zoom 17 だと TileLayer が要求するのは z18。参照と同じタイルで比べられる
-const ZOOM = Number(process.env.ZOOM ?? 17)
+// 256 px 基準なので、画面 zoom 18 で要求されるのも z18。参照と同じタイルで比べられる
+const ZOOM = Number(process.env.ZOOM ?? 18)
 const REF_Z = Number(process.env.REF_Z ?? 18)   // 参照に使うタイルの z（最も細かいもの）
 const STEP = 4                                  // 何画素ごとに照合するか
 const WATER = Number(process.env.WATER ?? 1.0)  // 水位 H（m, T.P.）
@@ -39,15 +42,15 @@ await p.waitForFunction(
 const setup = await p.evaluate(({ zoom, water }) => {
   const w = globalThis.__iwagaki
   for (const k of ['plateau', 'semantics', 'pcCoverage', 'pointcloud']) w.setLayer(k, false)
-  // パネルと MapLibre のギズモは地形を隠す。色で判定するので消しておく
-  for (const sel of ['#controls', '#inspector', '#perf', '.maplibregl-control-container']) {
+  // パネル・ビューキューブ・断面・出典バーは地形を隠す。色で判定するので消しておく
+  for (const sel of ['#controls', '#inspector', '#perf', '#section', '#viewcube', '#attrib']) {
     for (const el of document.querySelectorAll(sel)) el.style.display = 'none'
   }
   w.setSurface('highres')
   w.setWaterLevel(water)
   w.setExaggeration(1)
   const c = w.store.state.catalog.aoi.centre_wgs84
-  w.map.jumpTo({ center: c, zoom, pitch: 0, bearing: 0 })
+  w.viewer.jumpTo({ center: c, zoom, pitch: 0, bearing: 0 })
   return {
     waterLevel: w.store.state.waterLevel,
     hStep: w.store.state.catalog.packing.h_step,
@@ -58,29 +61,29 @@ const setup = await p.evaluate(({ zoom, water }) => {
 await p.waitForTimeout(6000)
 await p.screenshot({ path: `${OUT}/tileorient-screen.png` })
 
-// 画素 -> lng/lat は MapLibre 自身に聞く。投影を自前で書き直すと、
+// 画素 -> lng/lat は Viewer 自身に聞く。投影を自前で書き直すと、
 // 検証したい対象（座標の対応）を検証側でも間違えられる
 const { w: W, h: H, pts, cam } = await p.evaluate((step) => {
-  const map = globalThis.__iwagaki.map
-  const cv = map.getCanvas()
+  const v = globalThis.__iwagaki.viewer
+  const cv = v.canvas
   const w = cv.clientWidth, h = cv.clientHeight
   const pts = []
   for (let y = 0; y < h; y += step) {
     for (let x = 0; x < w; x += step) {
-      const ll = map.unproject([x, y])
-      pts.push(x, y, ll.lng, ll.lat)
+      const ll = v.unproject(x, y)
+      if (!ll) continue                 // 地平線より上（pitch 0 では起きない）
+      pts.push(x, y, ll[0], ll[1])
     }
   }
-  const c = map.getCenter()
+  const [clng, clat] = v.getCenterLngLat()
   return {
     w, h, pts,
-    // 視差の補正に使う（下記）。カメラは真上にある（pitch 0）
+    // 視差の補正に使う（下記）。カメラは真上にある（pitch 0）なので、
+    // 注視点からの距離がそのままカメラ高度になる
     cam: {
-      // 真上（pitch 0）のカメラ高度。transform は internal だが、
-      // 「z=0 平面の交点」を高さのある地表に直すには高度が要る
-      altitude: map.transform.getCameraAltitude(),
-      byDistance: map.transform.cameraToCenterDistance / map.transform.pixelsPerMeter,
-      lng: c.lng, lat: c.lat,
+      altitude: v.cameraState.distance * Math.cos((v.cameraState.pitch * Math.PI) / 180),
+      byDistance: v.cameraState.distance,
+      lng: clng, lat: clat,
     },
   }
 }, STEP)

@@ -14,8 +14,12 @@ const count = {}
 for (const z of zs.values()) count[z] = (count[z] ?? 0) + 1
 console.log('要求された地形タイルの z 分布:', JSON.stringify(count))
 const cam = await p.evaluate(() => {
-  const m = globalThis.__iwagaki.map
-  return { zoom: +m.getZoom().toFixed(2), pitch: m.getPitch(), bearing: m.getBearing() }
+  const v = globalThis.__iwagaki.viewer
+  // getZoom() は 256 px 基準（= 要求するタイルの z）。MapLibre 基準に直して出す
+  return {
+    zoom: +(v.getZoom() - 1).toFixed(2), zoom_tile: +v.getZoom().toFixed(2),
+    pitch: v.cameraState.pitch, bearing: v.cameraState.bearing,
+  }
 })
 console.log('カメラ:', JSON.stringify(cam))
 await b.close()

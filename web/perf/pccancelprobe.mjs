@@ -43,15 +43,16 @@ const snap = async (tag) => {
 }
 
 // 点群を深く要求させる
-await p.evaluate((c) => globalThis.__iwagaki.map.jumpTo(
-  { center: c, zoom: 18.4, pitch: 65, bearing: 0 }), PC_CENTER)
+// zoom は MapLibre 基準（タイル 512 px）で書く。Viewer は 256 px 基準なので +1
+await p.evaluate((c) => globalThis.__iwagaki.viewer.jumpTo(
+  { center: c, zoom: 18.4 + 1, pitch: 65, bearing: 0 }), PC_CENTER)
 await p.waitForTimeout(150); await snap('被覆中心 +150ms')
 
 // **被覆外へパンしても wanted は減らない。**
 // 点群の octree は 427 x 799 m しかなく、1 km の AOI 内をどう動いても
 // 視野から出ない。SSE を下げるにはズームアウトするしかない。
-await p.evaluate((c) => globalThis.__iwagaki.map.jumpTo(
-  { center: c, zoom: 12.5, pitch: 0, bearing: 0 }), AOI_SW)
+await p.evaluate((c) => globalThis.__iwagaki.viewer.jumpTo(
+  { center: c, zoom: 12.5 + 1, pitch: 0, bearing: 0 }), AOI_SW)
 await p.waitForTimeout(120); await snap('ズームアウト +120ms')
 await p.waitForTimeout(200); await snap('ズームアウト +320ms')
 await p.waitForTimeout(500); await snap('ズームアウト +820ms')

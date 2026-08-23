@@ -26,7 +26,16 @@ export function metresPerDegreeLon(latDeg: number): number {
   return 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p)
 }
 
-/** Web メルカトルの 1 CSS ピクセルあたりの距離 [m]（タイルサイズ 512 の maplibre 系） */
+/**
+ * Web メルカトルの 1 CSS ピクセルあたりの距離 [m]。**タイル 1 枚 = 256 px 基準。**
+ *
+ * 定数 156543.03392 = 2πR / 256 で、256 px タイルの式である。**ここに MapLibre の
+ * `map.getZoom()`（512 px 基準）を渡すと 2 倍の値が返る。** 旧実装はまさにそれで、
+ * `eyeInLocal` のカメラ距離が常に 2 倍になっていた。結果、既定の視点でも
+ * 点群 LOD は最粗のノード集合しか選ばず（実測 `wantedPoints` = 12,174 = 引き切ったときと同値）、
+ * 「近くは細かく」が既定視点で効いていなかった。three.js の `Viewer.getZoom()` は
+ * 256 px 基準なので、そのまま渡してよい（docs/WEB_DESIGN.md「ズームの規約」）。
+ */
 export function metresPerPixel(latDeg: number, zoom: number): number {
   return (156543.03392 * Math.cos((latDeg * Math.PI) / 180)) / 2 ** zoom
 }

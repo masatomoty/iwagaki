@@ -1,13 +1,16 @@
 // アプリの組み立て。ここが唯一「全部を知っている」場所。
-// 依存の向き: ui -> view -> pointcloud -> net -> assets -> domain（docs/WEB_DESIGN.md「層の分け方」）
+// 依存の向き: ui -> view/three -> pointcloud -> net -> assets -> domain
+// （docs/WEB_DESIGN.md「層の分け方」）
+//
+// 描画は three.js。MapLibre + deck.gl は外した（docs/WEB_RESULTS.md「初期チャンクの内訳」）。
+// net / domain / perf / state / pointcloud の index・LOD・decode は renderer に
+// 依存しない設計だったので、そのまま再利用している。
 
-import 'maplibre-gl/dist/maplibre-gl.css'
+import { Vector2 } from 'three'
 
-import { MapboxOverlay } from '@deck.gl/mapbox'
-import type { Layer } from '@deck.gl/core'
-
-import type { Catalog } from './domain/catalog'
+import { sampleLine } from './assets/terrainSampler'
 import { type CameraDescription, eyeInLocal, visibleBoxLocal } from './domain/camera'
+import type { Catalog } from './domain/catalog'
 import { resolveSurface } from './domain/terrain'
 import type { BuildingColorMode, FeatureAssertion, SurfaceMode,
               TerrainCondition } from './domain/types'
@@ -16,20 +19,21 @@ import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
 import type { LodBudget, ViewState } from './pointcloud/types'
 import { initialState, Store } from './state'
-import { createFloodTileLayer, FLOOD_MODE } from './view/floodTileLayer'
-import type { FloodMeshUniforms } from './view/floodMeshLayer'
-import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
-import { sampleLine, type SamplePoint } from './assets/terrainSampler'
-import { drawSection, type SectionSeries } from './ui/section'
-import { applyPreset, attachViewCube, bindCameraKeys, createMap,
-         showSectionLine } from './view/map'
-import { SectionTool, type LonLat } from './view/sectionTool'
-import { liftZ, toAssertion, type RawFeature } from './view/semantics'
-import type { createPcCoverageLayer as CreatePcCoverageLayer,
-              createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
+import { FLOOD_MODE } from './three/floodMaterial'
+import { createLocalFrame, worldToLngLat } from './three/mercator'
+import type { PlateauTiles } from './three/plateauTiles'
+import type { SemanticsMesh } from './three/semanticsMesh'
+import { TerrainTiles } from './three/terrainTiles'
+import { FOV_Y_DEG, type Viewer } from './three/viewer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
+import { drawSection, type SectionSeries } from './ui/section'
+import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
+import { applyPreset, attachViewCube, bindCameraKeys, createViewer, INITIAL_ZOOM,
+         showSectionLine } from './view/map'
+import { SectionTool, type LonLat } from './view/sectionTool'
+import { toAssertion, type RawFeature } from './view/semantics'
 
 const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_meaningful_render の対象）
 
@@ -53,6 +57,8 @@ const OPT = {
   coalesce: qs.get('coalesce') !== '0',
   // 点群は既定 OFF。?pc=1 で有効化
   pointcloud: qs.get('pc') === '1',
+  /** ?ortho=1 で正射投影から始める */
+  ortho: qs.get('ortho') === '1',
 }
 
 async function boot() {
@@ -74,35 +80,97 @@ async function boot() {
   const localOrigin = catalog.local_frame.origin_wgs84
   const [ox, oy] = catalog.local_frame.origin_epsg6674
   const matrix = catalog.local_frame.matrix_2x2_row_major as [number, number, number, number]
+  const frame = createLocalFrame(catalog.aoi.centre_wgs84)
 
-  const map = createMap(document.getElementById('map')!, catalog)
-  attachViewCube(map)
-  const overlay = new MapboxOverlay({ interleaved: true, layers: [] })
+  const viewer: Viewer = createViewer(document.getElementById('map')!, catalog)
+  // 旧実装（MapLibre zoom 15.6）と同じ景色にする。規約の違いは INITIAL_ZOOM を見ること
+  viewer.setZoom(Number(qs.get('z')) || INITIAL_ZOOM)
+  if (OPT.ortho) viewer.setProjection('orthographic')
+  attachViewCube(viewer)
 
-  // ---- 点群（遅延ロード。初回描画のバンドルに入れない）--------------------
-  let pcb: PcBundle | undefined
+  // 出典。**必ず出す。** MapLibre の AttributionControl が担っていた分で、
+  // PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めている
+  document.getElementById('attrib')!.textContent = catalog.attribution.join(' / ')
+
+  // ---- 地形 -------------------------------------------------------------
+  const extent = catalog.aoi.bbox_wgs84
+  let coarseDone = false
+  let fineDone = false
+
+  const floodUniforms = () => {
+    const s = store.state
+    return {
+      waterLevel: s.waterLevel,
+      hStep: catalog.packing.h_step,
+      mode: resolveSurface(catalog.terrain, s.surface)?.isDiff
+        ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
+      exaggeration: s.exaggeration,
+      geoid,
+      floodOpacity: 0.82,
+      groundOpacity: s.layers.ground ? 0.95 : 0,
+      showGround: s.layers.ground ? 1 : 0,
+    }
+  }
+
+  /** 地形条件が変わるとタイルの URL ごと変わるので、ピラミッドを作り直す */
+  let coarse: TerrainTiles | undefined
+  let fine: TerrainTiles | undefined
+  let builtSurface: string | undefined
+
+  function buildTerrain() {
+    const s = store.state
+    if (builtSurface === s.surface) return
+    builtSurface = s.surface
+    coarse?.dispose(); fine?.dispose()
+    if (coarse) viewer.world.remove(coarse.group)
+    if (fine) viewer.world.remove(fine.group)
+    coarse = fine = undefined
+    if (!s.layers.flood) return
+
+    // 差分モードでも地形メッシュは必要なので、元条件の標高タイルを土台に使い、
+    // 判定だけ差分タイル（2 条件の h_conn）から取る。
+    // どの条件を土台にするかは domain/terrain.ts が決める（描画側に分岐を置かない）
+    const resolved = resolveSurface(catalog.terrain, s.surface)
+    if (!resolved) return
+    const { geom: geomAsset, diffUrl } = resolved
+    const common = {
+      viewer, frame, scheduler, extent,
+      urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl,
+    }
+    coarse = new TerrainTiles({
+      ...common, cls: 'terrainCoarse', renderOrder: 0,
+      minZoom: geomAsset.min_zoom, maxZoom: COARSE_MAX_ZOOM,
+      onViewportLoad: () => {
+        if (coarseDone) return
+        coarseDone = true
+        // 1 フレーム描かれてから立てる。「読み終わった」ではなく「見えた」を測る
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          perf.mark('first_meaningful_render')
+          scheduler.openGate()
+          void ensurePlateau()
+          void startPointCloud()
+        }))
+      },
+    }, floodUniforms())
+    fine = new TerrainTiles({
+      ...common, cls: 'terrainFine', renderOrder: 1,
+      minZoom: COARSE_MAX_ZOOM + 1, maxZoom: geomAsset.max_zoom,
+      onViewportLoad: () => {
+        if (!fineDone) { fineDone = true; perf.mark('time_to_terrain') }
+        // 粗メッシュは FMR 用と割り切る。細が出たら隠す（メッシュ同士は z-fight する）
+        coarse?.setVisible(false)
+        perf.cameraSettled()
+      },
+    }, floodUniforms())
+    viewer.world.add(coarse.group, fine.group)
+    coarse.update(); fine.update()
+  }
 
   // ---- 地物 -------------------------------------------------------------
+  let semantics: SemanticsMesh | undefined
   let rawFeatures: RawFeature[] = []
-  let features: RawFeature[] = []
-  let makeSemantics: typeof CreateSemanticsLayer | undefined
-  let makePcCoverage: typeof CreatePcCoverageLayer | undefined
-  /** 診断用。tileset の内部状態を __iwagaki から見るために持つ */
-  let plateauTileset: unknown
-  let pcCoverageData: unknown
   const assertions = new Map<string, FeatureAssertion>()
-  let featureExaggeration = -1
-  /** 地物ポリゴンを地面の高さに載せる。鉛直強調を変えたら作り直す */
-  function rebuildFeatureGeometry() {
-    const k = store.state.exaggeration
-    if (k === featureExaggeration) return
-    featureExaggeration = k
-    features = rawFeatures.map((f) => {
-      const a = f.properties.__a as FeatureAssertion
-      const g = a?.groundElev.highres ?? 0
-      return { ...f, geometry: liftZ(f.geometry, geoid + g * k) }
-    })
-  }
+
   void (async () => {
     const b = await scheduler.submit({
       key: 'semantics', url: catalog.semantics.url, cls: 'semantics',
@@ -114,28 +182,85 @@ async function boot() {
       assertions.set(a.gmlId, a)
       ;(f.properties as Record<string, unknown>).__a = a
     }
-    rebuildFeatureGeometry()
     perf.mark('semantics_loaded')
-    // GeoJsonLayer もここで初めて読む
-    const mod = await import('./view/semanticsLayer')
-    makeSemantics = mod.createSemanticsLayer
-    makePcCoverage = mod.createPcCoverageLayer
+    // 三角形化とジオメトリ構築はここで初めて読む
+    const { SemanticsMesh: SM } = await import('./three/semanticsMesh')
     perf.mark('semantics_module_loaded')
+    semantics = new SM(frame, rawFeatures, geoid)
+    viewer.world.add(semantics.group)
     refresh()
     void loadPcCoverage()
   })()
 
+  // ---- PLATEAU ----------------------------------------------------------
+  let plateau: PlateauTiles | undefined
+  let plateauLoading = false
+  let plateauMode: BuildingColorMode | undefined
+  let plateauFailed = 0
+  let scheme: ColorScheme | undefined
+  function schemeFor(mode: BuildingColorMode): ColorScheme | undefined {
+    if (mode === 'none') return undefined
+    if (scheme?.mode !== mode) scheme = createColorScheme(catalog, mode)
+    return scheme
+  }
+  const plateauValues = new Map<string, string>()
+  let legendTimer: number | undefined
+
+  async function ensurePlateau() {
+    const asset = catalog.plateau.bldg_lod1
+    const mode = store.state.buildingColor
+    if (!asset || plateauLoading) return
+    if (plateau && plateauMode === mode) return
+    plateauLoading = true
+    try {
+      const { PlateauTiles } = await import('./three/plateauTiles')
+      const first = plateauMode === undefined
+      if (first) perf.mark('plateau_module_loaded')
+      plateauMode = mode
+      if (plateau) { viewer.world.remove(plateau.group); plateau.dispose() }
+      plateauValues.clear()
+      plateau = new PlateauTiles({
+        url: asset.url, scheduler, viewer, frame, geoid,
+        scheme: schemeFor(mode),
+        onValues: (vals) => {
+          for (const [id, v] of vals) plateauValues.set(id, v)
+          // 凡例の件数はタイルが届くたびに増える。タイル 1 枚ごとに
+          // 再描画すると 22 回作り直すことになるので束ねる
+          if (vals.length && legendTimer === undefined) {
+            legendTimer = window.setTimeout(() => { legendTimer = undefined; refresh() }, 250)
+          }
+        },
+        // 塗り替えでは測り直さない。time_to_plateau は初回描画の指標
+        onLoaded: () => { if (first) perf.mark('time_to_plateau') },
+        onError: (t, e) => { plateauFailed++; console.warn('b3dm failed', t, e) },
+      })
+      viewer.world.add(plateau.group)
+      await plateau.open()
+      plateau.update()
+    } catch (e) {
+      console.warn('plateau unavailable', e)
+    } finally {
+      plateauLoading = false
+    }
+    refresh()
+  }
+
+  // ---- 点群が効いている範囲の輪郭 ----------------------------------------
   /**
-   * 点群の被覆輪郭（118 kB）。**クラスは prefetch** で、
-   * 何かを待たせることが無いようにする。無くても地図は成立し、
-   * 有ると「点群がどこに効いているか」が分かる、という性質の情報。
+   * 点群の被覆輪郭（118 kB）。**クラスは prefetch** で、何かを待たせることが無いようにする。
+   * 無くても地図は成立し、有ると「点群がどこに効いているか」が分かる、という性質の情報。
+   * AOI 100 ha に対し点群は 3.17 ha しかない（docs/RESULTS.md）。
    */
+  let coverage: import('three').LineSegments | undefined
   async function loadPcCoverage() {
     const a = catalog.pointcloud_coverage
-    if (!a?.url || pcCoverageData) return
+    if (!a?.url || coverage) return
     try {
       const b = await scheduler.submit({ key: 'pc-coverage', url: a.url, cls: 'prefetch' })
-      pcCoverageData = JSON.parse(new TextDecoder().decode(b))
+      const data = JSON.parse(new TextDecoder().decode(b))
+      const { createCoverageOutline } = await import('./three/semanticsMesh')
+      coverage = createCoverageOutline(frame, data, geoid)
+      viewer.world.add(coverage)
       refresh()
     } catch {
       // 表示の補助なので、取れなくても地図は動かす
@@ -170,7 +295,7 @@ async function boot() {
 
   async function buildSection(from: LonLat, to: LonLat) {
     secLine = [from, to]
-    showSectionLine(map, from, to)
+    showSectionLine(viewer, from, to)
     secEl.style.display = 'block'
     secNote.textContent = '読み込み中…'
     const zoom = catalog.terrain.highres?.max_zoom ?? 18
@@ -206,9 +331,14 @@ async function boot() {
   }
 
   const sectionTool = new SectionTool({
-    map,
+    viewer,
     onLine: (a, b) => void buildSection(a, b),
     onState: ({ active, hasFirst }) => {
+      // **作図中はパネルがクリックを飲まないようにする。**
+      // 既定の断面を出すようにしてから、断面パネルが画面の下半分を覆っている。
+      // 測線の 2 点目がそこに来ると `elementFromPoint` がパネルを返し、
+      // canvas に届かない（実測で 2 点目が無視されていた）
+      secEl.style.pointerEvents = active ? 'none' : ''
       const btn = document.getElementById('secbtn')
       if (btn) {
         btn.textContent = active ? (hasFirst ? '2 点目をクリック' : '1 点目をクリック') : '測線を引く'
@@ -228,213 +358,12 @@ async function boot() {
   })
   window.addEventListener('resize', redrawSection)
 
-  // ---- 描画ループ -------------------------------------------------------
-  const extent = catalog.aoi.bbox_wgs84
-  let coarseDone = false
-  let fineDone = false
-
-  type MeshUniforms = Omit<FloodMeshUniforms, 'bounds' | 'metersPerTexel' | 'hasDiff'>
-  const floodProps = (): MeshUniforms => {
-    const s = store.state
-    return {
-      waterLevel: s.waterLevel,
-      hStep: catalog.packing.h_step,
-      mode: resolveSurface(catalog.terrain, s.surface)?.isDiff
-        ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
-      exaggeration: s.exaggeration,
-      geoid,
-      floodOpacity: 0.82,
-      groundOpacity: s.layers.ground ? 0.95 : 0,
-      showGround: s.layers.ground ? 1 : 0,
-    }
-  }
-
+  // ---- 点群 --------------------------------------------------------------
+  let pcb: PcBundle | undefined
   /**
-   * そのタイルがいまも視野に必要か。scheduler のキャンセル判定に渡す。
-   * これが無いと「epoch が古い」だけでは切らない規則（§4.5）に引っかかって
-   * 地形タイルは一度もキャンセルされない。
-   */
-  function isTileNeeded(z: number, x: number, y: number): boolean {
-    const zc = Math.floor(map.getZoom())
-    if (z < zc - 2 || z > zc + 1) return false
-    const b = map.getBounds()
-    const n = 2 ** z
-    const west = (x / n) * 360 - 180
-    const east = ((x + 1) / n) * 360 - 180
-    const lat = (yy: number) => {
-      const t = Math.PI - (2 * Math.PI * yy) / n
-      return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t)))
-    }
-    const north = lat(y)
-    const south = lat(y + 1)
-    return !(east < b.getWest() || west > b.getEast() ||
-             north < b.getSouth() || south > b.getNorth())
-  }
-
-  function terrainLayers() {
-    const s = store.state
-    if (!s.layers.flood) return []
-    // 差分モードでも地形メッシュは必要なので、元条件の標高タイルを土台に使い、
-    // 判定だけ差分タイル（2 条件の h_conn）から取る。
-    // どの条件を土台にするかは domain/terrain.ts が決める（描画側に分岐を置かない）
-    const resolved = resolveSurface(catalog.terrain, s.surface)
-    if (!resolved) return []
-    const { geom: geomAsset, diffUrl } = resolved
-    const common = {
-      urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl, extent, scheduler,
-      uniforms: floodProps(), opacity: 1, isTileNeeded,
-    }
-    const asset = geomAsset
-    return [
-      createFloodTileLayer({
-        ...common,
-        id: `flood-coarse-${s.surface}`,
-        // 板なら重ねて描けたが、メッシュ同士だと z-fight する。
-        // 粗メッシュは first_meaningful_render 用と割り切り、細が出たら隠す
-        visible: !fineDone,
-        minZoom: asset.min_zoom, maxZoom: COARSE_MAX_ZOOM,
-        cls: 'terrainCoarse',
-        onViewportLoad: () => {
-          if (coarseDone) return
-          coarseDone = true
-          // 1 フレーム描かれてから立てる。「読み終わった」ではなく「見えた」を測る
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            perf.mark('first_meaningful_render')
-            scheduler.openGate()
-            // 重い module は初回描画のあとで初めて読む
-            void ensurePlateau()
-            void startPointCloud()
-          }))
-        },
-      }),
-      createFloodTileLayer({
-        ...common,
-        id: `flood-fine-${s.surface}`,
-        visible: true,
-        minZoom: COARSE_MAX_ZOOM + 1, maxZoom: asset.max_zoom,
-        cls: 'terrainFine',
-        onViewportLoad: () => {
-          if (!fineDone) { fineDone = true; perf.mark('time_to_terrain'); refresh() }
-          perf.cameraSettled()
-        },
-      }),
-    ]
-  }
-
-  let plateauFailed = 0
-  let plateauLayer: Layer | undefined
-  let plateauLoading = false
-  let plateauMode: BuildingColorMode | undefined
-  let plateauStats = { tiles: 0, primitives: 0, coloured: 0, buildings: 0 }
-
-  /** 属性 -> 色。モードごとに 1 回だけ組む */
-  let scheme: ColorScheme | undefined
-  function schemeFor(mode: BuildingColorMode): ColorScheme | undefined {
-    if (mode === 'none') return undefined
-    if (scheme?.mode !== mode) scheme = createColorScheme(catalog, mode)
-    return scheme
-  }
-  /** 描かれた建物の gml_id -> 属性値。凡例の件数はここから数える */
-  const plateauValues = new Map<string, string>()
-  let legendTimer: number | undefined
-
-  /**
-   * 色は b3dm の glTF に焼き込む（属性ごとに primitive を分ける）ので、
-   * 塗り分けを変えたらレイヤを作り直す。b3dm は Scheduler の LRU に載っているため
-   * 切り替えでネットワークは基本発生しない。
-   */
-  async function ensurePlateau() {
-    const asset = catalog.plateau.bldg_lod1
-    const mode = store.state.buildingColor
-    if (!asset || plateauLoading || (plateauLayer && plateauMode === mode)) return
-    plateauLoading = true
-    try {
-      const { createPlateauLayer } = await import('./view/plateau')
-      const first = plateauMode === undefined
-      plateauMode = mode
-      plateauStats = { tiles: 0, primitives: 0, coloured: 0, buildings: 0 }
-      plateauValues.clear()
-      plateauLayer = createPlateauLayer({
-        id: `plateau-bldg-${mode}`,
-        url: asset.url,
-        scheduler,
-        scheme: schemeFor(mode),
-        onTileLoad: (r) => {
-          plateauStats.tiles++
-          plateauStats.primitives += r.primitives
-          plateauStats.coloured += r.coloured
-          plateauStats.buildings += r.buildings
-          // 同じ建物が複数タイルに出てくるので gml_id で潰す
-          for (const [id, v] of r.values) plateauValues.set(id, v)
-          // 凡例の件数はタイルが届くたびに増える。タイル 1 枚ごとに
-          // 再描画すると 22 回作り直すことになるので束ねる
-          if (r.values.length && legendTimer === undefined) {
-            legendTimer = window.setTimeout(() => { legendTimer = undefined; refresh() }, 250)
-          }
-        },
-        // 塗り替えでは測り直さない。time_to_plateau は初回描画の指標
-        onViewportLoaded: () => { if (first) perf.mark('time_to_plateau') },
-        onTileError: (t, e) => { plateauFailed++; console.warn('b3dm failed', t, e) },
-        onTileset: (ts) => { plateauTileset = ts },
-      })
-      if (first) perf.mark('plateau_module_loaded')
-    } finally {
-      plateauLoading = false
-    }
-    refresh()
-  }
-  function plateauLayers() {
-    if (!plateauLayer) return []
-    // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない。
-    // レイヤ自体は外さず visible で切る（外して戻すと deck.gl が assertion で落ちる）
-    const show = store.state.layers.plateau && store.state.exaggeration === 1
-    return [plateauLayer.clone({ visible: show })]
-  }
-
-  function pcCoverageLayer() {
-    if (!store.state.layers.pcCoverage || !pcCoverageData || !makePcCoverage) return []
-    return [makePcCoverage(pcCoverageData)]
-  }
-
-  function semanticsLayer() {
-    const s = store.state
-    if (!s.layers.semantics || features.length === 0 || !makeSemantics) return []
-    return [makeSemantics({
-      features,
-      waterLevel: s.waterLevel,
-      // 地物の色は「いま見ている条件」で塗る。差分モードでは土台にした条件を使う
-      condition: resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
-      roadThresholds: catalog.semantics.road_depth_classes_m,
-      changedOnly: s.layers.changedOnly,
-      onClick: (a) => store.set({ selected: a }),
-    })]
-  }
-
-  function refresh() {
-    rebuildFeatureGeometry()
-    overlay.setProps({
-      layers: [
-        ...terrainLayers(),
-        ...pcCoverageLayer(),
-        ...semanticsLayer(),
-        ...plateauLayers(),
-        ...(pcb ? pcb.renderer.layers(store.state.layers.pointcloud,
-              store.state.exaggeration, geoid) : []),
-      ],
-    })
-    redrawSection()
-    const sch = schemeFor(store.state.buildingColor)
-    renderControls(document.getElementById('controls')!, store, catalog,
-      sch ? legendOf(plateauValues, sch) : [])
-    renderInspector(document.getElementById('inspector')!, store, catalog)
-  }
-
-  // ---- 点群の起動とカメラ連動 -------------------------------------------
-  /**
-   * LOD 予算。当初 maxPoints を 3,000,000 と根拠なく置いていたが、実測すると
-   * deck.gl PointCloudLayer の描画コストは点数にほぼ線形で約 23 ns/点/frame。
-   * 300 万点ではドラッグ中 68 ms/frame（15 fps）になる。
-   * 60 fps を保てる上限として 60 万点に置く（docs/WEB_RESULTS.md「点群の配信」）。
+   * LOD 予算。点数にほぼ線形な描画コスト（deck.gl PointCloudLayer で約 23 ns/点/frame）
+   * から、60 fps を保てる上限として 60 万点に置いた（docs/WEB_RESULTS.md「点群の配信」）。
+   * three.js の Points に替えた影響は再計測が要る（docs/TODO.md）。
    */
   const budget = (): LodBudget => {
     const bw = scheduler.bandwidthBps || 2e6
@@ -450,38 +379,34 @@ async function boot() {
     }
   }
   /**
-   * 地図のカメラを LOD が使える形（ローカル メートル）に直す。
+   * カメラを LOD が使える形（ローカル ENU メートル）に直す。
    *
-   * 旧実装は `eye: [0, 0, cameraToCenterDistance / 8]` で、
-   * **水平成分を AOI 中心の真上に固定**していた。しかも
-   * `cameraToCenterDistance` はキャンバス高さと fov だけで決まり
-   * **ズームに依存しない**ので、視点は事実上の定数だった。
-   * 実測で zoom 18.4 と 12.5 の `wantedPoints` が完全に一致し、
-   * LOD が働いていないことが分かった（docs/WEB_RESULTS.md「キャンセル」）。
    * 換算そのものは `domain/camera.ts` に置いてある（レンダラに依らないため）。
+   * **旧実装は `eye: [0, 0, cameraToCenterDistance / 8]` で視点が定数**になっており、
+   * LOD が働いていなかった（docs/WEB_RESULTS.md「キャンセル」）。three.js 移行時に
+   * その定数版へ戻っていたので、`domain/camera.ts` 経由に直してある。
    */
   const viewState = (): ViewState => {
-    const c = map.getCenter()
-    const px = ((map as unknown as { transform?: { cameraToCenterDistance?: number } })
-      .transform?.cameraToCenterDistance) ?? 1000
+    const cs = viewer.cameraState
+    const centre = worldToLngLat(frame, cs.target[0], cs.target[1])
     const cam: CameraDescription = {
-      centre: [c.lng, c.lat],
-      zoom: map.getZoom(),
-      pitchDeg: map.getPitch(),
-      bearingDeg: map.getBearing(),
-      viewportHeight: map.getCanvas().clientHeight,
-      fovY: (Math.PI / 180) * 36.87,
-      cameraToCentrePx: px,
+      centre,
+      zoom: viewer.getZoom(),
+      pitchDeg: cs.pitch,
+      bearingDeg: cs.bearing,
+      viewportHeight: viewer.canvas.clientHeight,
+      fovY: (Math.PI / 180) * FOV_Y_DEG,
+      // domain/camera は「px 距離 x metresPerPixel」でメートルに直す。
+      // three 側は距離をメートルで持っているので、px に戻して渡す
+      cameraToCentrePx: cs.distance / viewer.metresPerPixel(),
     }
-    const b = map.getBounds()
     return {
       eye: eyeInLocal(cam, localOrigin),
       viewportHeight: cam.viewportHeight,
       fovY: cam.fovY,
       // 余白を少し取る。傾けた視野の外接矩形なので厳密ではないが、
       // 落としすぎるより広めに残すほうが安全
-      visible: visibleBoxLocal(
-        [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], localOrigin, 50),
+      visible: visibleBoxLocal(viewer.getBoundsLngLat(), localOrigin, 50),
     }
   }
 
@@ -499,8 +424,9 @@ async function boot() {
         matrix, geoid,
         coalesceGap: OPT.coalesce ? 64 * 1024 : 0,
         usefulFraction: USEFUL_FRACTION,
-        onChange: () => refresh(),
+        onChange: () => { viewer.invalidate(); refresh() },
       })
+      viewer.world.add(pcb.renderer.group)
       await pcb.controller.open()
       await pcb.controller.update(viewState(), budget())
       refresh()
@@ -509,14 +435,53 @@ async function boot() {
     }
   }
 
-  // カメラは 60ms デバウンス。毎フレーム epoch を進めるとキャンセル暴走する（§4.5）
+  // ---- 状態の反映 --------------------------------------------------------
+  function refresh() {
+    const s = store.state
+    buildTerrain()
+    const u = floodUniforms()
+    coarse?.setUniforms(u)
+    fine?.setUniforms(u)
+    coarse?.setVisible(s.layers.flood && !fineDone)
+    fine?.setVisible(s.layers.flood)
+
+    if (semantics) {
+      semantics.setVisible(s.layers.semantics && rawFeatures.length > 0)
+      semantics.setExaggeration(s.exaggeration)
+      semantics.setStyle({
+        waterLevel: s.waterLevel,
+        // 地物の色は「いま見ている条件」で塗る。差分モードでは土台にした条件を使う
+        condition: resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
+        roadThresholds: catalog.semantics.road_depth_classes_m,
+        changedOnly: s.layers.changedOnly,
+      })
+    }
+    // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない
+    if (coverage) coverage.visible = s.layers.pcCoverage
+    plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
+    pcb?.renderer.setVisible(s.layers.pointcloud)
+    pcb?.renderer.setExaggeration(s.exaggeration, geoid)
+
+    redrawSection()
+    const sch = schemeFor(s.buildingColor)
+    renderControls(document.getElementById('controls')!, store, catalog,
+      sch ? legendOf(plateauValues, sch) : [])
+    renderInspector(document.getElementById('inspector')!, store, catalog)
+    viewer.invalidate()
+  }
+
+  // ---- カメラ連動 --------------------------------------------------------
+  // カメラは 60ms デバウンス。毎フレーム epoch を進めるとキャンセル暴走する
+  // （docs/WEB_DESIGN.md「キャンセルの規則」）
   let moveTimer: number | undefined
-  map.on('movestart', () => perf.cameraMoveStart())
-  map.on('move', () => {
+  viewer.on('movestart', () => perf.cameraMoveStart())
+  viewer.on('move', () => {
     window.clearTimeout(moveTimer)
     moveTimer = window.setTimeout(() => {
       scheduler.setEpoch(scheduler.currentEpoch + 1)
-      // 地形は `isTileNeeded` が map を直接見るので、この時点で判定できる
+      coarse?.update()
+      fine?.update()
+      plateau?.update()
       scheduler.reap()
       if (pcb?.controller.ready && store.state.layers.pointcloud) {
         // **点群は update() の後にもう一度 reap する。**
@@ -530,26 +495,39 @@ async function boot() {
     }, 60)
   })
 
-  bindCameraKeys(map, (d) => {
+  bindCameraKeys(viewer, (d) => {
     const i = EXAGGERATIONS.indexOf(store.state.exaggeration as never)
     const next = EXAGGERATIONS[Math.min(EXAGGERATIONS.length - 1, Math.max(0, i + d))]
     store.set({ exaggeration: next })
+  }, () => refresh())
+
+  // 地物のクリック選択（deck.gl の pickable の置き換え）。
+  // 断面の作図中は測線の端点を取りに来ているので、選択には使わない
+  viewer.canvas.addEventListener('click', (e) => {
+    if (!semantics || !store.state.layers.semantics || sectionTool.isActive) return
+    const r = viewer.canvas.getBoundingClientRect()
+    const ndc = new Vector2(
+      ((e.clientX - r.left) / r.width) * 2 - 1,
+      -((e.clientY - r.top) / r.height) * 2 + 1,
+    )
+    store.set({ selected: semantics.pick(ndc, viewer.camera) })
   })
 
-  map.on('load', () => {
-    map.addControl(overlay as unknown as Parameters<typeof map.addControl>[0])
-    refresh()
-  })
   store.subscribe((s) => {
     if (s.layers.pointcloud && !pcStarted) void startPointCloud()
     if (s.layers.plateau) void ensurePlateau()
     refresh()
   })
 
+  buildTerrain()
+  refresh()
+
+  // ---- 計測パネル --------------------------------------------------------
   // PerfRecorder は常時走らせるが、パネルは既定で隠す。内訳を読むのは開発者だけで、
-  // 浸水を見に来た人には要らない。?perf=1 か P キーで出す（docs/WEB_DESIGN.md「FPS は指標にしない」）
+  // 浸水を見に来た人には要らない。?perf=1 か P キーで出す
+  // （docs/WEB_DESIGN.md「FPS は指標にしない」）
   const perfEl = document.getElementById('perf')!
-  let perfVisible = new URLSearchParams(location.search).get('perf') === '1'
+  let perfVisible = qs.get('perf') === '1'
   const drawPerf = () => {
     if (!perfVisible) return
     renderPerf(perfEl, perf, scheduler, pcb?.controller, store)
@@ -571,24 +549,28 @@ async function boot() {
 
   // 計測ハーネスからの取り出し口
   ;(window as unknown as Record<string, unknown>).__iwagaki = {
-    perf, scheduler, store, map, overlay,
+    perf, scheduler, store, viewer,
     get pc() { return pcb?.controller },
-    plateauTileset: () => plateauTileset,
     get section() { return secSeries },
     snapshot: () => ({
       ...perf.snapshot(),
       pointcloud: pcb?.controller.stats() ?? null,
-      plateau: { loaded: plateauStats.tiles, failed: plateauFailed,
-                 expected: catalog.plateau.bldg_lod1?.b3dm_count ?? 0,
-                 // 属性色は primitive 分割で入れているので draw call が増える。実測用
-                 colorMode: plateauMode ?? 'none',
-                 primitives: plateauStats.primitives,
-                 coloured: plateauStats.coloured, buildings: plateauStats.buildings },
+      plateau: {
+        loaded: plateau?.stats().tiles ?? 0, failed: plateauFailed,
+        expected: catalog.plateau.bldg_lod1?.b3dm_count ?? 0,
+        // 属性色は primitive 分割で入れているので draw call が増える。実測用
+        colorMode: plateauMode ?? 'none',
+        primitives: plateau?.stats().primitives ?? 0,
+        coloured: plateau?.stats().coloured ?? 0,
+        buildings: plateau?.stats().buildings ?? 0,
+      },
+      projection: viewer.projectionMode,
     }),
     setWaterLevel: (v: number) => store.set({ waterLevel: v }),
     setSurface: (v: SurfaceMode) => store.set({ surface: v }),
     setExaggeration: (v: number) => store.set({ exaggeration: v }),
-    setCamera: (id: string) => applyPreset(map, id as never),
+    setCamera: (id: string) => applyPreset(viewer, id as never),
+    setProjection: (m: 'perspective' | 'orthographic') => { viewer.setProjection(m); refresh() },
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),
     setBuildingColor: (v: BuildingColorMode) => store.set({ buildingColor: v }),
     setPerfVisible,

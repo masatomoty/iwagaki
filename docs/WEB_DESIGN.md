@@ -17,7 +17,9 @@
 ```
 ui/          controls / inspector / section / perf panel
    ↓
-view/        MapLibre + deck.gl overlay、レイヤ実装、ビューキューブ
+view/        カメラのプリセット、ビューキューブ、測線
+   ↓
+three/       Viewer（カメラ・投影・描画ループ）、地形 / PLATEAU / 地物 / 点群のメッシュ
    ↓
 pointcloud/  index / lod / decode / renderer   （view から差し替えられる）
    ↓
@@ -32,7 +34,7 @@ domain/      AOI・CRS・水位・地形条件・地物 assertion、wet(H) / dep
 
 | ルール | 理由 |
 |---|---|
-| `domain/` は maplibre-gl / deck.gl / @loaders.gl を **import しない** | ドメインモデルを描画ライブラリの API に縛らない。node でそのままテストできる |
+| `domain/` は three / @loaders.gl を **import しない** | ドメインモデルを描画ライブラリの API に縛らない。node でそのままテストできる |
 | `net/` は描画を知らない。渡るのは URL・Range・優先度だけ | 取得の制御をレンダラの内部に埋めない |
 | レンダラは `fetch` を直接呼ばない。**必要なものを宣言**して結果を受け取る | 3D Tiles も COPC も地形タイルも同じ scheduler を通す |
 | `pointcloud/` の 4 要素（index / LOD / decode / render）は個別に差し替えられる | レンダラを替えても他の 3 つを再利用する |
@@ -90,26 +92,40 @@ PLATEAU 3D Tiles は**楕円体高**、解析はすべて**標高 T.P.**。
 
 ---
 
-## 地図と描画の分担
+## 描画層を自前で持つ
 
-| | MapLibre GL JS | deck.gl（`MapboxOverlay`, interleaved） |
-|---|---|---|
-| カメラ・投影 | **所有**。`Map` が単一の出所 | 追従のみ |
-| 地形・浸水・差分 | — | **所有**（`FloodTileLayer` → `FloodMeshLayer`） |
-| PLATEAU 建物 | — | **所有**（`Tile3DLayer`） |
-| 地物ポリゴン・点群被覆 | — | **所有**（`GeoJsonLayer`、picking も） |
-| 点群 | — | **所有**（`PointCloudLayer`） |
+描画は three.js だけで組む。**ベースマップは 1 枚も描かない**（背景は単色）ので、
+地図ライブラリが要る理由が「カメラ・投影・操作・ギズモ」の 4 つしか無かった。
 
-ベースマップは持たない。MapLibre のスタイルは背景色 1 レイヤだけで、
-使っているのはカメラ・投影・attribution である。
+| | 実体 |
+|---|---|
+| カメラ・投影・操作・描画ループ | `three/viewer.ts`（`Viewer`）。透視と正射を持つ |
+| 地形・浸水・差分 | `three/terrainTiles.ts` + `three/floodMaterial.ts` |
+| PLATEAU 建物 | `three/plateauTiles.ts`（b3dm のパースは `@loaders.gl/3d-tiles`） |
+| 地物ポリゴン・点群被覆 | `three/semanticsMesh.ts`（picking も） |
+| 点群 | `three/pointsRenderer.ts`（`Points` 1 つ / ノード） |
 
-### MapLibre の 3D terrain は使わない **[既知]**
+前身は MapLibre GL JS + deck.gl（`MapboxOverlay`, interleaved）だった。
+外した理由は 1 つで、**初期チャンクの約 1/3 が MapLibre だったから**である
+（`docs/WEB_RESULTS.md`「初期チャンクの内訳」）。細い回線で効くのはここしかない。
+判断の経緯は `docs/adr/2026-08-23-three-js.md`。
 
-deck.gl 公式が「terrain 使用時、deck.gl 側の z=0 のデータは海面に描かれ、
-地形面に揃わない」と明記している。`map.setTerrain()` を有効にすると
-浸水ラスタ・地物・建物がすべてズレる。
+### ズームの規約 **[実測]**
 
-**地形は deck.gl 側の自前メッシュで立てる。** 起伏を出す責務をこの層に閉じ込める。
+`Viewer.getZoom()` / `setZoom()` は **タイル 1 枚 = 256 px 基準**。
+`Math.round(getZoom())` がそのまま要求するタイルの z になるように選んである。
+
+**MapLibre の `getZoom()` は 512 px 基準で、同じ景色でも値が 1 小さい。**
+移行直後にこれを取り違えていて、`INITIAL_ZOOM` に MapLibre の 15.6 をそのまま
+渡していた。実測で m/px が 1.282 対 2.567（ちょうど 2 倍）、可視範囲が 4 倍、
+要求するタイルが z17 25 枚から z16 9 枚と 1 段粗くなっていた。
+**画面は「それらしく」出るので見て気づけない。** 数字が 1 ずれる箇所:
+
+| 場所 | 基準 |
+|---|---|
+| `Viewer.getZoom()` / `setZoom()` / `jumpTo({zoom})` | 256 px（= 要求する z） |
+| `domain/camera.ts` の `metresPerPixel(lat, zoom)` | 256 px |
+| `docs/WEB_RESULTS.md` と `perf/*.mjs` に書いてある zoom 値 | **512 px（MapLibre 時代のまま）**。渡すときに +1 する |
 
 ### 操作系
 
@@ -119,19 +135,31 @@ deck.gl 公式が「terrain 使用時、deck.gl 側の z=0 のデータは海面
   細い回線で効くのは初期チャンクのサイズだけ（`docs/WEB_RESULTS.md`）なので、
   ギズモのために描画ライブラリをもう 1 つ載せるのは筋が悪い。
   カメラの向きを受け取って向きを返すだけなので、メインのレンダラに依存しない
-- MapLibre の `NavigationControl` は付けない。ズームはホイールとピンチ、向きはキューブ
+- ズームはホイールとピンチ、向きはキューブ。**+/− ボタンとコンパスは置かない**。
+  小さいボタンが 3 つ並ぶより、押せる的が 1 つ大きいほうがよい
+- **出典は下辺に常時出す**（`#attrib`）。PLATEAU / 京都府 DEM / 気象庁はいずれも
+  表示を求めている。MapLibre の `AttributionControl` が担っていた分で、
+  描画層を自前にした以上こちらで持つ
 - **鉛直強調**（×1〜×20）。吉原は 1 km に対して起伏 3 m しかないので、
   強調なしでは横から見ても何も分からない。強調中は PLATEAU 建物を隠す
   （建物は実高のままなので地形と噛み合わなくなる）
 - カメラプリセット（キーボード 1〜6）。キューブは面のクリックなので、
-  俯瞰 52° のような決め打ちの視点は出せない
+  俯瞰 52° のような決め打ちの視点は出せない。
+  **軸方向のプリセットは正射投影に切り替える**（`O` キーでも切り替わる）。
+  透視のままでは「CAD のように断面で見る」にならない
+- **断面の測線**（`view/sectionTool.ts`）。画面 2 点のクリックを
+  `Viewer.unproject`（地面 z=0 との交点）で経緯度に直す。
+  作図中は断面パネルの `pointer-events` を切る。**パネルが画面下半分を覆っていて、
+  2 点目がそこに来ると canvas に届かない**（実測で無視されていた）
 
 ---
 
 ## 地形の描き方
 
-`FloodMeshLayer`（`view/floodMeshLayer.ts`）は、RGBA タイル 1 枚から
-**頂点シェーダでテクスチャを読んで格子を変位させる**カスタム deck.gl レイヤである。
+`three/terrainTiles.ts` はタイルのピラミッド（可視集合の決定・取得の宣言・
+best-available のフォールバック）を持ち、1 枚 1 枚は `three/floodMaterial.ts` の
+シェーダで描く。RGBA タイル 1 枚から
+**頂点シェーダでテクスチャを読んで格子を変位させる**。
 
 - タイルあたり 128×128 の格子 + 外周スカート。**1 タイル 1 リクエストのまま**
 - 陰影は同じテクスチャの隣接テクセルから法線を作って計算する。
@@ -149,7 +177,7 @@ deck.gl 公式が「terrain 使用時、deck.gl 側の z=0 のデータは海面
 | | 内容 |
 |---|---|
 | **area-registered** | タイルは 1 画素 = 1 セルで焼いてある（`scripts/80` が `from_bounds(..., 256, 256)`）。セル k は uv `[k/256, (k+1)/256)` を占め、**中心は `(k+0.5)/256`**。point-registered として引くと半セルずれ、ずれ量がズームで変わるので、複数ズームが同時に描かれる俯瞰視で段差になる |
-| **南北の向き** | タイルは 1 行目が北。luma.gl は `UNPACK_FLIP_Y_WEBGL` を立てないのでテクスチャの `t=0` が北辺。一方この層の uv は `mix(bounds.xy, bounds.zw, aUv)` で使う都合上 **`v=0` が南**。`texUv()` で `1-v` してから引く。法線の y 成分も同じ向きに揃える（面 `z = f(x,y)` の法線は `(-fx, -fy, 1)`） |
+| **南北の向き** | タイルは 1 行目が北。テクスチャの `t=0` が北辺になる一方、格子の uv は **`v=0` が南**。引く前に `1-v` する。法線の y 成分も同じ向きに揃える（面 `z = f(x,y)` の法線は `(-fx, -fy, 1)`）。**画面と焼いたタイルを直接照合しないと捕まらない**ので `perf/tileorient.mjs` で見る |
 | **nodata を補間しない** | 標高は 4 点の双線形で読むが、1 点でも nodata（`R=G=B=0`）が混ざったら最寄りに落とす。混ぜると −9999 から実標高へのランプができ、海際に平らな棚が生える。`h_conn` は判定値なので**常に最寄り**で引く |
 
 ---
@@ -199,11 +227,13 @@ sse(node) = (spacing / 2^depth) * (viewportHeight / 2) / (distance * tan(fovY / 
 **ズームに依存しない**。これをそのまま高度として使うと視点が定数になり、
 LOD が「近くは細かく遠くは粗く」を一切やらなくなる。
 
-常駐点数の上限は描画コストから決める。deck.gl `PointCloudLayer` は 1 点を
-インスタンス化したクアッドで描くので、コストは点数にほぼ線形に乗る（実測値は
-`docs/WEB_RESULTS.md`）。**レイヤ実体はノードごとにキャッシュする。**
-毎回 `new PointCloudLayer(...)` すると deck.gl から別レイヤに見え、
-カメラを動かすたびに全ノードの属性が GPU へ再アップロードされる。
+常駐点数の上限は描画コストから決める。実測値は `docs/WEB_RESULTS.md`。
+`three/pointsRenderer.ts` はノード 1 つを `Points` 1 つで持ち、ジオメトリは
+decode の返り（Transferable）をそのまま `BufferAttribute` にする。
+
+**セッタは値が変わったときだけ通知する。** 通知は `main.ts` の `refresh()` を呼び、
+`refresh()` はセッタを無条件に呼ぶので、素直に毎回通知すると相互再帰で
+`RangeError: Maximum call stack size exceeded` になる（`?pc=1` で実測）。
 
 ### decode pool
 
@@ -212,7 +242,7 @@ LOD が「近くは細かく遠くは粗く」を一切やらなくなる。
 
 `positions` は **AOI ローカル原点からの相対 [m]** にする。EPSG:6674 の値は −6 万台なので、
 Float32 に world 座標を入れると 0.5 m 級の微地形が丸まる。原点と回転行列は
-`catalog.json` の `local_frame` に持ち、deck.gl は `COORDINATE_SYSTEM.METER_OFFSETS` で受ける。
+`catalog.json` の `local_frame` に持つ。描画側はローカル原点をワールド原点として扱う。
 
 ---
 
@@ -345,7 +375,7 @@ Terrarium を選ぶのは 1/256 m の分解能のため。Mapbox terrain-RGB の
 
 同じ PNG に入れるので **標高と `h_conn` が必ず同一画素で整合**し、リクエストも半分になる。
 
-**このタイルを MapLibre の `raster-dem` に渡してはいけない [既知]。**
+**このタイルを地図ライブラリの `raster-dem` 相当に渡してはいけない [既知]。**
 通常のイメージデコード経路を通るとアルファが乗算され、
 A < 255 の画素（＝ほぼ全ての浸水域）で RGB が壊れて標高が狂う。
 陰影を自前シェーダで計算しているのはこれを避けるためでもある。
@@ -407,7 +437,7 @@ b3dm には色が無い（texture・頂点色・`baseColorFactor` すべて無�
 | `catalog_loaded` | `catalog.json` のパース完了 |
 | `first_meaningful_render` | **視野を覆う最小ズームの地形タイルが GPU に乗り、浸水色が 1 フレーム描かれた**時刻。高ズームの到着は待たない |
 | `time_to_terrain` | 細メッシュが視野を満たした |
-| `time_to_plateau` | `Tileset3D.isLoaded()` が真になった。**全タイルの取得完了ではない**（視野外まで待つ定義にすると桁が変わる） |
+| `time_to_plateau` | tileset の 22 タイルが揃った。**塗り替え（属性色の切り替え）では測り直さない**。初回描画の指標 |
 | `time_to_first_useful_pc` | **LOD がその視点に必要と判断した点数の一定割合**が常駐した |
 | `time_to_pc_refined` | 選ばれたノードが出揃った |
 | `camera_settle_latency` | カメラ停止 → 新しい視点の地形と粗ノードが常駐するまで（細ノードは待たない） |
@@ -493,19 +523,19 @@ LAS のアップロード経路（ブラウザ → R2 直接 multipart）はま�
 
 ## レンダラを差し替える条件
 
-`PointCloudRenderer` インターフェースを挟んであるので、判断は実測後でよい。
-移行先は maplibre-gl の `CustomLayerInterface`（`renderingMode: '3d'`）で、
-`CopcIndex` / `LodSelector` / `Scheduler` / `DecodePool` はそのまま再利用する。
-この 4 つをレンダラから分離してあるのはそのためである。
+`PointCloudRenderer` インターフェースを挟んである。deck.gl `PointCloudLayer` から
+three.js の `Points` への差し替えは**この境界だけで済んだ**（`CopcIndex` /
+`LodSelector` / `Scheduler` / `DecodePool` は 1 行も変えていない）。
+4 つをレンダラから分離してあるのはそのためである。
 
-次のいずれかが実測で成立したら移行する。
+いま `Points` で足りていない兆候は無い（常駐 12,174 点 / draw call 1）。
+次のいずれかが実測で成立したら、さらに自前のレンダラに移す。
 
 | # | 条件 | なぜ限界の徴候か |
 |---|---|---|
-| 1 | 予算内の常駐点数でドラッグ中の frame time が 16.7 ms を超える | deck.gl は 1 点をインスタンス化クアッドで描く。`gl.POINTS` + 単一 VBO なら頂点数を 1/6、draw call を 1 にできる |
-| 2 | 可視ノード数が 200 を超え、sub-layer の更新が無視できなくなる | ノード = レイヤの対応が破綻する |
-| 3 | EDL・密度連動の点サイズ・ノード単位のフェードイン・ノード内 progressive refinement のいずれかが要る | `PointCloudLayer` で表現できない |
-| 4 | GPU メモリ上限に当たり、自前の LRU eviction が要る | 同上 |
+| 1 | 予算内の常駐点数でドラッグ中の frame time が 16.7 ms を超える | `Points` は 1 点 1 頂点なのでここが出たら本当に点数の問題 |
+| 2 | EDL・密度連動の点サイズ・ノード単位のフェードイン・ノード内 progressive refinement のいずれかが要る | `PointsMaterial` で表現できない |
+| 3 | GPU メモリ上限に当たり、自前の LRU eviction が要る | いまはノード単位の `dispose()` で足りている |
 
 ---
 
@@ -513,12 +543,10 @@ LAS のアップロード経路（ブラウザ → R2 直接 multipart）はま�
 
 | 事項 | 区分 | 内容 |
 |---|---|---|
-| **maplibre-gl 6 と @deck.gl/mapbox 9.3 は組み合わせられない** | **[実測]** | maplibre-gl 6 は `map.transform` を廃止しており、deck.gl 側が毎フレーム例外を投げて interleaved 描画が一切出ない。**maplibre-gl は 5.x に固定** |
-| 手で作った `Response` を `loadOptions.fetch` から返すと loaders.gl が loader を選べない | **[実測]** | `response.url` が空になり tileset.json が b3dm として解釈される。`Object.defineProperty(res, 'url', { value: url })` で解決 |
-| b3dm の `size === 1` 属性で luma.gl v9 が落ちる | **[実測]** | `_BATCHID` は SCALAR/UNSIGNED_BYTE で WebGPU 頂点フォーマットに写せない。loaders.gl が `CUSTOM_ATTRIBUTE_2` に改名するので**名前ではなく `size === 1` で落とす** |
-| loaders.gl `Tileset3D` が独自の RequestScheduler を持つ | **[既知]** | 放置すると二重になり優先度制御が効かない。`throttleRequests: false` + `loadOptions.fetch` に我々の scheduler を渡して choke point を 1 本にする。視野外キャンセルは `AbortSignal` で伝わるのでそのまま活かす |
-| `Tile3DLayer` をレイヤ配列から外して戻すと assertion で落ちる | **[実測]** | 外さず `visible` で切る |
-| `TileLayer` はサブレイヤをタイルごとにキャッシュする | **[実測]** | 親の props が変わっただけでは作り直さない。uniform を `updateTriggers.renderSubLayers` に並べないと、**水位を変えても画面が変わらない** |
+| **ズームの基準が 256 px と 512 px で 1 ずれる** | **[実測]** | 上記「ズームの規約」。画面は成立してしまうので、`perf/tileorient.mjs` と `perf/zmix.mjs` で要求タイルの z ごと照合する |
+| b3dm の `_BATCHID` は size:1 の属性で来る | **[実測]** | loaders.gl が `CUSTOM_ATTRIBUTE_2` に改名するので**名前ではなく `size === 1` で拾う** |
+| glTF は Y-up、3D Tiles は Z-up | **[既知]** | loaders.gl は変換せず `rotateYtoZ` を立てて渡してくる。受け側で回す |
+| 点群レンダラのセッタが毎回 `onChange` を出すと相互再帰する | **[実測]** | `refresh()` ⇄ セッタで `Maximum call stack size exceeded`。値が変わったときだけ通知する |
 | RGBA パッキングのアルファ乗算 | **[既知]** | GPU 経路は `premultiplyAlpha: 'none'`、CPU 経路は canvas を通さない |
 | `EXT_disjoint_timer_query_webgl2` の可用性 | **[未確認]** | 無ければ CPU 側の壁時計で代用し、その旨を結果に明記する |
-| maplibre-gl 5 + deck.gl 9.3 で MapLibre terrain がどこまで使えるか | **[未確認]** | 自前メッシュで足りているので確認していない |
+| 正射投影での点群 LOD の screen-space error | **[未確認]** | `sse` の式は透視のカメラ距離を前提にしている。正射では距離が効かないので、軸方向プリセットのときの採否は検証していない |

@@ -47,19 +47,59 @@
 
 配信物: タイル 9.21 MB / 3D Tiles 6.35 MB / 点群 COPC 272 MB / geojson 0.66 MB。
 
-| profile | FMR | terrain | PLATEAU | 点群 useful | shell | 10 秒転送 | req | 並列 peak |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| normal | 1,239 ms | 2,172 ms | 5,777 ms | 2,745 ms | 0.80 MB | 5.18 MB | 59 | 11 |
-| fast4g | **876 ms** | 2,661 ms | 7,383 ms | 4,383 ms | 0.80 MB | 4.50 MB | 58 | 11 |
-| slow-highrtt | **3,173 ms** | — | — | — | 0.58 MB | 0.91 MB | 21 | 11 |
-| fatpipe-highrtt | 1,012 ms | 2,681 ms | 6,788 ms | 4,008 ms | 0.80 MB | 5.18 MB | 59 | 11 |
+`?pc=1`、`perf/run.mjs`。**MapLibre + deck.gl（`3ddf78b`）と three.js を同じ機械で、
+交互に 2 巡**して測ったもの。交互にするのは、この機械の負荷（load average 6〜10）が
+`normal` の FMR を 150〜590 ms の幅で動かすためで、**片方を続けて測ると差が負荷に化ける**。
+
+| profile | | FMR | terrain | PLATEAU | 点群 useful | req |
+|---|---|---:|---:|---:|---:|---:|
+| normal | MapLibre | 320 / 343 ms | 418 / 501 ms | 881 / 1,097 ms | 489 / 545 ms | 68 |
+| | **three.js** | **147 / 324 ms** | **332 / 605 ms** | **698 / 1,050 ms** | 554 / 778 ms | 68 |
+| fast4g | MapLibre | 875 / 900 ms | 3,060 / 3,084 ms | 7,388 / 7,401 ms | 4,235 / 4,463 ms | 68 |
+| | **three.js** | **818 / 841 ms** | 3,262 / 3,267 ms | **—** | **—** | 62 |
+| slow-highrtt | MapLibre | 2,943 / 2,975 ms | — | — | — | 32 |
+| | **three.js** | **2,903 / 2,929 ms** | — | — | — | 24 |
+| fatpipe-highrtt | MapLibre | 1,015 / 1,017 ms | 3,350 / 3,351 ms | 6,418 / 6,375 ms | 3,945 / 3,929 ms | 68 |
+| | **three.js** | **941 / 945 ms** | 3,363 / 3,367 ms | **5,230 / 5,237 ms** | 5,280 / 5,275 ms | 68 |
+
+**この表にバイトの列は載せない。** `perf/run.mjs` の `MB shell` は
+`PerformanceObserver('resource')` で数えており、**Worker の中から出た取得が見えない**
+（`decode.worker` と `laz-perf.wasm` は 4 本の Worker がそれぞれ取る）。
+転送量は CDP の `Network` イベントで数えた下記「描画層を替えて〜」の表を見ること。
 
 読み取れること。
 
-1. **progressive loading は成立している。** `fast4g` では 0.88 秒で浸水図が出る。
+1. **progressive loading は成立している。** `fast4g` では 0.82 秒で浸水図が出る。
    PLATEAU も点群も来ていないが、「解析結果は全ロードを待たずに表示する」は満たしている。
-2. **`slow-highrtt` は 12 秒で細メッシュに届かない。** 10 秒で 0.91 MB は帯域上限そのもの。
-   ここは設計ではなく物量の問題である。
+2. **`slow-highrtt` は 12 秒で細メッシュに届かない。** ここは設計ではなく物量の問題である。
+3. **FMR は全プロファイルで縮んだ**（normal・fast4g・slow・fatpipe いずれも）。
+   `fatpipe-highrtt` では PLATEAU も 6.4 秒 -> 5.2 秒。
+4. **`fast4g` だけ PLATEAU と点群が 12 秒窓から外れた**（7.4 秒 -> 窓外、4.4 秒 -> 窓外）。
+   **これは three.js が遅いからではない。** b3dm の要求開始はむしろ 1.1 秒早い
+   （3,799 ms -> 2,658 ms）。原因は次項の LOD で、**旧実装が点群をほとんど
+   読んでいなかった**ためである。
+
+### 既定の視点で点群 LOD が最粗に張り付いていた **[実測]**
+
+同じ既定視点で `wantedPoints` を比べると:
+
+| | wantedPoints |
+|---|---:|
+| MapLibre + deck.gl | **12,174** |
+| three.js | **124,550** |
+
+**12,174 は「引き切ったとき」の値と同じ**（下の LOD の表を見よ）。つまり旧実装は
+既定視点でも最粗のノード集合しか選んでいなかった。
+
+原因は `domain/camera.ts` の `metresPerPixel(lat, zoom)` で、
+式は 256 px タイル基準（定数 156543.03392 = 2πR/256）なのに、
+**MapLibre の 512 px 基準の `getZoom()` を渡していた**。カメラ距離が常に 2 倍になり、
+screen-space error が 1/2 に見えていた。three.js の `getZoom()` は 256 px 基準なので、
+移行と同時に正しくなった。
+
+したがって `fast4g` の PLATEAU 到達が遅れたのは**点群を 10 倍読むようになった結果**で、
+帯域の取り合いである。**「LOD を細い回線向けに浅く止める」（`docs/TODO.md`）は、
+これで初めて実測できる問題になった。**
 3. **同時実行は 11 で頭打ち。** `nextHopProtocol` から h2 を検出して上限を切り替える経路が効いている。
 4. **水位スライダ 31 段の掃引で発行リクエスト 0。** `h_conn` を 1 枚のテクスチャに持ち、
    シェーダの uniform だけ書き換える設計の狙いどおり。
@@ -89,31 +129,120 @@ br が効くアセットでは 6 倍ずれる。
 | catalog | 1 | 10 kB | **4 kB** | |
 
 `slow-highrtt` の 12 秒で運べた 0.91 MB の内訳は
-**shell 585 kB + 地形 319 kB + catalog 4 kB** で、それ以外は 1 バイトも届かない。
+**shell 585 kB + 地形 319 kB + catalog 4 kB** で、それ以外は 1 バイトも届かない
+（MapLibre + deck.gl のとき）。
 
 > **細い回線で最も大きいのはアプリのコードである。** 地理データではない。
 > 優先度制御でこの領域は動かせない（後述）。
 
-### 初期チャンクの内訳
+これが three.js への置き換えの直接の動機である。置き換え後は
+**shell 212 kB + 地理データ 820 kB**（12 秒）になった（上記「描画層を替えて〜」）。
 
-`index-*.js` をソースマップからパッケージ別に集計（minify 前のソース量、計 3.38 MB）:
+### 初期チャンクの内訳と、描画層を自前にした結果
 
-| パッケージ | ソース量 | 比率 |
+`index-*.js` をソースマップからパッケージ別に集計（minify 前のソース量）。
+左が MapLibre + deck.gl（`3ddf78b`）、右が three.js に置き換えた後。
+
+| MapLibre + deck.gl（計 3.36 MB） | | | three.js（計 2.19 MB） | | |
+|---|---:|---:|---|---:|---:|
+| **maplibre-gl** | **1,032 kB** | **31 %** | **three** | **2,044 kB** | **93 %** |
+| @deck.gl/core | 535 kB | 16 % | （アプリ本体） | 144 kB | 7 % |
+| @luma.gl/webgl | 345 kB | 10 % | | | |
+| @luma.gl/core | 210 kB | 6 % | | | |
+| @math.gl/core | 210 kB | 6 % | | | |
+| @deck.gl/layers | 190 kB | 6 % | | | |
+| @luma.gl/shadertools | 133 kB | 4 % | | | |
+| （アプリ本体） | 120 kB | 4 % | | | |
+| @luma.gl/engine | 115 kB | 3 % | | | |
+| mjolnir.js | 92 kB | 3 % | | | |
+
+MapLibre 側は**アプリ本体が 120 kB しかない**。初期チャンクの正体はライブラリで、
+その 3 割が maplibre-gl だった。そして本プロジェクトの MapLibre は
+**ベースマップのソースを 1 つも持っていなかった**（スタイルは背景色 1 レイヤのみ）。
+使っていたのはカメラ操作・投影・ナビゲーションコントロール・attribution だけである。
+
+**ソース量では −35 % だが、配信バイトでは −70 %。** three は tree-shaking が効く。
+
+| | MapLibre + deck.gl | three.js | 差 |
+|---|---:|---:|---|
+| 初期 JS（br） | 432,689 B | **131,264 B** | **−69.7 %** |
+| 初期 CSS（br） | 8,150 B | 0 | maplibre-gl.css が消えた |
+| **初期 JS + CSS（br）** | **440,839 B** | **131,264 B** | **−70.2 %** |
+| 遅延: PLATEAU（br） | 80,699 B | 61,219 B | −24.1 % |
+| 遅延: 点群（br） | 26,883 B | 26,984 B | ±0 |
+
+### 描画層を替えて細い回線で何が変わったか **[実測]**
+
+`slow-highrtt`（1 Mbps / RTT 400 ms）、同一データ・同一ビューポート・
+**同一の可視範囲と同一の要求タイル**（後述「ズームの基準を取り違えていた」）で
+3 回ずつ。ばらつきは 2 % 未満。
+
+| 指標 | MapLibre + deck.gl | three.js | 差 |
+|---|---:|---:|---|
+| shell バイト（地理データ前） | 574,146 B / 5 req | **212,290 B / 3 req** | **−63.0 %** |
+| バンドル取得 + 実行 | 4,809 ms | **2,060 ms** | **−57.2 %** |
+| **FMR（ナビゲーション基準）** | 7,739 ms | **4,940 ms** | **−2.80 s（−36.2 %）** |
+| terrain 完了（ナビ基準） | 15,319 ms | 13,615 ms | −1.70 s（−11.1 %） |
+| **地理データ @10 s** | 313,640 B | **548,320 B** | **+74.8 %** |
+| 地理データ @12 s | 536,782 B | **819,634 B** | +52.7 % |
+
+**12 秒の窓に入る地理データが 1.5〜1.75 倍になった。** これが「初期チャンクを削る」の
+実体である。バイトが小さくなったこと自体ではなく、**空いた帯域が地理データに回ったこと**を見る。
+
+2 つ注意がある。
+
+1. **`first_meaningful_render` は 2 つある。** `recorder.ts` の `t0` は
+   **recorder が構築された時刻**、つまりバンドルを落として実行し終えた後である。
+   この基準で比べると 3,013 ms 対 3,126 ms で「改善なし」に見える。**shell のコストは
+   定義上そこに入っていない。** 比較には `milestones_navigation` を使う。
+2. **`perf/shellcost.mjs` の `time_to_canvas_ms` は当てにならない。**
+   検出条件が「幅・高さ 100 px 超の canvas」で、`index.html` に静的に置いてある
+   断面図の `<canvas id="sec-canvas">`（高さ 200 px）を拾う。MapLibre 側で 0.5 秒と
+   出るのはこれで、地図の canvas ではない。
+
+### Draco を毎回 unpkg と gstatic から取っていた **[実測]**
+
+`?pc=1` でローカル配信に当てて、**localhost 以外へのリクエストを全部数えた**結果:
+
+| URL | 回数 | 実バイト |
 |---|---:|---:|
-| **maplibre-gl** | **1,057 kB** | **31 %** |
-| @deck.gl/core | 548 kB | 16 % |
-| @luma.gl/webgl | 354 kB | 10 % |
-| @luma.gl/core | 215 kB | 6 % |
-| @math.gl/core | 215 kB | 6 % |
-| @deck.gl/layers | 194 kB | 6 % |
-| @luma.gl/shadertools | 136 kB | 4 % |
-| @luma.gl/engine | 118 kB | 3 % |
-| （アプリ本体） | **61 kB** | 2 % |
+| `www.gstatic.com/draco/versioned/decoders/1.5.6/draco_decoder.wasm` | 3 | 285,747 |
+| `www.gstatic.com/draco/versioned/decoders/1.5.6/draco_wasm_wrapper.js` | 3 | 58,763 |
+| `unpkg.com/@loaders.gl/draco@4.4.5/dist/draco-worker.js` | 3 | 38,094 |
 
-**アプリ本体は 61 kB しかない。** 初期チャンクの正体はライブラリで、その 3 割が maplibre-gl。
-そして本プロジェクトの MapLibre は**ベースマップのソースを 1 つも持っていない**
-（`view/map.ts` のスタイルは背景色 1 レイヤのみ）。使っているのはカメラ操作・投影・
-ナビゲーションコントロール・attribution だけである。
+**すべて 200 で、合計 1.15 MB。** cold load のたびに外部から取っている。
+`docs/TODO.md` に「現行ビルドでは発火しない（クロスオリジンのリクエストは 0 件）」と
+書いていたが、**誤りだった**。
+
+**MapLibre + deck.gl（`3ddf78b`）でも three.js でも同じように出る。**
+描画層の置き換えとは無関係な、元からあった問題である。
+
+2 つの意味で悪い。
+
+1. **1 Mbps では 9 秒分。** `slow-highrtt` の 12 秒窓で運べるのは 0.9 MB なので、
+   これが走れば窓を丸ごと食う。b3dm 22 枚に `KHR_draco_mesh_compression` は
+   1 つも無いのに、`@loaders.gl/3d-tiles` が Worker ごと先に用意してしまう
+2. **こちらの計測に映らない。** クロスオリジンでは `transferSize` も
+   `encodedBodySize` も 0 になるので（`docs/WEB_DESIGN.md`「収集する量」）、
+   `PerformanceObserver` で数えている転送量にこの 1.15 MB は入っていない。
+   **「見えていないものは無いことにしていた」**
+
+`deploy/check.mjs` の MUST に「クロスオリジンのリクエストを 1 件も出さない」を
+入れるところまで含めて `docs/TODO.md`。
+
+### ズームの基準を取り違えていた **[実測]**
+
+three.js 移行の最初の実測は**比較として成立していなかった**。両方とも `getZoom()` は
+15.6 と答えるのに、実測の m/px は **1.282 対 2.567（ちょうど 2.00 倍）**、
+可視範囲は 4 倍、要求する地形タイルは **z17 を 25 枚 対 z16 を 9 枚**だった。
+
+MapLibre の zoom はタイル 512 px 基準、`three/mercator.ts` は 256 px 基準で、
+`INITIAL_ZOOM = 15.6` をそのまま渡していたためである（正しくは 16.6）。
+**1 段粗い地形を描いていた**ので、「terrain 完了 −9.1 秒」「地理データ @10 s +71 %」と
+出ていた最初の数字は捨てた。上の表は直した後のものである。
+
+規約は `docs/WEB_DESIGN.md`「ズームの規約」。`perf/tileorient.mjs` と
+`perf/zmix.mjs` が要求タイルの z ごと照合するので、次からはここで捕まる。
 
 ### b3dm の 70 % は使っていない属性だった
 
@@ -179,8 +308,12 @@ EVLR が見つからない場合や 8 MB を超える場合はページ単位取
 | zoom 12.5（引き） | **12,174** |
 
 常駐点数の上限は **60 万点**。deck.gl `PointCloudLayer` の描画コストは点数にほぼ線形で
-**約 23 ns/点/frame** なので、300 万点ではドラッグ中 68〜82 ms（12〜15 fps）になる。
-60 fps を保てる上限として実測から決めた。
+**約 23 ns/点/frame** で、300 万点ではドラッグ中 68〜82 ms（12〜15 fps）になった。
+60 fps を保てる上限として実測から決めた値である。
+
+**この表は deck.gl `PointCloudLayer` での実測で、three.js の `Points` では測り直していない
+[未確認]。** `Points` は 1 点 1 頂点（deck.gl はインスタンス化クアッドで 6 頂点）なので
+軽くなっているはずだが、根拠が無いので 60 万点のままにしてある（`docs/TODO.md`）。
 
 | 常駐点数 | draw call | ドラッグ中 frame p50 |
 |---:|---:|---:|
@@ -277,6 +410,8 @@ LOD が選んだノードを `pointDataOffset` でソートし、gap < 64 KiB・
 
 `slow-highrtt` の 0.91 MB のうち 585 kB は shell である。
 **細い回線への打ち手は初期チャンクの削減であって、優先度制御ではない。**
+実際そのとおりで、shell を 212 kB に落としたら 12 秒窓の地理データが
+537 kB から 820 kB になった（上記「描画層を替えて〜」）。
 
 ---
 
@@ -289,7 +424,7 @@ LOD が選んだノードを `pointDataOffset` でソートし、gap < 64 KiB・
 | `web/test/parity.test.mjs` | タイルの RGBA パッキング往復、地物 120 件 × 水位 3 点の `depth` と `decision_changed` が Python 側と一致するか | **1,564 チェック / 0 失敗** |
 | `web/test/camera.test.mjs` | カメラ → ローカル座標の換算（純関数） | **11 件 / 0 失敗** |
 | `scripts/84_validate_tiles.py` | 焼いたタイルの値の往復 | 24 タイル / 0 失敗 |
-| `web/perf/tileorient.mjs` | **画面の画素**と焼いたタイルの同じ座標の値が一致するか | 一致率 **97.3〜97.6 %** |
+| `web/perf/tileorient.mjs` | **画面の画素**と焼いたタイルの同じ座標の値が一致するか | 一致率 **97.3〜97.6 %**（three.js 移行後も 97.3 %。判定が紙一重の帯を外すと 100.0 %） |
 
 `parity` と `84` は「タイルの**値**が正しいか」しか見ない。
 **「その値が画面のどこに出ているか」**は `tileorient.mjs` が見る。
@@ -324,8 +459,9 @@ LOD が選んだノードを `pointDataOffset` でソートし、gap < 64 KiB・
 
 ### headed で測る
 
-headless では requestAnimationFrame が絞られ、deck.gl の再描画がほとんど走らない。
-`Tile3DLayer` の traversal は再描画のたびにしか進まないので、
+headless では requestAnimationFrame が絞られ、再描画駆動の処理がほとんど走らない。
+当時は deck.gl の `Tile3DLayer` の traversal が再描画のたびにしか進まなかった。
+three.js の `Viewer` も `requestAnimationFrame` ループなので事情は同じで、
 **再描画駆動の指標がすべて実際より悪く出る。**
 
 | | headless | headed |

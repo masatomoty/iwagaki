@@ -190,8 +190,10 @@ if (SCENARIO === 'profiles') {
     ]
     for (const m of moves) {
       await page.evaluate((mv) => {
-        globalThis.__iwagaki.map.jumpTo({
-          center: mv.center, zoom: mv.zoom, bearing: mv.bearing, pitch: mv.pitch,
+        // zoom は上の表と docs/WEB_RESULTS.md に合わせて **MapLibre 基準**（タイル 512 px）で
+        // 書いてある。Viewer は 256 px 基準なので +1 して渡す（docs/WEB_DESIGN.md「ズームの規約」）
+        globalThis.__iwagaki.viewer.jumpTo({
+          center: mv.center, zoom: mv.zoom + 1, bearing: mv.bearing, pitch: mv.pitch,
         })
       }, m)
       // 発行はされたが完了はしていない、という間に次を当てたい。

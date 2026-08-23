@@ -41,8 +41,15 @@
   #sec-canvas { width: 100%; height: 200px; display: block; }
   #section .note { margin-top: 2px; }
   #inspector { top: 12px; right: 53px; width: 300px; max-height: calc(100% - 24px); overflow: auto; display: none; }
-  /* 右上のギズモも 12px 基準に揃える（MapLibre の既定は 10px） */
-  .maplibregl-ctrl-top-right .maplibregl-ctrl { margin: 12px 12px 0 0; }
+  /* 出典。**常時表示する。** PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めている。
+     MapLibre の AttributionControl が担っていた分で、描画層を外した以上ここで持つ */
+  #attrib {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+    background: rgba(6,8,12,.82); border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 10.5px; line-height: 1.5;
+    padding: 5px 12px; backdrop-filter: blur(6px);
+  }
+  #attrib a { color: var(--muted); }
   /* 計測パネルは開発者向け。既定は隠す（?perf=1 / P キーで開く） */
   #perf { display: none; bottom: 12px; left: 12px; width: 268px; max-height: 40%; overflow: auto;
            font-variant-numeric: tabular-nums; }
@@ -83,6 +90,7 @@
   <div id="controls" class="panel"></div>
   <div id="inspector" class="panel"></div>
   <div id="perf" class="panel"></div>
+  <div id="attrib"></div>
   <div id="section" class="panel">
     <div class="sec-head"><b>断面</b>
       <span><button id="sec-fit" type="button" title="縦の範囲を切り替える">全体を見る</button>

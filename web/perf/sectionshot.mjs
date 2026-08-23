@@ -27,7 +27,7 @@ await p.waitForTimeout(1500)
 await p.click('#secbtn')
 const click = async (lonlat) => {
   const pt = await p.evaluate((c) => {
-    const q = globalThis.__iwagaki.map.project(c)
+    const q = globalThis.__iwagaki.viewer.project(c[0], c[1])
     return [q.x, q.y]
   }, lonlat)
   await p.mouse.click(pt[0], pt[1])
@@ -36,6 +36,22 @@ const click = async (lonlat) => {
 await click(FROM)
 await click(TO)
 await p.waitForTimeout(3500)
+
+// **引いた測線が実際に反映されたかを確かめる。**
+// 既定の断面を出すようにしてから、クリックが断面パネルに飲まれても
+// 「既定の測線が出たまま」で全部それらしく通ってしまう時期があった。
+// 撮れた絵ではなく、測線の長さで照合する
+const R = 6378137
+const want = Math.hypot(
+  (TO[0] - FROM[0]) * Math.PI / 180 * R * Math.cos(FROM[1] * Math.PI / 180),
+  (TO[1] - FROM[1]) * Math.PI / 180 * R)
+const got = await p.evaluate(() => globalThis.__iwagaki.section?.[0]?.points?.at(-1)?.d ?? null)
+if (got === null || Math.abs(got - want) / want > 0.05) {
+  console.error(`NG: 測線が反映されていない。期待 ${want.toFixed(0)} m / 実際 ${got === null ? 'なし' : got.toFixed(0) + ' m'}`)
+  await b.close()
+  process.exit(1)
+}
+console.log(`測線 ${got.toFixed(0)} m（期待 ${want.toFixed(0)} m）`)
 
 for (const h of [0.25, 1.0, 2.0]) {
   await p.evaluate((v) => globalThis.__iwagaki.setWaterLevel(v), h)

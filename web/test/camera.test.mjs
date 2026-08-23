@@ -53,6 +53,18 @@ check('metresPerPixel はズームで半分になる', () => {
   assert.ok(Math.abs(a / b - 2) < 1e-9)
 })
 
+check('**metresPerPixel はタイル 256 px 基準**（絶対値で留める）', () => {
+  // 相対の検査（上）だけでは、512 px 基準の zoom を渡す間違いが通ってしまう。
+  // 実際それで LOD が既定視点で最粗に張り付いていた（camera.ts のコメント）。
+  // z0 で赤道 1 周 = 40,075,016.686 m が 256 px に載る、が定義。
+  const eq = cam.metresPerPixel(0, 0)
+  assert.ok(Math.abs(eq - 40075016.686 / 256) < 1e-3, `${eq} m/px`)
+  // Viewer.getZoom() が返す値（256 px 基準）と噛み合うことの確認。
+  // AOI 中心・zoom 16.6 は起動時の視点で、実測の m/px は 1.28（MapLibre 時代と同値）
+  const here = cam.metresPerPixel(35.4573106, 16.6)
+  assert.ok(Math.abs(here - 1.283) < 0.005, `${here.toFixed(3)} m/px（期待 1.283）`)
+})
+
 const base = {
   centre: ORIGIN, zoom: 16, pitchDeg: 0, bearingDeg: 0,
   viewportHeight: 750, fovY: (Math.PI / 180) * 36.87, cameraToCentrePx: 1000,
