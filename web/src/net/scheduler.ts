@@ -42,6 +42,11 @@ export interface SchedulerOptions {
   onRecord?: (r: RequestRecord) => void
 }
 
+/** 帯域推定の窓 [ms]。短すぎると 1 本の遅い応答で振れる */
+const BW_WINDOW_MS = 4000
+/** この量が窓に溜まるまで推定を更新しない [byte] */
+const BW_MIN_BYTES = 64 * 1024
+
 export class Scheduler {
   private queue: Waiter[] = []
   private live = new Map<string, Live>()
@@ -53,6 +58,8 @@ export class Scheduler {
   private epoch = 0
   private protocol: 'h1' | 'h2' = 'h2'
   private bwBps = 0
+  /** 帯域推定の窓。完了した転送を [開始, 終了, wire バイト] で覚えておく */
+  private bwSamples: { start: number; end: number; bytes: number }[] = []
   private peak = 0
   private coalesceStats = { groups: 0, members: 0, extraBytes: 0 }
   private onRecord?: (r: RequestRecord) => void
@@ -230,17 +237,49 @@ export class Scheduler {
     }
   }
 
+  /**
+   * 帯域推定。**回線の容量**を測る。1 接続あたりの速度ではない。
+   *
+   * 旧実装は 1 リクエストごとに `wireBytes / 所要時間` を出して EMA していた。
+   * **11 本並列に走っていれば 1 本あたりは 1/11 に見える**ので、
+   * 実効の 1/5 以下しか出ていなかった（fast4g 実測 89 kB/s、実際は 500 kB/s。
+   * `docs/WEB_RESULTS.md`「点群 LOD の予算は事実上ただの下限だった」）。
+   * 点群の LOD 予算がこの値から決まるので、下限がそのまま予算になっていた。
+   *
+   * 直近 `BW_WINDOW_MS` の完了分を合計し、**その間に実際に取得が走っていた時間**
+   * （区間の和集合）で割る。並列に走った分はここで足し合わされる。
+   * 待ち時間で割らないのは、アイドルを挟むと容量を過小に見積もるため。
+   */
   private noteBandwidth(rec: RequestRecord) {
-    const dt = (rec.endedAt! - rec.startedAt) / 1000
     // **デコード後ではなく wire で測る。** br が効く geojson/json を
-    // デコード後で数えると帯域を 6 倍に見積もり、点群の LOD 予算
-    // （maxBytes = bw * 6）がその分だけ甘くなる
+    // デコード後で数えると帯域を過大に見積もる。
     // wire が未確定（圧縮応答）ならデコード後で代用する。帯域を過大に見積もる側だが、
     // 完了直後に PerformanceResourceTiming が揃っているとは限らない
     const w = rec.wireBytes < 0 ? rec.bytes : rec.wireBytes
-    if (dt <= 0.005 || w < 4096) return
-    const bps = w / dt
-    this.bwBps = this.bwBps === 0 ? bps : this.bwBps * 0.7 + bps * 0.3
+    const end = rec.endedAt!
+    if (!(end > rec.startedAt) || w <= 0) return
+    this.bwSamples.push({ start: rec.startedAt, end, bytes: w })
+
+    const cutoff = end - BW_WINDOW_MS
+    this.bwSamples = this.bwSamples.filter((x) => x.end > cutoff)
+    let total = 0
+    for (const x of this.bwSamples) total += x.bytes
+    // 少なすぎる標本で決めない。RTT だけで終わる小さな応答が並ぶと過小に出る
+    if (total < BW_MIN_BYTES) return
+
+    // 区間の和集合 = 「取得が走っていた時間」。並列は 1 回だけ数える
+    const spans = this.bwSamples
+      .map((x) => [Math.max(x.start, cutoff), x.end] as const)
+      .sort((a, b) => a[0] - b[0])
+    let busy = 0
+    let [cs, ce] = spans[0]!
+    for (const [s0, e0] of spans.slice(1)) {
+      if (s0 > ce) { busy += ce - cs; cs = s0; ce = e0 }
+      else if (e0 > ce) ce = e0
+    }
+    busy += ce - cs
+    if (busy < 50) return
+    this.bwBps = (total / busy) * 1000
   }
 
   private pushRecord(r: RequestRecord) {

@@ -380,7 +380,11 @@ async function boot() {
    * three.js の Points に替えた影響は再計測が要る（docs/TODO.md）。
    */
   const budget = (): LodBudget => {
-    const bw = scheduler.bandwidthBps || 2e6
+    // **推定がまだ無いときは下限から始める。** 以前は 2 MB/s と仮定していて、
+    // 起動直後の 1 回目だけ 6 MB の予算が出ていた。あとから小さく評価し直しても
+    // **先に発行したぶんは戻らない**ので、細い回線では取り切れない量を掴んだままになる。
+    // 足りなければ watchBudget() が 1 秒ごとに引き上げる。上げるのは安全、下げるのは遅い
+    const bw = scheduler.bandwidthBps || 0
     return {
       maxPoints: PC_MAX_POINTS,
       // 帯域推定から毎回決める。遅い回線では自動的に浅い LOD で止まる。
@@ -388,13 +392,14 @@ async function boot() {
       // 絞った回線ではこの予算が pcFine の発行そのものを止めてしまい、
       // 「キャンセルすべき飛行中の要求」が作れない（docs/WEB_RESULTS.md「キャンセル」）。
       //
-      // **この式は現状ほとんど働いていない。** 絞った回線では `bw` が実効の 1/5
-      // ほどしか出ないので `bw * 6` が下限を下回り、**下限 2 MB がそのまま予算になる**。
-      // しかも `budget()` を評価するのは点群の起動時とカメラ移動時だけで、
-      // 起動時は推定が最も当てにならない。原因と実測は
-      // `docs/WEB_RESULTS.md`「点群 LOD の予算は事実上ただの下限だった」、
-      // 直し方の検討は `docs/TODO.md`。**先に推定を直さないと係数を調整する意味がない。**
-      maxBytes: PC_MAX_BYTES ?? Math.max(2e6, Math.min(20e6, bw * 6)),
+      // **係数 2 = 「点群に使ってよいのは 12 秒の窓のうち 2 秒ぶん」。**
+      // 12 秒で切るのは計測の窓と同じ（docs/WEB_RESULTS.md）。残りは地形・建物・地物に要る。
+      //
+      // 以前は係数 6 / 下限 2 MB だったが、帯域推定が実効の 1/5 しか出ておらず
+      // **下限がそのまま予算になっていた**（推定は net/scheduler.ts で直した）。
+      // 直した推定で測り直して係数を決めた。`fast4g` の 12 秒窓で
+      // **建物 20/22 は変えずに常駐点数が 56,448 -> 68,622 に増える**。
+      maxBytes: PC_MAX_BYTES ?? Math.max(1e6, Math.min(20e6, bw * 2)),
       screenSpaceError: 2.0,
       coarseDepth: 1,
     }
@@ -431,6 +436,36 @@ async function boot() {
     }
   }
 
+  /**
+   * 直近に点群 LOD へ渡した予算。**推定が落ち着いたら評価し直す**ために覚えておく。
+   *
+   * `budget()` を評価していたのは点群の起動時とカメラ移動時だけで、
+   * カメラを動かさなければ**起動直後の推定が最後まで残っていた**。
+   * 帯域推定は最初の数リクエストでは当てにならないので、
+   * 大きく変わったときだけ組み直す（`docs/WEB_RESULTS.md`「点群 LOD の予算」）。
+   */
+  let appliedMaxBytes = 0
+  /** 予算がこの比率を超えて**増えた**ら LOD を組み直す */
+  const BUDGET_RETRY_RATIO = 1.5
+  let budgetTimer: number | undefined
+  function watchBudget() {
+    window.clearInterval(budgetTimer)
+    budgetTimer = window.setInterval(() => {
+      if (!pcb?.controller.ready || !store.state.layers.pointcloud) return
+      const b = budget()
+      // **増えたときだけ組み直す。** 減らす方向に組み直すと、選び直しで
+      // 常駐していたノードが捨てられ、取得済みのバイトが無駄になる。
+      // 実測（fast4g・12 秒窓）で、下げ直すと転送は 2.88 -> 3.29 MB に増えるのに
+      // 常駐点数は 68,622 -> 56,448 に減った。**払って減らしている。**
+      // 視野が変わったときは別で、カメラ移動の経路が改めて評価する
+      if (b.maxBytes < appliedMaxBytes * BUDGET_RETRY_RATIO) return
+      appliedMaxBytes = b.maxBytes
+      void pcb.controller.update(viewState(), b).then(() => scheduler.reap())
+    }, 1000)
+    // 推定が落ち着いたあとまで回し続ける理由が無い。窓は計測と同じ 12 秒の倍を見る
+    window.setTimeout(() => window.clearInterval(budgetTimer), 25_000)
+  }
+
   let pcStarted = false
   async function startPointCloud() {
     // 点群を表示しないなら module ごと取りに行かない
@@ -449,7 +484,10 @@ async function boot() {
       })
       viewer.world.add(pcb.renderer.group)
       await pcb.controller.open()
-      await pcb.controller.update(viewState(), budget())
+      const b0 = budget()
+      appliedMaxBytes = b0.maxBytes
+      await pcb.controller.update(viewState(), b0)
+      watchBudget()
       refresh()
     } catch (e) {
       console.warn('point cloud unavailable', e)
@@ -511,7 +549,9 @@ async function boot() {
         // 古い `wanted` を見て「まだ必要」と答えてしまい、
         // **視野から外れたノードが一度もキャンセルされない**
         // （docs/WEB_RESULTS.md「キャンセル」）。
-        void pcb.controller.update(viewState(), budget()).then(() => scheduler.reap())
+        const b = budget()
+        appliedMaxBytes = b.maxBytes
+        void pcb.controller.update(viewState(), b).then(() => scheduler.reap())
       }
     }, 60)
   })

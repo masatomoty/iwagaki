@@ -11,42 +11,42 @@
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 70,
-        "semantics_loaded": 209,
-        "first_meaningful_render": 266,
-        "semantics_module_loaded": 268,
-        "pc_module_loaded": 310,
-        "plateau_module_loaded": 318,
-        "time_to_terrain": 390,
-        "pc_index_loaded": 395,
-        "time_to_first_useful_pc": 563,
-        "time_to_pc_refined": 566,
-        "time_to_plateau": 719
+        "catalog_loaded": 20,
+        "semantics_loaded": 123,
+        "semantics_module_loaded": 169,
+        "first_meaningful_render": 189,
+        "pc_module_loaded": 227,
+        "plateau_module_loaded": 233,
+        "time_to_terrain": 318,
+        "pc_index_loaded": 323,
+        "time_to_plateau": 504,
+        "time_to_first_useful_pc": 506,
+        "time_to_pc_refined": 509
       },
-      "boot_offset_ms": 166,
+      "boot_offset_ms": 103,
       "milestones_navigation": {
-        "app_start": 166,
-        "catalog_loaded": 236,
-        "semantics_loaded": 375,
-        "first_meaningful_render": 432,
-        "semantics_module_loaded": 434,
-        "pc_module_loaded": 476,
-        "plateau_module_loaded": 484,
-        "time_to_terrain": 556,
-        "pc_index_loaded": 561,
-        "time_to_first_useful_pc": 729,
-        "time_to_pc_refined": 732,
-        "time_to_plateau": 885
+        "app_start": 103,
+        "catalog_loaded": 123,
+        "semantics_loaded": 226,
+        "semantics_module_loaded": 273,
+        "first_meaningful_render": 292,
+        "pc_module_loaded": 330,
+        "plateau_module_loaded": 337,
+        "time_to_terrain": 421,
+        "pc_index_loaded": 427,
+        "time_to_plateau": 607,
+        "time_to_first_useful_pc": 609,
+        "time_to_pc_refined": 612
       },
       "shell": {
-        "bytes": 1450095,
+        "bytes": 347440,
         "requests": 8
       },
       "bytes": {
-        "initial_to_fmr": 1510603,
-        "at_5s": 7727248,
-        "at_10s": 7727248,
-        "total_now": 7727248
+        "initial_to_fmr": 409065,
+        "at_5s": 5935713,
+        "at_10s": 5935713,
+        "total_now": 5935713
       },
       "scheduler": {
         "issued": 68,
@@ -54,7 +54,7 @@
         "cancelled": 0,
         "failed": 0,
         "bytes": 6256753,
-        "wireBytes": 6256753,
+        "wireBytes": 5567873,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
@@ -62,14 +62,14 @@
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 662289,
+            "wireBytes": 93382,
             "cancelled": 0,
             "wasted": 0
           },
@@ -90,14 +90,14 @@
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 118190,
+            "wireBytes": 21722,
             "cancelled": 0,
             "wasted": 0
           },
           "plateau": {
             "issued": 23,
             "bytes": 3171348,
-            "wireBytes": 3171348,
+            "wireBytes": 3154627,
             "cancelled": 0,
             "wasted": 0
           },
@@ -121,17 +121,17 @@
           "members": 4,
           "extraBytes": 0
         },
-        "bandwidthBps": 13443074,
+        "bandwidthBps": 19837517,
         "protocol": "h2"
       },
       "decode_ms": {
-        "p50": 47.1,
-        "p95": 76.8,
+        "p50": 41.7,
+        "p95": 78.3,
         "n": 4
       },
       "gpu_upload_ms": {
-        "p50": 0.9,
-        "p95": 2,
+        "p50": 1.4,
+        "p95": 2.1,
         "n": 4
       },
       "camera": {
@@ -160,24 +160,24 @@
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 553,
+      "duration_ms": 545,
       "requests_issued": 0,
       "quiescent": true
     },
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 70,
-        "semantics_loaded": 209,
-        "first_meaningful_render": 266,
-        "semantics_module_loaded": 268,
-        "pc_module_loaded": 310,
-        "plateau_module_loaded": 318,
-        "time_to_terrain": 390,
-        "pc_index_loaded": 395,
-        "time_to_first_useful_pc": 563,
-        "time_to_pc_refined": 566,
-        "time_to_plateau": 719
+        "catalog_loaded": 20,
+        "semantics_loaded": 123,
+        "semantics_module_loaded": 169,
+        "first_meaningful_render": 189,
+        "pc_module_loaded": 227,
+        "plateau_module_loaded": 233,
+        "time_to_terrain": 318,
+        "pc_index_loaded": 323,
+        "time_to_plateau": 504,
+        "time_to_first_useful_pc": 506,
+        "time_to_pc_refined": 509
       },
       "scheduler": {
         "issued": 68,
@@ -185,7 +185,7 @@
         "cancelled": 0,
         "failed": 0,
         "bytes": 6256753,
-        "wireBytes": 6256753,
+        "wireBytes": 5567873,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
@@ -193,14 +193,14 @@
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 662289,
+            "wireBytes": 93382,
             "cancelled": 0,
             "wasted": 0
           },
@@ -221,14 +221,14 @@
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 118190,
+            "wireBytes": 21722,
             "cancelled": 0,
             "wasted": 0
           },
           "plateau": {
             "issued": 23,
             "bytes": 3171348,
-            "wireBytes": 3171348,
+            "wireBytes": 3154627,
             "cancelled": 0,
             "wasted": 0
           },
@@ -252,13 +252,13 @@
           "members": 4,
           "extraBytes": 0
         },
-        "bandwidthBps": 13443074,
+        "bandwidthBps": 19837517,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          320
+          319
         ]
       },
       "pointcloud": {
@@ -285,52 +285,56 @@
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 112,
-        "first_meaningful_render": 813,
-        "pc_module_loaded": 2388,
-        "time_to_terrain": 3248,
-        "plateau_module_loaded": 4508,
-        "pc_index_loaded": 4512,
-        "semantics_loaded": 8056,
-        "semantics_module_loaded": 8197
+        "catalog_loaded": 91,
+        "first_meaningful_render": 811,
+        "pc_module_loaded": 1391,
+        "semantics_loaded": 1552,
+        "semantics_module_loaded": 1681,
+        "plateau_module_loaded": 2117,
+        "time_to_terrain": 3722,
+        "pc_index_loaded": 3856,
+        "time_to_first_useful_pc": 10662,
+        "time_to_pc_refined": 10701
       },
-      "boot_offset_ms": 1428,
+      "boot_offset_ms": 509,
       "milestones_navigation": {
-        "app_start": 1428,
-        "catalog_loaded": 1540,
-        "first_meaningful_render": 2242,
-        "pc_module_loaded": 3816,
-        "time_to_terrain": 4676,
-        "plateau_module_loaded": 5936,
-        "pc_index_loaded": 5940,
-        "semantics_loaded": 9484,
-        "semantics_module_loaded": 9625
+        "app_start": 509,
+        "catalog_loaded": 601,
+        "first_meaningful_render": 1321,
+        "pc_module_loaded": 1901,
+        "semantics_loaded": 2061,
+        "semantics_module_loaded": 2190,
+        "plateau_module_loaded": 2626,
+        "time_to_terrain": 4231,
+        "pc_index_loaded": 4365,
+        "time_to_first_useful_pc": 11172,
+        "time_to_pc_refined": 11210
       },
       "shell": {
-        "bytes": 1450095,
+        "bytes": 347440,
         "requests": 8
       },
       "bytes": {
-        "initial_to_fmr": 749955,
-        "at_5s": 2527624,
-        "at_10s": 4404385,
-        "total_now": 4433301
+        "initial_to_fmr": 320758,
+        "at_5s": 1829162,
+        "at_10s": 2882622,
+        "total_now": 4015138
       },
       "scheduler": {
-        "issued": 62,
-        "completed": 62,
+        "issued": 67,
+        "completed": 67,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 2964606,
-        "wireBytes": 2964606,
+        "bytes": 4336478,
+        "wireBytes": 3647598,
         "wastedBytes": 0,
         "peakConcurrent": 11,
-        "concurrentNow": 5,
+        "concurrentNow": 2,
         "byClass": {
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
@@ -348,6 +352,27 @@
             "cancelled": 0,
             "wasted": 0
           },
+          "semantics": {
+            "issued": 1,
+            "bytes": 662289,
+            "wireBytes": 93382,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "prefetch": {
+            "issued": 1,
+            "bytes": 118190,
+            "wireBytes": 21722,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 21,
+            "bytes": 1826404,
+            "wireBytes": 1809683,
+            "cancelled": 0,
+            "wasted": 0
+          },
           "pcIndex": {
             "issued": 3,
             "bytes": 116604,
@@ -355,45 +380,31 @@
             "cancelled": 0,
             "wasted": 0
           },
-          "plateau": {
-            "issued": 18,
-            "bytes": 1177496,
-            "wireBytes": 1177496,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "semantics": {
-            "issued": 1,
-            "bytes": 662289,
-            "wireBytes": 662289,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "prefetch": {
-            "issued": 1,
-            "bytes": 118190,
-            "wireBytes": 118190,
+          "pcCoarse": {
+            "issued": 2,
+            "bytes": 722964,
+            "wireBytes": 722964,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
           "groups": 1,
-          "members": 4,
+          "members": 2,
           "extraBytes": 0
         },
-        "bandwidthBps": 82552,
+        "bandwidthBps": 501797,
         "protocol": "h2"
       },
       "decode_ms": {
-        "p50": null,
-        "p95": null,
-        "n": 0
+        "p50": 637.9,
+        "p95": 637.9,
+        "n": 3
       },
       "gpu_upload_ms": {
-        "p50": null,
-        "p95": null,
-        "n": 0
+        "p50": 0.6,
+        "p95": 0.6,
+        "n": 3
       },
       "camera": {
         "events": 0,
@@ -401,52 +412,52 @@
       },
       "pointcloud": {
         "nodes": 1594,
-        "wantedPoints": 124550,
-        "resident": 0,
-        "inFlight": 4,
-        "residentPoints": 0,
-        "drawCalls": 0,
-        "gpuBytes": 0
+        "wantedPoints": 68622,
+        "resident": 3,
+        "inFlight": 0,
+        "residentPoints": 68622,
+        "drawCalls": 3,
+        "gpuBytes": 1029330
       },
       "plateau": {
-        "loaded": 17,
+        "loaded": 20,
         "failed": 0,
         "expected": 22,
         "colorMode": "usage",
-        "primitives": 17,
-        "coloured": 730,
-        "buildings": 755
+        "primitives": 20,
+        "coloured": 1127,
+        "buildings": 1156
       },
       "projection": "perspective"
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 556,
+      "duration_ms": 548,
       "requests_issued": 0,
       "quiescent": true
     },
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 112,
-        "first_meaningful_render": 813,
-        "pc_module_loaded": 2388,
-        "time_to_terrain": 3248,
-        "plateau_module_loaded": 4508,
-        "pc_index_loaded": 4512,
-        "semantics_loaded": 8056,
-        "semantics_module_loaded": 8197,
-        "time_to_plateau": 15511,
-        "time_to_first_useful_pc": 16235,
-        "time_to_pc_refined": 16518
+        "catalog_loaded": 91,
+        "first_meaningful_render": 811,
+        "pc_module_loaded": 1391,
+        "semantics_loaded": 1552,
+        "semantics_module_loaded": 1681,
+        "plateau_module_loaded": 2117,
+        "time_to_terrain": 3722,
+        "pc_index_loaded": 3856,
+        "time_to_first_useful_pc": 10662,
+        "time_to_pc_refined": 10701,
+        "time_to_plateau": 11712
       },
       "scheduler": {
-        "issued": 68,
-        "completed": 68,
+        "issued": 69,
+        "completed": 69,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 6256753,
-        "wireBytes": 6256753,
+        "bytes": 5681422,
+        "wireBytes": 4992542,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
@@ -454,7 +465,7 @@
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
@@ -472,6 +483,27 @@
             "cancelled": 0,
             "wasted": 0
           },
+          "semantics": {
+            "issued": 1,
+            "bytes": 662289,
+            "wireBytes": 93382,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "prefetch": {
+            "issued": 1,
+            "bytes": 118190,
+            "wireBytes": 21722,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 23,
+            "bytes": 3171348,
+            "wireBytes": 3154627,
+            "cancelled": 0,
+            "wasted": 0
+          },
           "pcIndex": {
             "issued": 3,
             "bytes": 116604,
@@ -479,47 +511,26 @@
             "cancelled": 0,
             "wasted": 0
           },
-          "plateau": {
-            "issued": 23,
-            "bytes": 3171348,
-            "wireBytes": 3171348,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "semantics": {
-            "issued": 1,
-            "bytes": 662289,
-            "wireBytes": 662289,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "prefetch": {
-            "issued": 1,
-            "bytes": 118190,
-            "wireBytes": 118190,
-            "cancelled": 0,
-            "wasted": 0
-          },
           "pcCoarse": {
-            "issued": 1,
-            "bytes": 1298295,
-            "wireBytes": 1298295,
+            "issued": 2,
+            "bytes": 722964,
+            "wireBytes": 722964,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
           "groups": 1,
-          "members": 4,
+          "members": 2,
           "extraBytes": 0
         },
-        "bandwidthBps": 100856,
+        "bandwidthBps": 724064,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          57
+          324
         ]
       },
       "pointcloud": {
@@ -546,47 +557,55 @@
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 508,
-        "first_meaningful_render": 2927
+        "catalog_loaded": 439,
+        "first_meaningful_render": 2843,
+        "pc_module_loaded": 5203,
+        "semantics_loaded": 6098,
+        "semantics_module_loaded": 6727,
+        "plateau_module_loaded": 7906
       },
-      "boot_offset_ms": 5673,
+      "boot_offset_ms": 2034,
       "milestones_navigation": {
-        "app_start": 5673,
-        "catalog_loaded": 6180,
-        "first_meaningful_render": 8599
+        "app_start": 2034,
+        "catalog_loaded": 2473,
+        "first_meaningful_render": 4877,
+        "pc_module_loaded": 7237,
+        "semantics_loaded": 8132,
+        "semantics_module_loaded": 8761,
+        "plateau_module_loaded": 9940
       },
       "shell": {
-        "bytes": 588619,
-        "requests": 1
+        "bytes": 347440,
+        "requests": 8
       },
       "bytes": {
-        "initial_to_fmr": 749955,
-        "at_5s": 813433,
-        "at_10s": 922846,
-        "total_now": 922846
+        "initial_to_fmr": 298496,
+        "at_5s": 361974,
+        "at_10s": 1031795,
+        "total_now": 1031795
       },
       "scheduler": {
-        "issued": 24,
-        "completed": 24,
+        "issued": 33,
+        "completed": 33,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 327027,
-        "wireBytes": 327027,
+        "bytes": 1363335,
+        "wireBytes": 674455,
         "wastedBytes": 0,
         "peakConcurrent": 11,
-        "concurrentNow": 7,
+        "concurrentNow": 10,
         "byClass": {
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 19,
-            "bytes": 243722,
-            "wireBytes": 243722,
+            "issued": 25,
+            "bytes": 480031,
+            "wireBytes": 480031,
             "cancelled": 0,
             "wasted": 0
           },
@@ -596,6 +615,27 @@
             "wireBytes": 72717,
             "cancelled": 0,
             "wasted": 0
+          },
+          "semantics": {
+            "issued": 1,
+            "bytes": 662289,
+            "wireBytes": 93382,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 1,
+            "bytes": 19520,
+            "wireBytes": 2799,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "prefetch": {
+            "issued": 1,
+            "bytes": 118190,
+            "wireBytes": 21722,
+            "cancelled": 0,
+            "wasted": 0
           }
         },
         "coalesced": {
@@ -603,7 +643,7 @@
           "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 12756,
+        "bandwidthBps": 272958,
         "protocol": "h2"
       },
       "decode_ms": {
@@ -620,12 +660,20 @@
         "events": 0,
         "settle_latency_ms": []
       },
-      "pointcloud": null,
+      "pointcloud": {
+        "nodes": 0,
+        "wantedPoints": 0,
+        "resident": 0,
+        "inFlight": 0,
+        "residentPoints": 0,
+        "drawCalls": 0,
+        "gpuBytes": 0
+      },
       "plateau": {
         "loaded": 0,
         "failed": 0,
         "expected": 22,
-        "colorMode": "none",
+        "colorMode": "usage",
         "primitives": 0,
         "coloured": 0,
         "buildings": 0
@@ -634,35 +682,37 @@
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 545,
+      "duration_ms": 542,
       "requests_issued": null,
       "quiescent": false
     },
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 508,
-        "first_meaningful_render": 2927,
-        "pc_module_loaded": 9252,
-        "time_to_terrain": 13437,
-        "plateau_module_loaded": 17892,
-        "pc_index_loaded": 18066
+        "catalog_loaded": 439,
+        "first_meaningful_render": 2843,
+        "pc_module_loaded": 5203,
+        "semantics_loaded": 6098,
+        "semantics_module_loaded": 6727,
+        "plateau_module_loaded": 7906,
+        "time_to_terrain": 15093,
+        "pc_index_loaded": 15993
       },
       "scheduler": {
-        "issued": 49,
-        "completed": 49,
+        "issued": 59,
+        "completed": 59,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 1142687,
-        "wireBytes": 1142687,
+        "bytes": 2329290,
+        "wireBytes": 1640410,
         "wastedBytes": 0,
         "peakConcurrent": 11,
-        "concurrentNow": 6,
+        "concurrentNow": 5,
         "byClass": {
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
@@ -680,6 +730,27 @@
             "cancelled": 0,
             "wasted": 0
           },
+          "semantics": {
+            "issued": 1,
+            "bytes": 662289,
+            "wireBytes": 93382,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 14,
+            "bytes": 400736,
+            "wireBytes": 384015,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "prefetch": {
+            "issued": 1,
+            "bytes": 118190,
+            "wireBytes": 21722,
+            "cancelled": 0,
+            "wasted": 0
+          },
           "pcIndex": {
             "issued": 3,
             "bytes": 116604,
@@ -687,10 +758,10 @@
             "cancelled": 0,
             "wasted": 0
           },
-          "plateau": {
-            "issued": 7,
-            "bytes": 136056,
-            "wireBytes": 136056,
+          "pcCoarse": {
+            "issued": 1,
+            "bytes": 141444,
+            "wireBytes": 141444,
             "cancelled": 0,
             "wasted": 0
           }
@@ -700,13 +771,13 @@
           "members": 2,
           "extraBytes": 0
         },
-        "bandwidthBps": 14410,
+        "bandwidthBps": 43947,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          342
+          320
         ]
       },
       "pointcloud": {
@@ -733,42 +804,42 @@
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 421,
-        "first_meaningful_render": 964,
-        "semantics_loaded": 1181,
-        "pc_module_loaded": 1447,
-        "plateau_module_loaded": 1508,
-        "semantics_module_loaded": 1593,
-        "pc_index_loaded": 3032,
-        "time_to_terrain": 3394,
-        "time_to_plateau": 5269,
-        "time_to_first_useful_pc": 5314,
-        "time_to_pc_refined": 5566
+        "catalog_loaded": 420,
+        "semantics_loaded": 941,
+        "first_meaningful_render": 952,
+        "semantics_module_loaded": 1349,
+        "pc_module_loaded": 1380,
+        "plateau_module_loaded": 1397,
+        "pc_index_loaded": 3030,
+        "time_to_terrain": 3363,
+        "time_to_plateau": 5143,
+        "time_to_first_useful_pc": 5399,
+        "time_to_pc_refined": 5772
       },
-      "boot_offset_ms": 1123,
+      "boot_offset_ms": 931,
       "milestones_navigation": {
-        "app_start": 1123,
-        "catalog_loaded": 1544,
-        "first_meaningful_render": 2087,
-        "semantics_loaded": 2304,
-        "pc_module_loaded": 2570,
-        "plateau_module_loaded": 2631,
-        "semantics_module_loaded": 2716,
-        "pc_index_loaded": 4155,
-        "time_to_terrain": 4517,
-        "time_to_plateau": 6392,
-        "time_to_first_useful_pc": 6437,
-        "time_to_pc_refined": 6689
+        "app_start": 931,
+        "catalog_loaded": 1351,
+        "semantics_loaded": 1873,
+        "first_meaningful_render": 1883,
+        "semantics_module_loaded": 2280,
+        "pc_module_loaded": 2311,
+        "plateau_module_loaded": 2329,
+        "pc_index_loaded": 3961,
+        "time_to_terrain": 4294,
+        "time_to_plateau": 6074,
+        "time_to_first_useful_pc": 6331,
+        "time_to_pc_refined": 6704
       },
       "shell": {
-        "bytes": 1450095,
+        "bytes": 347440,
         "requests": 8
       },
       "bytes": {
-        "initial_to_fmr": 710951,
-        "at_5s": 6282592,
-        "at_10s": 7727248,
-        "total_now": 7727248
+        "initial_to_fmr": 353174,
+        "at_5s": 3210338,
+        "at_10s": 5935713,
+        "total_now": 5935713
       },
       "scheduler": {
         "issued": 68,
@@ -776,7 +847,7 @@
         "cancelled": 0,
         "failed": 0,
         "bytes": 6256753,
-        "wireBytes": 6256753,
+        "wireBytes": 5567873,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
@@ -784,7 +855,7 @@
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
@@ -805,21 +876,21 @@
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 662289,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "plateau": {
-            "issued": 23,
-            "bytes": 3171348,
-            "wireBytes": 3171348,
+            "wireBytes": 93382,
             "cancelled": 0,
             "wasted": 0
           },
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 118190,
+            "wireBytes": 21722,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 23,
+            "bytes": 3171348,
+            "wireBytes": 3154627,
             "cancelled": 0,
             "wasted": 0
           },
@@ -843,17 +914,17 @@
           "members": 4,
           "extraBytes": 0
         },
-        "bandwidthBps": 316450,
+        "bandwidthBps": 1368858,
         "protocol": "h2"
       },
       "decode_ms": {
-        "p50": 682.1,
-        "p95": 875.6,
+        "p50": 556.4,
+        "p95": 686.9,
         "n": 4
       },
       "gpu_upload_ms": {
-        "p50": 0.8,
-        "p95": 1,
+        "p50": 0.9,
+        "p95": 0.9,
         "n": 4
       },
       "camera": {
@@ -882,24 +953,24 @@
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 560,
+      "duration_ms": 543,
       "requests_issued": 0,
       "quiescent": true
     },
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 421,
-        "first_meaningful_render": 964,
-        "semantics_loaded": 1181,
-        "pc_module_loaded": 1447,
-        "plateau_module_loaded": 1508,
-        "semantics_module_loaded": 1593,
-        "pc_index_loaded": 3032,
-        "time_to_terrain": 3394,
-        "time_to_plateau": 5269,
-        "time_to_first_useful_pc": 5314,
-        "time_to_pc_refined": 5566
+        "catalog_loaded": 420,
+        "semantics_loaded": 941,
+        "first_meaningful_render": 952,
+        "semantics_module_loaded": 1349,
+        "pc_module_loaded": 1380,
+        "plateau_module_loaded": 1397,
+        "pc_index_loaded": 3030,
+        "time_to_terrain": 3363,
+        "time_to_plateau": 5143,
+        "time_to_first_useful_pc": 5399,
+        "time_to_pc_refined": 5772
       },
       "scheduler": {
         "issued": 68,
@@ -907,7 +978,7 @@
         "cancelled": 0,
         "failed": 0,
         "bytes": 6256753,
-        "wireBytes": 6256753,
+        "wireBytes": 5567873,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
@@ -915,7 +986,7 @@
           "catalog": {
             "issued": 1,
             "bytes": 10588,
-            "wireBytes": 10588,
+            "wireBytes": 3804,
             "cancelled": 0,
             "wasted": 0
           },
@@ -936,21 +1007,21 @@
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 662289,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "plateau": {
-            "issued": 23,
-            "bytes": 3171348,
-            "wireBytes": 3171348,
+            "wireBytes": 93382,
             "cancelled": 0,
             "wasted": 0
           },
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 118190,
+            "wireBytes": 21722,
+            "cancelled": 0,
+            "wasted": 0
+          },
+          "plateau": {
+            "issued": 23,
+            "bytes": 3171348,
+            "wireBytes": 3154627,
             "cancelled": 0,
             "wasted": 0
           },
@@ -974,13 +1045,13 @@
           "members": 4,
           "extraBytes": 0
         },
-        "bandwidthBps": 316450,
+        "bandwidthBps": 1368858,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          329
+          322
         ]
       },
       "pointcloud": {
