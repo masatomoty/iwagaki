@@ -83,14 +83,16 @@ self.onmessage = async (ev: MessageEvent<DecodeMsg>) => {
       if (gr && gg && gb) {
         const r = gr(i), g = gg(i), bl = gb(i)
         const k = r > 255 || g > 255 || bl > 255 ? 1 / 257 : 1
-        // 彩度をわずかに起こす。**強くしない。** 1.35 まで上げると SLAM の
-        // ノイズ点（空に散る水色）まで目立つ。実測色として読ませたいので 1.15 に留める
-        const rr = r * k, gg2 = g * k, bb = bl * k
-        const lum = 0.299 * rr + 0.587 * gg2 + 0.114 * bb
-        const sat = 1.15
-        colors[i * 3] = Math.min(255, Math.max(0, lum + (rr - lum) * sat))
-        colors[i * 3 + 1] = Math.min(255, Math.max(0, lum + (gg2 - lum) * sat))
-        colors[i * 3 + 2] = Math.min(255, Math.max(0, lum + (bb - lum) * sat))
+        // **彩度は触らない。** 起こすと見た目はほとんど変わらないのに
+        // decode が 3 倍になる [実測]（`docs/web_results.md`「点群の色を実測 RGB に」）:
+        //   RGB を読まない（標高ランプ）      p50 38.5 ms
+        //   RGB を読む・彩度そのまま          p50 42.9 ms  ← これ
+        //   RGB を読む・彩度 1.15 倍          p50 117.7 ms
+        // 1 点あたり輝度 + 3 回の補間 + 6 回の clamp が 3,700 万点に掛かる。
+        // 実測色を作り変えないという方針にも合う
+        colors[i * 3] = r * k
+        colors[i * 3 + 1] = g * k
+        colors[i * 3 + 2] = bl * k
       } else {
         // RGB を持たない配信物（DTM から作った合成点群）向けの退避。
         // 紫にしてあるのは、主張が使っていない唯一の色相だから

@@ -17,4 +17,4 @@ $PY scripts/83_build_catalog.py          # catalog.json + objects.geojson(WGS84)
 $PY scripts/85_emit_parity_fixture.py    # ブラウザ側の実装との突き合わせ用フィクスチャ
 
 echo
-echo "次: cd web && npm install && npm run build && node serve.mjs"
+echo "次: cd web && pnpm install && pnpm build && node serve.mjs"

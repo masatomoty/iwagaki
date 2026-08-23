@@ -7,76 +7,70 @@
       "uploadThroughput": -1,
       "latency": 0
     },
-    "url": "https://localhost:8477/?pc=1",
+    "url": "https://localhost:8443/",
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 20,
-        "semantics_loaded": 123,
-        "semantics_module_loaded": 169,
-        "first_meaningful_render": 189,
-        "pc_module_loaded": 227,
-        "plateau_module_loaded": 233,
-        "time_to_terrain": 318,
-        "pc_index_loaded": 323,
-        "time_to_plateau": 504,
-        "time_to_first_useful_pc": 506,
-        "time_to_pc_refined": 509
+        "catalog_loaded": 13,
+        "semantics_loaded": 94,
+        "semantics_parsed": 97,
+        "semantics_mesh_built": 110,
+        "first_meaningful_render": 825,
+        "plateau_module_loaded": 857,
+        "time_to_terrain": 906,
+        "time_to_plateau": 980
       },
-      "boot_offset_ms": 103,
+      "boot_offset_ms": 151,
       "milestones_navigation": {
-        "app_start": 103,
-        "catalog_loaded": 123,
-        "semantics_loaded": 226,
-        "semantics_module_loaded": 273,
-        "first_meaningful_render": 292,
-        "pc_module_loaded": 330,
-        "plateau_module_loaded": 337,
-        "time_to_terrain": 421,
-        "pc_index_loaded": 427,
-        "time_to_plateau": 607,
-        "time_to_first_useful_pc": 609,
-        "time_to_pc_refined": 612
+        "app_start": 151,
+        "catalog_loaded": 164,
+        "semantics_loaded": 245,
+        "semantics_parsed": 248,
+        "semantics_mesh_built": 261,
+        "first_meaningful_render": 976,
+        "plateau_module_loaded": 1008,
+        "time_to_terrain": 1057,
+        "time_to_plateau": 1131
       },
       "shell": {
-        "bytes": 347440,
-        "requests": 8
+        "bytes": 834499,
+        "requests": 2
       },
       "bytes": {
-        "initial_to_fmr": 409065,
-        "at_5s": 5935713,
-        "at_10s": 5935713,
-        "total_now": 5935713
+        "initial_to_fmr": 1647885,
+        "at_5s": 5703935,
+        "at_10s": 5703935,
+        "total_now": 5703935
       },
       "scheduler": {
-        "issued": 68,
-        "completed": 68,
+        "issued": 67,
+        "completed": 67,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 6256753,
-        "wireBytes": 5567873,
+        "bytes": 4849336,
+        "wireBytes": 4849336,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 93382,
+            "wireBytes": 662289,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -90,63 +84,41 @@
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 21722,
+            "wireBytes": 118190,
             "cancelled": 0,
             "wasted": 0
           },
           "plateau": {
             "issued": 23,
             "bytes": 3171348,
-            "wireBytes": 3154627,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 1,
-            "bytes": 1298295,
-            "wireBytes": 1298295,
+            "wireBytes": 3171348,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 4,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 19837517,
+        "bandwidthBps": 5234038,
         "protocol": "h2"
       },
       "decode_ms": {
-        "p50": 41.7,
-        "p95": 78.3,
-        "n": 4
+        "p50": null,
+        "p95": null,
+        "n": 0
       },
       "gpu_upload_ms": {
-        "p50": 1.4,
-        "p95": 2.1,
-        "n": 4
+        "p50": null,
+        "p95": null,
+        "n": 0
       },
       "camera": {
         "events": 0,
         "settle_latency_ms": []
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 124550,
-        "resident": 4,
-        "inFlight": 0,
-        "residentPoints": 124550,
-        "drawCalls": 4,
-        "gpuBytes": 1868250
-      },
+      "pointcloud": null,
       "plateau": {
         "loaded": 22,
         "failed": 0,
@@ -160,54 +132,51 @@
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 545,
+      "duration_ms": 562,
       "requests_issued": 0,
       "quiescent": true
     },
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 20,
-        "semantics_loaded": 123,
-        "semantics_module_loaded": 169,
-        "first_meaningful_render": 189,
-        "pc_module_loaded": 227,
-        "plateau_module_loaded": 233,
-        "time_to_terrain": 318,
-        "pc_index_loaded": 323,
-        "time_to_plateau": 504,
-        "time_to_first_useful_pc": 506,
-        "time_to_pc_refined": 509
+        "catalog_loaded": 13,
+        "semantics_loaded": 94,
+        "semantics_parsed": 97,
+        "semantics_mesh_built": 110,
+        "first_meaningful_render": 825,
+        "plateau_module_loaded": 857,
+        "time_to_terrain": 906,
+        "time_to_plateau": 980
       },
       "scheduler": {
-        "issued": 68,
-        "completed": 68,
+        "issued": 67,
+        "completed": 67,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 6256753,
-        "wireBytes": 5567873,
+        "bytes": 4849336,
+        "wireBytes": 4849336,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 93382,
+            "wireBytes": 662289,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -221,55 +190,33 @@
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 21722,
+            "wireBytes": 118190,
             "cancelled": 0,
             "wasted": 0
           },
           "plateau": {
             "issued": 23,
             "bytes": 3171348,
-            "wireBytes": 3154627,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 1,
-            "bytes": 1298295,
-            "wireBytes": 1298295,
+            "wireBytes": 3171348,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 4,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 19837517,
+        "bandwidthBps": 5234038,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          319
+          325
         ]
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 68622,
-        "resident": 3,
-        "inFlight": 0,
-        "residentPoints": 68622,
-        "drawCalls": 3,
-        "gpuBytes": 1029330
-      }
+      "pointcloud": null
     },
     "page_errors": []
   },
@@ -281,67 +228,61 @@
       "uploadThroughput": 375000,
       "latency": 70
     },
-    "url": "https://localhost:8477/?pc=1",
+    "url": "https://localhost:8443/",
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 91,
-        "first_meaningful_render": 811,
-        "pc_module_loaded": 1391,
-        "semantics_loaded": 1552,
-        "semantics_module_loaded": 1681,
-        "plateau_module_loaded": 2117,
-        "time_to_terrain": 3722,
-        "pc_index_loaded": 3856,
-        "time_to_first_useful_pc": 10662,
-        "time_to_pc_refined": 10701
+        "catalog_loaded": 113,
+        "first_meaningful_render": 770,
+        "time_to_terrain": 2747,
+        "plateau_module_loaded": 3087,
+        "semantics_loaded": 6615,
+        "semantics_parsed": 6623,
+        "semantics_mesh_built": 6639
       },
-      "boot_offset_ms": 509,
+      "boot_offset_ms": 1447,
       "milestones_navigation": {
-        "app_start": 509,
-        "catalog_loaded": 601,
-        "first_meaningful_render": 1321,
-        "pc_module_loaded": 1901,
-        "semantics_loaded": 2061,
-        "semantics_module_loaded": 2190,
-        "plateau_module_loaded": 2626,
-        "time_to_terrain": 4231,
-        "pc_index_loaded": 4365,
-        "time_to_first_useful_pc": 11172,
-        "time_to_pc_refined": 11210
+        "app_start": 1447,
+        "catalog_loaded": 1560,
+        "first_meaningful_render": 2217,
+        "time_to_terrain": 4194,
+        "plateau_module_loaded": 4534,
+        "semantics_loaded": 8062,
+        "semantics_parsed": 8070,
+        "semantics_mesh_built": 8086
       },
       "shell": {
-        "bytes": 347440,
-        "requests": 8
+        "bytes": 834499,
+        "requests": 2
       },
       "bytes": {
-        "initial_to_fmr": 320758,
-        "at_5s": 1829162,
-        "at_10s": 2882622,
-        "total_now": 4015138
+        "initial_to_fmr": 773431,
+        "at_5s": 1973752,
+        "at_10s": 3708583,
+        "total_now": 3726459
       },
       "scheduler": {
-        "issued": 67,
-        "completed": 67,
+        "issued": 63,
+        "completed": 63,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 4336478,
-        "wireBytes": 3647598,
+        "bytes": 2873060,
+        "wireBytes": 2873060,
         "wastedBytes": 0,
         "peakConcurrent": 11,
-        "concurrentNow": 2,
+        "concurrentNow": 4,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -352,81 +293,59 @@
             "cancelled": 0,
             "wasted": 0
           },
+          "plateau": {
+            "issued": 19,
+            "bytes": 1195072,
+            "wireBytes": 1195072,
+            "cancelled": 0,
+            "wasted": 0
+          },
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 93382,
+            "wireBytes": 662289,
             "cancelled": 0,
             "wasted": 0
           },
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 21722,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "plateau": {
-            "issued": 21,
-            "bytes": 1826404,
-            "wireBytes": 1809683,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 2,
-            "bytes": 722964,
-            "wireBytes": 722964,
+            "wireBytes": 118190,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 2,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 501797,
+        "bandwidthBps": 402300,
         "protocol": "h2"
       },
       "decode_ms": {
-        "p50": 637.9,
-        "p95": 637.9,
-        "n": 3
+        "p50": null,
+        "p95": null,
+        "n": 0
       },
       "gpu_upload_ms": {
-        "p50": 0.6,
-        "p95": 0.6,
-        "n": 3
+        "p50": null,
+        "p95": null,
+        "n": 0
       },
       "camera": {
         "events": 0,
         "settle_latency_ms": []
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 68622,
-        "resident": 3,
-        "inFlight": 0,
-        "residentPoints": 68622,
-        "drawCalls": 3,
-        "gpuBytes": 1029330
-      },
+      "pointcloud": null,
       "plateau": {
-        "loaded": 20,
+        "loaded": 18,
         "failed": 0,
         "expected": 22,
         "colorMode": "usage",
-        "primitives": 20,
-        "coloured": 1127,
-        "buildings": 1156
+        "primitives": 18,
+        "coloured": 739,
+        "buildings": 767
       },
       "projection": "perspective"
     },
@@ -439,40 +358,37 @@
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 91,
-        "first_meaningful_render": 811,
-        "pc_module_loaded": 1391,
-        "semantics_loaded": 1552,
-        "semantics_module_loaded": 1681,
-        "plateau_module_loaded": 2117,
-        "time_to_terrain": 3722,
-        "pc_index_loaded": 3856,
-        "time_to_first_useful_pc": 10662,
-        "time_to_pc_refined": 10701,
-        "time_to_plateau": 11712
+        "catalog_loaded": 113,
+        "first_meaningful_render": 770,
+        "time_to_terrain": 2747,
+        "plateau_module_loaded": 3087,
+        "semantics_loaded": 6615,
+        "semantics_parsed": 6623,
+        "semantics_mesh_built": 6639,
+        "time_to_plateau": 12768
       },
       "scheduler": {
-        "issued": 69,
-        "completed": 69,
+        "issued": 67,
+        "completed": 67,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 5681422,
-        "wireBytes": 4992542,
+        "bytes": 4849336,
+        "wireBytes": 4849336,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -483,65 +399,43 @@
             "cancelled": 0,
             "wasted": 0
           },
+          "plateau": {
+            "issued": 23,
+            "bytes": 3171348,
+            "wireBytes": 3171348,
+            "cancelled": 0,
+            "wasted": 0
+          },
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 93382,
+            "wireBytes": 662289,
             "cancelled": 0,
             "wasted": 0
           },
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 21722,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "plateau": {
-            "issued": 23,
-            "bytes": 3171348,
-            "wireBytes": 3154627,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 2,
-            "bytes": 722964,
-            "wireBytes": 722964,
+            "wireBytes": 118190,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 2,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 724064,
+        "bandwidthBps": 618591,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          324
+          326
         ]
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 68622,
-        "resident": 3,
-        "inFlight": 0,
-        "residentPoints": 68622,
-        "drawCalls": 3,
-        "gpuBytes": 1029330
-      }
+      "pointcloud": null
     },
     "page_errors": []
   },
@@ -553,59 +447,51 @@
       "uploadThroughput": 62500,
       "latency": 400
     },
-    "url": "https://localhost:8477/?pc=1",
+    "url": "https://localhost:8443/",
     "load": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 439,
-        "first_meaningful_render": 2843,
-        "pc_module_loaded": 5203,
-        "semantics_loaded": 6098,
-        "semantics_module_loaded": 6727,
-        "plateau_module_loaded": 7906
+        "catalog_loaded": 504,
+        "first_meaningful_render": 2775
       },
-      "boot_offset_ms": 2034,
+      "boot_offset_ms": 5809,
       "milestones_navigation": {
-        "app_start": 2034,
-        "catalog_loaded": 2473,
-        "first_meaningful_render": 4877,
-        "pc_module_loaded": 7237,
-        "semantics_loaded": 8132,
-        "semantics_module_loaded": 8761,
-        "plateau_module_loaded": 9940
+        "app_start": 5809,
+        "catalog_loaded": 6313,
+        "first_meaningful_render": 8584
       },
       "shell": {
-        "bytes": 347440,
-        "requests": 8
+        "bytes": 603713,
+        "requests": 1
       },
       "bytes": {
-        "initial_to_fmr": 298496,
-        "at_5s": 361974,
-        "at_10s": 1031795,
-        "total_now": 1031795
+        "initial_to_fmr": 766790,
+        "at_5s": 836909,
+        "at_10s": 890497,
+        "total_now": 890497
       },
       "scheduler": {
-        "issued": 33,
-        "completed": 33,
+        "issued": 26,
+        "completed": 26,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 1363335,
-        "wireBytes": 674455,
+        "bytes": 278984,
+        "wireBytes": 278984,
         "wastedBytes": 0,
         "peakConcurrent": 11,
-        "concurrentNow": 10,
+        "concurrentNow": 7,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 25,
-            "bytes": 480031,
-            "wireBytes": 480031,
+            "issued": 21,
+            "bytes": 195017,
+            "wireBytes": 195017,
             "cancelled": 0,
             "wasted": 0
           },
@@ -615,27 +501,6 @@
             "wireBytes": 72717,
             "cancelled": 0,
             "wasted": 0
-          },
-          "semantics": {
-            "issued": 1,
-            "bytes": 662289,
-            "wireBytes": 93382,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "plateau": {
-            "issued": 1,
-            "bytes": 19520,
-            "wireBytes": 2799,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "prefetch": {
-            "issued": 1,
-            "bytes": 118190,
-            "wireBytes": 21722,
-            "cancelled": 0,
-            "wasted": 0
           }
         },
         "coalesced": {
@@ -643,7 +508,7 @@
           "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 272958,
+        "bandwidthBps": 64982,
         "protocol": "h2"
       },
       "decode_ms": {
@@ -660,20 +525,12 @@
         "events": 0,
         "settle_latency_ms": []
       },
-      "pointcloud": {
-        "nodes": 0,
-        "wantedPoints": 0,
-        "resident": 0,
-        "inFlight": 0,
-        "residentPoints": 0,
-        "drawCalls": 0,
-        "gpuBytes": 0
-      },
+      "pointcloud": null,
       "plateau": {
         "loaded": 0,
         "failed": 0,
         "expected": 22,
-        "colorMode": "usage",
+        "colorMode": "none",
         "primitives": 0,
         "coloured": 0,
         "buildings": 0
@@ -682,44 +539,40 @@
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 542,
+      "duration_ms": 548,
       "requests_issued": null,
       "quiescent": false
     },
     "after_camera_move": {
       "milestones": {
         "app_start": 0,
-        "catalog_loaded": 439,
-        "first_meaningful_render": 2843,
-        "pc_module_loaded": 5203,
-        "semantics_loaded": 6098,
-        "semantics_module_loaded": 6727,
-        "plateau_module_loaded": 7906,
-        "time_to_terrain": 15093,
-        "pc_index_loaded": 15993
+        "catalog_loaded": 504,
+        "first_meaningful_render": 2775,
+        "time_to_terrain": 11355,
+        "plateau_module_loaded": 12447
       },
       "scheduler": {
-        "issued": 59,
-        "completed": 59,
+        "issued": 55,
+        "completed": 55,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 2329290,
-        "wireBytes": 1640410,
+        "bytes": 1263901,
+        "wireBytes": 1263901,
         "wastedBytes": 0,
         "peakConcurrent": 11,
-        "concurrentNow": 5,
+        "concurrentNow": 4,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -730,65 +583,29 @@
             "cancelled": 0,
             "wasted": 0
           },
-          "semantics": {
-            "issued": 1,
-            "bytes": 662289,
-            "wireBytes": 93382,
-            "cancelled": 0,
-            "wasted": 0
-          },
           "plateau": {
-            "issued": 14,
-            "bytes": 400736,
-            "wireBytes": 384015,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "prefetch": {
-            "issued": 1,
-            "bytes": 118190,
-            "wireBytes": 21722,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 1,
-            "bytes": 141444,
-            "wireBytes": 141444,
+            "issued": 13,
+            "bytes": 366392,
+            "wireBytes": 366392,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 2,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 43947,
+        "bandwidthBps": 38747,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          320
+          329
         ]
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 68622,
-        "resident": 0,
-        "inFlight": 3,
-        "residentPoints": 0,
-        "drawCalls": 0,
-        "gpuBytes": 0
-      }
+      "pointcloud": null
     },
     "page_errors": []
   },
@@ -800,69 +617,63 @@
       "uploadThroughput": 625000,
       "latency": 400
     },
-    "url": "https://localhost:8477/?pc=1",
+    "url": "https://localhost:8443/",
     "load": {
       "milestones": {
         "app_start": 0,
         "catalog_loaded": 420,
-        "semantics_loaded": 941,
-        "first_meaningful_render": 952,
-        "semantics_module_loaded": 1349,
-        "pc_module_loaded": 1380,
-        "plateau_module_loaded": 1397,
-        "pc_index_loaded": 3030,
-        "time_to_terrain": 3363,
-        "time_to_plateau": 5143,
-        "time_to_first_useful_pc": 5399,
-        "time_to_pc_refined": 5772
+        "first_meaningful_render": 957,
+        "semantics_loaded": 1177,
+        "semantics_parsed": 1179,
+        "semantics_mesh_built": 1188,
+        "plateau_module_loaded": 1461,
+        "time_to_terrain": 3386,
+        "time_to_plateau": 5150
       },
-      "boot_offset_ms": 931,
+      "boot_offset_ms": 1126,
       "milestones_navigation": {
-        "app_start": 931,
-        "catalog_loaded": 1351,
-        "semantics_loaded": 1873,
-        "first_meaningful_render": 1883,
-        "semantics_module_loaded": 2280,
-        "pc_module_loaded": 2311,
-        "plateau_module_loaded": 2329,
-        "pc_index_loaded": 3961,
-        "time_to_terrain": 4294,
-        "time_to_plateau": 6074,
-        "time_to_first_useful_pc": 6331,
-        "time_to_pc_refined": 6704
+        "app_start": 1126,
+        "catalog_loaded": 1546,
+        "first_meaningful_render": 2083,
+        "semantics_loaded": 2303,
+        "semantics_parsed": 2305,
+        "semantics_mesh_built": 2314,
+        "plateau_module_loaded": 2588,
+        "time_to_terrain": 4512,
+        "time_to_plateau": 6276
       },
       "shell": {
-        "bytes": 347440,
-        "requests": 8
+        "bytes": 834499,
+        "requests": 2
       },
       "bytes": {
-        "initial_to_fmr": 353174,
-        "at_5s": 3210338,
-        "at_10s": 5935713,
-        "total_now": 5935713
+        "initial_to_fmr": 726707,
+        "at_5s": 5622699,
+        "at_10s": 5703935,
+        "total_now": 5703935
       },
       "scheduler": {
-        "issued": 68,
-        "completed": 68,
+        "issued": 67,
+        "completed": 67,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 6256753,
-        "wireBytes": 5567873,
+        "bytes": 4849336,
+        "wireBytes": 4849336,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -876,70 +687,48 @@
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 93382,
+            "wireBytes": 662289,
             "cancelled": 0,
             "wasted": 0
           },
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 21722,
+            "wireBytes": 118190,
             "cancelled": 0,
             "wasted": 0
           },
           "plateau": {
             "issued": 23,
             "bytes": 3171348,
-            "wireBytes": 3154627,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 1,
-            "bytes": 1298295,
-            "wireBytes": 1298295,
+            "wireBytes": 3171348,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 4,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 1368858,
+        "bandwidthBps": 1182411,
         "protocol": "h2"
       },
       "decode_ms": {
-        "p50": 556.4,
-        "p95": 686.9,
-        "n": 4
+        "p50": null,
+        "p95": null,
+        "n": 0
       },
       "gpu_upload_ms": {
-        "p50": 0.9,
-        "p95": 0.9,
-        "n": 4
+        "p50": null,
+        "p95": null,
+        "n": 0
       },
       "camera": {
         "events": 0,
         "settle_latency_ms": []
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 124550,
-        "resident": 4,
-        "inFlight": 0,
-        "residentPoints": 124550,
-        "drawCalls": 4,
-        "gpuBytes": 1868250
-      },
+      "pointcloud": null,
       "plateau": {
         "loaded": 22,
         "failed": 0,
@@ -953,7 +742,7 @@
     },
     "water_level_sweep": {
       "steps": 31,
-      "duration_ms": 543,
+      "duration_ms": 547,
       "requests_issued": 0,
       "quiescent": true
     },
@@ -961,39 +750,36 @@
       "milestones": {
         "app_start": 0,
         "catalog_loaded": 420,
-        "semantics_loaded": 941,
-        "first_meaningful_render": 952,
-        "semantics_module_loaded": 1349,
-        "pc_module_loaded": 1380,
-        "plateau_module_loaded": 1397,
-        "pc_index_loaded": 3030,
-        "time_to_terrain": 3363,
-        "time_to_plateau": 5143,
-        "time_to_first_useful_pc": 5399,
-        "time_to_pc_refined": 5772
+        "first_meaningful_render": 957,
+        "semantics_loaded": 1177,
+        "semantics_parsed": 1179,
+        "semantics_mesh_built": 1188,
+        "plateau_module_loaded": 1461,
+        "time_to_terrain": 3386,
+        "time_to_plateau": 5150
       },
       "scheduler": {
-        "issued": 68,
-        "completed": 68,
+        "issued": 67,
+        "completed": 67,
         "cancelled": 0,
         "failed": 0,
-        "bytes": 6256753,
-        "wireBytes": 5567873,
+        "bytes": 4849336,
+        "wireBytes": 4849336,
         "wastedBytes": 0,
         "peakConcurrent": 11,
         "concurrentNow": 0,
         "byClass": {
           "catalog": {
             "issued": 1,
-            "bytes": 10588,
-            "wireBytes": 3804,
+            "bytes": 11250,
+            "wireBytes": 11250,
             "cancelled": 0,
             "wasted": 0
           },
           "terrainFine": {
-            "issued": 34,
-            "bytes": 806722,
-            "wireBytes": 806722,
+            "issued": 37,
+            "bytes": 813542,
+            "wireBytes": 813542,
             "cancelled": 0,
             "wasted": 0
           },
@@ -1007,62 +793,40 @@
           "semantics": {
             "issued": 1,
             "bytes": 662289,
-            "wireBytes": 93382,
+            "wireBytes": 662289,
             "cancelled": 0,
             "wasted": 0
           },
           "prefetch": {
             "issued": 1,
             "bytes": 118190,
-            "wireBytes": 21722,
+            "wireBytes": 118190,
             "cancelled": 0,
             "wasted": 0
           },
           "plateau": {
             "issued": 23,
             "bytes": 3171348,
-            "wireBytes": 3154627,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcIndex": {
-            "issued": 3,
-            "bytes": 116604,
-            "wireBytes": 116604,
-            "cancelled": 0,
-            "wasted": 0
-          },
-          "pcCoarse": {
-            "issued": 1,
-            "bytes": 1298295,
-            "wireBytes": 1298295,
+            "wireBytes": 3171348,
             "cancelled": 0,
             "wasted": 0
           }
         },
         "coalesced": {
-          "groups": 1,
-          "members": 4,
+          "groups": 0,
+          "members": 0,
           "extraBytes": 0
         },
-        "bandwidthBps": 1368858,
+        "bandwidthBps": 1182411,
         "protocol": "h2"
       },
       "camera": {
         "events": 1,
         "settle_latency_ms": [
-          322
+          327
         ]
       },
-      "pointcloud": {
-        "nodes": 1594,
-        "wantedPoints": 68622,
-        "resident": 3,
-        "inFlight": 0,
-        "residentPoints": 68622,
-        "drawCalls": 3,
-        "gpuBytes": 1029330
-      }
+      "pointcloud": null
     },
     "page_errors": []
   }

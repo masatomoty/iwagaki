@@ -87,7 +87,7 @@ Worker → R2 binding は subrequest であり、Cache API に 206 を put で�
 
 配信先: `https://iwagaki-viewer.tonbo.workers.dev`
 
-`npm run deploy:check <URL>` → **MUST 12/12**。
+`pnpm run deploy:check <URL>` → **MUST 12/12**。
 
 | 項目 | 結果 |
 |---|---|

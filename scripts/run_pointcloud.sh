@@ -39,4 +39,4 @@ $PY scripts/83_build_catalog.py
 $PY scripts/23_pc_docs_update.py
 
 echo
-echo "完了。web を作り直す: cd web && npm run build"
+echo "完了。web を作り直す: cd web && pnpm build"

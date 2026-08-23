@@ -12,7 +12,7 @@
 │         ├─▶ web/public/data/catalog.json      ← 配信物の目録       │
 │         └─▶ web/public/data/pointcloud/*.copc.laz                │
 │                                                                  │
-│  npm run build             vite ──▶ web/dist/                    │
+│  pnpm build                vite ──▶ web/dist/                    │
 └──────────────────────────────┬───────────────────────────────────┘
                                │  deploy/deploy.sh
               ┌────────────────┴───────────────────┐
@@ -94,10 +94,10 @@ Account Settings:Read。`wrangler login` で済ませるなら不要。
 
 ```bash
 cd web
-npx wrangler login          # 初回のみ（ブラウザ認証）
-npm run deploy:dry          # 設定と bundle の検証だけ。Cloudflare に何も作らない
-npm run deploy              # build → R2 へ COPC → wrangler deploy
-npm run deploy:check https://iwagaki-viewer.<subdomain>.workers.dev
+pnpm exec wrangler login          # 初回のみ（ブラウザ認証）
+pnpm run deploy:dry          # 設定と bundle の検証だけ。Cloudflare に何も作らない
+pnpm run deploy              # build → R2 へ COPC → wrangler deploy
+pnpm run deploy:check https://iwagaki-viewer.<subdomain>.workers.dev
 ```
 
 | オプション | 効果 |
@@ -137,10 +137,10 @@ AWS_SECRET_ACCESS_KEY=<同 Secret Access Key>
 
 ```bash
 # 一度だけ: ローカル R2 に COPC を入れる（wrangler dev はローカル実体を見る）
-npx wrangler r2 object put iwagaki-assets/data/pointcloud/<name>.copc.laz \
+pnpm exec wrangler r2 object put iwagaki-assets/data/pointcloud/<name>.copc.laz \
   --file dist/data/pointcloud/<name>.copc.laz --content-type application/octet-stream --local
 cp deploy/_headers dist/_headers && cp deploy/assetsignore dist/.assetsignore
-npx wrangler dev --port 8788
+pnpm exec wrangler dev --port 8788
 node deploy/check.mjs http://localhost:8788
 ```
 

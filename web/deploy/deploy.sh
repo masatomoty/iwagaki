@@ -3,7 +3,7 @@
 #   静的アセット -> Workers Assets（dist/ をそのまま）
 #   COPC        -> R2（Range 206 が要るため。docs/platform.md）
 #
-# 前提: `npx wrangler login` 済み。scripts/build_web.sh でアセットが生成済み。
+# 前提: `pnpm exec wrangler login` 済み。scripts/build_web.sh でアセットが生成済み。
 #
 #   deploy/deploy.sh                 build -> R2 へ COPC -> deploy
 #   deploy/deploy.sh --no-build      dist/ を作り直さない
@@ -27,21 +27,21 @@ for arg in "$@"; do
   esac
 done
 
-[ -x "$WRANGLER" ] || { echo "wrangler が無い。web/ で npm install を実行する" >&2; exit 1; }
+[ -x "$WRANGLER" ] || { echo "wrangler が無い。web/ で pnpm install を実行する" >&2; exit 1; }
 
 # バケット名は wrangler.jsonc を単一の出所にする（二重管理して食い違うのを避ける）
 BUCKET="$(grep -o '"bucket_name"[[:space:]]*:[[:space:]]*"[^"]*"' wrangler.jsonc | head -1 | cut -d'"' -f4)"
 [ -n "$BUCKET" ] || { echo "wrangler.jsonc から bucket_name を読めない" >&2; exit 1; }
 
 if [ "$DRY_RUN" -eq 0 ]; then
-  "$WRANGLER" whoami >/dev/null 2>&1 || { echo "未ログイン。'npx wrangler login' を実行する" >&2; exit 1; }
+  "$WRANGLER" whoami >/dev/null 2>&1 || { echo "未ログイン。'pnpm exec wrangler login' を実行する" >&2; exit 1; }
 fi
 
 if [ "$BUILD" -eq 1 ]; then
   echo "==> vite build"
-  npm run build
+  pnpm build
 fi
-[ -d dist ] || { echo "dist/ が無い。--no-build を外すか npm run build を実行する" >&2; exit 1; }
+[ -d dist ] || { echo "dist/ が無い。--no-build を外すか pnpm build を実行する" >&2; exit 1; }
 
 # 点群が dist に無い = scripts/build_web.sh が未実行。気づかず「点群だけ出ない」配信になる
 shopt -s nullglob

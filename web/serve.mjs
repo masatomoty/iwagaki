@@ -138,7 +138,7 @@ function handle(req, res) {
 }
 
 if (!existsSync(ROOT)) {
-  console.error(`dist/ が無い。先に \`npm run build\` を実行する`)
+  console.error(`dist/ が無い。先に \`pnpm build\` を実行する`)
   process.exit(1)
 }
 await precompress(ROOT)

@@ -5,7 +5,7 @@
 // 働いていなかったのに、半年近く気づかれなかった。
 //
 //   node --experimental-strip-types test/camera.test.mjs
-//   （TS のまま読めない環境では npm run build 後の dist を使う）
+//   （TS のまま読めない環境では pnpm build 後の dist を使う）
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
@@ -16,7 +16,7 @@ import path from 'node:path'
 const out = mkdtempSync(path.join(tmpdir(), 'iwagaki-cam-'))
 // skipLibCheck を付ける。camera.ts は DOM も node も使わない純関数だが、
 // 単体で tsc に掛けると @types/node の中の解決エラー（undici-types）を拾ってしまう
-execFileSync('npx', ['tsc', 'src/domain/camera.ts', '--outDir', out,
+execFileSync('pnpm', ['exec', 'tsc', 'src/domain/camera.ts', '--outDir', out,
                      '--module', 'es2022', '--target', 'es2022',
                      '--moduleResolution', 'bundler', '--skipLibCheck'],
              { stdio: 'inherit' })

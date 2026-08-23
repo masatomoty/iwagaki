@@ -5,7 +5,7 @@
 //   node perf/run.mjs                 # 既定 3 プロファイル
 //   node perf/run.mjs --scenario=coalesce
 //
-// 事前に `npm run build` と `node serve.mjs`（別プロセス）が必要。
+// 事前に `pnpm build` と `node serve.mjs`（別プロセス）が必要。
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'

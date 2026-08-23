@@ -16,7 +16,7 @@ const TILE = process.env.TILE
   ?? path.join(ROOT, 'web/public/data/tiles/highres/18/229614/103429.png')
 
 const out = mkdtempSync(path.join(tmpdir(), 'iwagaki-png-'))
-execFileSync('npx', ['tsc', 'src/assets/png.ts', '--outDir', out,
+execFileSync('pnpm', ['exec', 'tsc', 'src/assets/png.ts', '--outDir', out,
                      '--module', 'es2022', '--target', 'es2022',
                      '--moduleResolution', 'bundler', '--skipLibCheck', '--lib', 'es2022,dom'],
              { cwd: path.join(ROOT, 'web'), stdio: 'inherit' })

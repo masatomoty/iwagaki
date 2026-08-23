@@ -74,23 +74,23 @@ LAS の実態確認 → 被覆・密度の実測 → 京都府 DEM との突き�
 
 ```bash
 cd web
-npm install
-npm run build
-npm run serve          # https://localhost:8443（HTTP/2 + 自己署名 TLS）
+pnpm install
+pnpm build
+pnpm serve          # https://localhost:8443（HTTP/2 + 自己署名 TLS）
 ```
 
 `serve.mjs` は production 相当の配信を再現する（HTTP/2、Range 206、
 事前圧縮 br/gz、immutable キャッシュ、マルチレンジは 400）。
-**開発サーバ（`npm run dev`）でネットワークを測っても意味が無い。**
+**開発サーバ（`pnpm dev`）でネットワークを測っても意味が無い。**
 
 ### 配信する
 
 ```bash
 cd web
-npx wrangler login          # 初回のみ
-npm run deploy:dry          # 設定の検証だけ（Cloudflare に何も作らない）
-npm run deploy              # build → COPC を R2 → Worker をデプロイ
-npm run deploy:check <URL>  # Range 206 / 圧縮 / キャッシュを実測して合否を出す
+pnpm exec wrangler login          # 初回のみ
+pnpm run deploy:dry          # 設定の検証だけ（Cloudflare に何も作らない）
+pnpm run deploy              # build → COPC を R2 → Worker をデプロイ
+pnpm run deploy:check <URL>  # Range 206 / 圧縮 / キャッシュを実測して合否を出す
 ```
 
 静的アセットは Workers Assets、**COPC だけ Worker 経由で R2 から Range 配信**する

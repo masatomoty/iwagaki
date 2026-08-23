@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const WEB = path.join(HERE, '..')
+// draco は 3d-tiles の依存だが、ここで中身を取り出すので package.json に直接書く
+// （pnpm は間接依存を node_modules 直下に置かない）
 const SRC = path.join(WEB, 'node_modules/@loaders.gl/draco')
 const VENDOR = path.join(WEB, 'public/vendor')
 const FILES = ['draco_wasm_wrapper.js', 'draco_decoder.wasm']
