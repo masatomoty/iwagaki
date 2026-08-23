@@ -1,7 +1,7 @@
 // index -> LOD -> Scheduler(coalescing) -> decode worker -> renderer をつなぐ。
 // ここが唯一 4 者を知っている場所。renderer を差し替えてもここ以外は変わらない。
 
-import { boxesOverlap } from '../domain/camera'
+import { boxesOverlap, boxIntersectsPolygon } from '../domain/camera'
 import { coalesce, type RangeMember } from '../net/coalesce'
 import type { Scheduler } from '../net/scheduler'
 import type { PerfRecorder } from '../perf/recorder'
@@ -81,13 +81,18 @@ export class PointCloudController {
       view, budget,
       toLocal: this.toLocal,
       // ノード境界は EPSG:6674。画面範囲はローカル メートルで来るので、
-      // ここで同じ空間に揃える
-      isVisible: view.visible ? (b) => {
+      // ここで同じ空間に揃える。**多角形があるならそちらを使う**
+      // （外接矩形は傾けた視野で実際の 2 倍近く残す）
+      isVisible: (view.visiblePoly?.length ?? 0) >= 3 || view.visible ? (b) => {
         const [x0, y0] = this.toLocal(b[0], b[1])
         const [x1, y1] = this.toLocal(b[3], b[4])
-        return boxesOverlap(
-          [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)],
-          view.visible!)
+        const box: [number, number, number, number] = [
+          Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1),
+        ]
+        if ((view.visiblePoly?.length ?? 0) >= 3) {
+          return boxIntersectsPolygon(box, view.visiblePoly!, view.visibleMarginM ?? 0)
+        }
+        return boxesOverlap(box, view.visible!)
       } : undefined,
     })
     this.wanted = new Set(wanted.map((w) => w.key))

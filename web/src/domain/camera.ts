@@ -111,6 +111,90 @@ export function visibleBoxLocal(
   ]
 }
 
+/**
+ * 画面に入っている範囲を**ローカル ENU の凸多角形**で返す。
+ *
+ * `visibleBoxLocal` はこの多角形の外接矩形で、傾けた視野では実際の 2 倍近い
+ * 面積を「見えている」と答える（台形を軸並行矩形で包むため）。
+ * 落としすぎるより安全な側ではあるが、細い回線では取りすぎが効く。
+ *
+ * 4 点の凸包を取るのは、視点が寝ているときに描画側が隅を個別に丸めることがあり、
+ * **凸とは限らない 4 点**が来るため。凸包は元の四角形を含むので、
+ * 判定は必ず「広めに残る」側に倒れる。
+ */
+export function visiblePolygonLocal(
+  cornersLonLat: readonly (readonly [number, number])[], origin: LocalOrigin,
+): [number, number][] {
+  const pts = cornersLonLat.map((c) => lonLatToLocal([c[0], c[1]], origin))
+  return convexHull(pts)
+}
+
+/** 凸包（Andrew's monotone chain）。点数は 4 なので素直に書く */
+function convexHull(pts: [number, number][]): [number, number][] {
+  if (pts.length < 3) return pts
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const half = (src: [number, number][]) => {
+    const out: [number, number][] = []
+    for (const q of src) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, q) <= 0) out.pop()
+      out.push(q)
+    }
+    out.pop()
+    return out
+  }
+  return [...half(p), ...half([...p].reverse())]
+}
+
+/**
+ * 軸並行矩形と凸多角形が重なるか（分離軸判定）。
+ * `marginM` は矩形を外側へ広げる量。**多角形ではなく矩形を広げる**ほうが、
+ * 「多角形から m 以内」を素直に表せる。
+ */
+export function boxIntersectsPolygon(
+  box: readonly [number, number, number, number],
+  poly: readonly (readonly [number, number])[],
+  marginM = 0,
+): boolean {
+  if (poly.length < 3) return true          // 多角形が作れなければ落とさない
+  const b: [number, number, number, number] = [
+    box[0] - marginM, box[1] - marginM, box[2] + marginM, box[3] + marginM,
+  ]
+  const corners: [number, number][] = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]
+  // 軸並行矩形の法線 = x 軸と y 軸
+  let pMinX = Infinity, pMaxX = -Infinity, pMinY = Infinity, pMaxY = -Infinity
+  for (const q of poly) {
+    if (q[0] < pMinX) pMinX = q[0]
+    if (q[0] > pMaxX) pMaxX = q[0]
+    if (q[1] < pMinY) pMinY = q[1]
+    if (q[1] > pMaxY) pMaxY = q[1]
+  }
+  if (pMaxX < b[0] || pMinX > b[2] || pMaxY < b[1] || pMinY > b[3]) return false
+  // 多角形の各辺の法線
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]!
+    const c = poly[(i + 1) % poly.length]!
+    const nx = -(c[1] - a[1])
+    const ny = c[0] - a[0]
+    if (nx === 0 && ny === 0) continue
+    let aMin = Infinity, aMax = -Infinity
+    for (const q of poly) {
+      const v = q[0] * nx + q[1] * ny
+      if (v < aMin) aMin = v
+      if (v > aMax) aMax = v
+    }
+    let bMin = Infinity, bMax = -Infinity
+    for (const q of corners) {
+      const v = q[0] * nx + q[1] * ny
+      if (v < bMin) bMin = v
+      if (v > bMax) bMax = v
+    }
+    if (aMax < bMin || bMax < aMin) return false
+  }
+  return true
+}
+
 /** 2 つの軸並行矩形が重なるか。[minX, minY, maxX, maxY] */
 export function boxesOverlap(
   a: [number, number, number, number], b: [number, number, number, number],

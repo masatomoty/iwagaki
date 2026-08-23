@@ -116,6 +116,67 @@ check('visibleBoxLocal は原点中心の bbox を包む', () => {
   assert.ok(b[0] < -10 && b[1] < -10 && b[2] > 10 && b[3] > 10)
 })
 
+check('visiblePolygonLocal は 4 点を凸包で返す', () => {
+  // 原点まわりの台形（手前が広く奥が狭い＝ pitch を倒した視野の形）
+  const d = 0.001
+  const poly = cam.visiblePolygonLocal([
+    [ORIGIN[0] - d, ORIGIN[1] - d], [ORIGIN[0] + d, ORIGIN[1] - d],
+    [ORIGIN[0] + d / 3, ORIGIN[1] + d], [ORIGIN[0] - d / 3, ORIGIN[1] + d],
+  ], ORIGIN)
+  assert.equal(poly.length, 4)
+  // 凸包なので符号付き面積は 0 でない
+  let a2 = 0
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length]
+    a2 += p[0] * q[1] - q[0] * p[1]
+  }
+  assert.ok(Math.abs(a2) > 1, `面積 ${Math.abs(a2 / 2).toFixed(0)} m2`)
+})
+
+check('**台形は外接矩形より狭い**（これが厳密化の中身）', () => {
+  const d = 0.001
+  const corners = [
+    [ORIGIN[0] - d, ORIGIN[1] - d], [ORIGIN[0] + d, ORIGIN[1] - d],
+    [ORIGIN[0] + d / 3, ORIGIN[1] + d], [ORIGIN[0] - d / 3, ORIGIN[1] + d],
+  ]
+  const poly = cam.visiblePolygonLocal(corners, ORIGIN)
+  // 台形の外にあり、外接矩形の中にある点を含む箱。奥の左上の角
+  const box = [-90, 90, -80, 100]
+  assert.equal(cam.boxIntersectsPolygon(box, poly), false, '台形は落とす')
+  const bbox = cam.visibleBoxLocal(
+    [corners[0][0], corners[0][1], corners[1][0], corners[2][1]], ORIGIN, 0)
+  assert.equal(cam.boxesOverlap(box, bbox), true, '外接矩形は残してしまう')
+})
+
+check('boxIntersectsPolygon: 内部・外部・またぎ・余白', () => {
+  const sq = [[0, 0], [100, 0], [100, 100], [0, 100]]
+  assert.equal(cam.boxIntersectsPolygon([10, 10, 20, 20], sq), true, '内部')
+  assert.equal(cam.boxIntersectsPolygon([200, 200, 210, 210], sq), false, '外部')
+  assert.equal(cam.boxIntersectsPolygon([-10, -10, 10, 10], sq), true, 'またぎ')
+  // 余白はノード側の箱を広げる。50 m 離れた箱は margin 0 で落ち、60 で残る
+  assert.equal(cam.boxIntersectsPolygon([150, 50, 160, 60], sq), false, '余白なし')
+  assert.equal(cam.boxIntersectsPolygon([150, 50, 160, 60], sq, 60), true, '余白 60 m')
+})
+
+check('凹んだ 4 点が来ても凸包になる（落としすぎない側に倒れる）', () => {
+  // 描画側が隅を個別に丸めると凸でない 4 点が来ることがある。
+  // 3 点目が他の 3 点の内側にある形を渡すと、凸包は三角形になる
+  const d = 1e-4
+  const dented = [
+    [ORIGIN[0], ORIGIN[1]],
+    [ORIGIN[0] + d, ORIGIN[1]],
+    [ORIGIN[0] + d / 2, ORIGIN[1] + d / 5],   // 内側にへこんだ点
+    [ORIGIN[0], ORIGIN[1] + d],
+  ]
+  const hull = cam.visiblePolygonLocal(dented, ORIGIN)
+  assert.equal(hull.length, 3, `凸包は三角形になるはず（${hull.length} 点）`)
+  // へこみの内側にあたる点も、凸包に含まれるので残る
+  const inside = cam.lonLatToLocal([ORIGIN[0] + d / 2, ORIGIN[1] + d / 5], ORIGIN)
+  assert.equal(
+    cam.boxIntersectsPolygon([inside[0] - 1, inside[1] - 1, inside[0] + 1, inside[1] + 1], hull),
+    true)
+})
+
 check('boxesOverlap', () => {
   assert.equal(cam.boxesOverlap([0, 0, 10, 10], [5, 5, 15, 15]), true)
   assert.equal(cam.boxesOverlap([0, 0, 10, 10], [11, 0, 20, 10]), false)

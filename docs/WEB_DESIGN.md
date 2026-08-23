@@ -218,7 +218,9 @@ EVLR が見つからない場合や大きすぎる場合はページ単位取得
 sse(node) = (spacing / 2^depth) * (viewportHeight / 2) / (distance * tan(fovY / 2))
 ```
 
-- 閾値を下回るノードは落とす。加えて**視野の外接矩形**で絞る
+- 閾値を下回るノードは落とす。加えて**地面に落とした視錐台（台形）**で絞る。
+  外接矩形では傾けた視野でほぼ 2 倍の面積を残してしまう（`perf/frustum.mjs`）。
+  判定は分離軸で、余白はノード側の箱を広げて取る（`domain/camera.ts`）
 - `maxPoints` / `maxBytes` に収まるまで、粗い順・画面で大きい順に採る
 - `maxBytes = clamp(帯域推定 * 2, 1 MB, 20 MB)`。
   **係数 2 = 「点群に使ってよいのは 12 秒の窓のうち 2 秒ぶん」**で、
@@ -508,6 +510,7 @@ Cloudflare は br 応答に `content-length` を付けない（`docs/PLATFORM.md
 | `test/camera.test.mjs` | カメラ → ローカル座標の換算（純関数） |
 | `test/png.test.mjs` | 自前 PNG 復号が Pillow と全画素一致するか |
 | `perf/bwcheck.mjs` | 帯域推定が実効帯域と合っているか（絞りが既知のプロファイルで突き合わせる） |
+| `perf/frustum.mjs` | 視野判定が台形になっているか（pitch 0 で外接矩形と一致するのが確認） |
 | `perf/tileorient.mjs` | **画面の画素**と焼いたタイルの同じ座標の値が一致するか |
 | `perf/waterlevel.mjs` | 水位を変えると浸水域が単調に増え、かつリクエストが増えないか |
 

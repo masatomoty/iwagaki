@@ -148,6 +148,14 @@ export class Viewer {
     return worldToLngLat(this.frame, this.cam.target[0], this.cam.target[1])
   }
 
+  /**
+   * 画面 4 隅を地面に落とした経緯度。**外接矩形ではなく台形そのもの。**
+   * 点群 LOD の視野判定に渡す（`docs/WEB_DESIGN.md`「LOD」）。
+   */
+  getGroundPolygonLngLat(): [number, number][] {
+    return this.groundCorners().map(([x, y]) => worldToLngLat(this.frame, x, y))
+  }
+
   /** 画面に映っている経緯度の範囲 [w, s, e, n] */
   getBoundsLngLat(): [number, number, number, number] {
     const pts = this.groundCorners()

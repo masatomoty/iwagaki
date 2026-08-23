@@ -9,7 +9,8 @@
 import { Vector2 } from 'three'
 
 import { sampleLine } from './assets/terrainSampler'
-import { type CameraDescription, eyeInLocal, visibleBoxLocal } from './domain/camera'
+import { type CameraDescription, eyeInLocal, visibleBoxLocal,
+         visiblePolygonLocal } from './domain/camera'
 import type { Catalog } from './domain/catalog'
 import { resolveSurface } from './domain/terrain'
 import type { BuildingColorMode, FeatureAssertion, SurfaceMode,
@@ -430,8 +431,12 @@ async function boot() {
       eye: eyeInLocal(cam, localOrigin),
       viewportHeight: cam.viewportHeight,
       fovY: cam.fovY,
-      // 余白を少し取る。傾けた視野の外接矩形なので厳密ではないが、
-      // 落としすぎるより広めに残すほうが安全
+      // **地面に落とした視錐台そのもの（台形）**で絞る。
+      // 外接矩形は傾けた視野で実際の 2 倍近い面積を「見えている」と答える。
+      // 余白 50 m はノード側の箱を広げて取る（domain/camera.ts）
+      visiblePoly: visiblePolygonLocal(viewer.getGroundPolygonLngLat(), localOrigin),
+      visibleMarginM: 50,
+      // 多角形を読めない経路のための保険。外接矩形も一緒に渡す
       visible: visibleBoxLocal(viewer.getBoundsLngLat(), localOrigin, 50),
     }
   }
