@@ -21,7 +21,8 @@ import type { FloodMeshUniforms } from './view/floodMeshLayer'
 import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
 import { sampleLine, type SamplePoint } from './assets/terrainSampler'
 import { drawSection, type SectionSeries } from './ui/section'
-import { applyPreset, attachViewCube, bindCameraKeys, createMap } from './view/map'
+import { applyPreset, attachViewCube, bindCameraKeys, createMap,
+         showSectionLine } from './view/map'
 import { SectionTool, type LonLat } from './view/sectionTool'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
 import type { createPcCoverageLayer as CreatePcCoverageLayer,
@@ -169,6 +170,7 @@ async function boot() {
 
   async function buildSection(from: LonLat, to: LonLat) {
     secLine = [from, to]
+    showSectionLine(map, from, to)
     secEl.style.display = 'block'
     secNote.textContent = '読み込み中…'
     const zoom = catalog.terrain.highres?.max_zoom ?? 18
@@ -185,11 +187,22 @@ async function boot() {
     secSeries = got.filter((x): x is SectionSeries => x !== null)
     const n = secSeries[0]?.points.length ?? 0
     const len = secSeries[0]?.points.at(-1)?.d ?? 0
+    const why = catalog.default_section && secLine
+      && secLine[0][0] === catalog.default_section.from[0]
+      ? `${catalog.default_section.why}。` : ''
     secNote.textContent =
-      `測線 ${len.toFixed(0)} m / ${n} 点。標高は配信中のタイル（${zoom} ズーム、`
+      `${why}測線 ${len.toFixed(0)} m / ${n} 点。標高は配信中のタイル（${zoom} ズーム、`
       + `1 セル ${(len / Math.max(1, n - 1)).toFixed(2)} m 相当）から読んでいる。`
       + '水色は「海と連結して浸水する」区間で、標高が水位より低いだけでは塗らない。'
     redrawSection()
+  }
+
+  // 起動時に既定の断面を出す。**測線を引かせる前に、一番読む価値のある断面を見せる。**
+  // 天端を横切る線で、3D では潰れて見えない 0〜3 m の起伏がここで読める
+  const ds = catalog.default_section
+  if (ds) {
+    secNote.textContent = ds.why
+    void buildSection(ds.from as LonLat, ds.to as LonLat)
   }
 
   const sectionTool = new SectionTool({

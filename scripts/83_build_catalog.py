@@ -100,6 +100,22 @@ def local_frame(to_wgs, x0: float, y0: float, lon0: float, lat0: float) -> dict:
     }
 
 
+def default_section() -> dict:
+    """scripts/87 が決めた既定の断面線。無ければ空で返す。
+
+    座標を viewer に埋め込まないのは、AOI や地形を変えたら線も変わるため。
+    どこを切るべきかは解析側が知っている。
+    """
+    p = OUT / "bank_crest.json"
+    if not p.exists():
+        return {}
+    d = json.loads(p.read_text()).get("default_section")
+    if not d:
+        return {}
+    return {"from": d["from_wgs84"], "to": d["to_wgs84"],
+            "length_m": d["length_m"], "why": d["why"]}
+
+
 def pc_coverage() -> dict:
     """scripts/25 が書いた被覆輪郭。無ければ空で返す（配線だけ先に入っている状態を許す）"""
     p = WEB_DATA / "pc_coverage.geojson"
@@ -233,6 +249,8 @@ def main() -> int:
         # 点群が地表面として効いている範囲。AOI 100 ha に対して 3 ha しか無いので、
         # 明示しないと「点群で高精度に見た結果」が全域に効いているように読める
         "pointcloud_coverage": pc_coverage(),
+        # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）
+        "default_section": default_section(),
         "totals_bytes": {
             "tiles": dir_bytes("tiles"),
             "3dtiles": dir_bytes("3dtiles"),

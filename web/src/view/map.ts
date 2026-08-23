@@ -121,3 +121,40 @@ export function bindCameraKeys(map: MlMap, onExaggeration: (delta: number) => vo
     if (e.key === '[') onExaggeration(-1)
   })
 }
+
+
+/**
+ * 断面の測線を地図に描く。**どこを切った断面なのかが分からないと読めない。**
+ *
+ * MapLibre の source + layer で足りるので deck.gl を持ち出さない
+ * （遅延読み込みしているレイヤ群を、線 1 本のために起こすことになる）。
+ */
+export function showSectionLine(map: MlMap, from: [number, number], to: [number, number]) {
+  // 起動直後はスタイルがまだ読めていない。addSource が例外を投げるので待つ
+  if (!map.isStyleLoaded()) {
+    map.once('load', () => showSectionLine(map, from, to))
+    return
+  }
+  const data = {
+    type: 'FeatureCollection' as const,
+    features: [{
+      type: 'Feature' as const, properties: {},
+      geometry: { type: 'LineString' as const, coordinates: [from, to] },
+    }],
+  }
+  const src = map.getSource('section-line') as { setData?: (d: unknown) => void } | undefined
+  if (src?.setData) { src.setData(data); return }
+  map.addSource('section-line', { type: 'geojson', data })
+  map.addLayer({
+    id: 'section-line-halo',
+    type: 'line',
+    source: 'section-line',
+    paint: { 'line-color': '#0b1020', 'line-width': 6, 'line-opacity': 0.7 },
+  })
+  map.addLayer({
+    id: 'section-line',
+    type: 'line',
+    source: 'section-line',
+    paint: { 'line-color': '#f59e0b', 'line-width': 2, 'line-dasharray': [3, 2] },
+  })
+}

@@ -45,6 +45,12 @@ export interface Catalog {
                             region_min_height_ellipsoidal_m: number }>
   pointcloud: { url: string; synthetic: boolean; provenance: string
                 bytes: number; point_count: number; bytes_per_point: number }
+  /**
+   * 起動時に出す断面線。**どこを切るべきかは解析側が知っている**ので、
+   * 座標を viewer に埋め込まず catalog 経由で受け取る（scripts/87）。
+   */
+  default_section?: { from: [number, number]; to: [number, number]
+                      length_m: number; why: string }
   /** 点群が地表面として効いている範囲の輪郭。無い配信物もあるので optional */
   pointcloud_coverage?: { url: string; bytes: number
                           area_ha_cells: number; area_ha_outline: number

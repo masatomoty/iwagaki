@@ -27,10 +27,15 @@ from scipy import ndimage
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import AOI, OUT, RES_COARSE, RES_HIGHRES
+from pyproj import Transformer
+
+from iwagaki.config import AOI, CRS_ANALYSIS, OUT, RES_COARSE, RES_HIGHRES
 from iwagaki.raster import Grid, read, upsample_nearest
 
 BAND_M = 6.0          # 水際から陸側にこの距離までを「護岸の帯」とみなす
+# 既定断面の長さ。海側 / 陸側それぞれ [m]。天端の前後が入る長さにする
+SECTION_SEA_M = 80.0
+SECTION_LAND_M = 160.0
 SEG_M = 20.0          # 天端高断面のサンプリング間隔
 
 
@@ -94,6 +99,44 @@ def main() -> int:
             "p50": round(float(np.percentile(v, 50)), 3),
         }
 
+    # --- 1b. 既定の断面線 -------------------------------------------------
+    #
+    # viewer は起動時にこの線で断面を出す。**測線を引かせる前に、
+    # 一番読む価値のある断面を見せる**ため。
+    #
+    # 通す点は「越流開始水位を決めている点」= 海から最も入りやすい場所。
+    # 向きは水際からの距離の勾配（海 -> 陸）で、汀線に直交する。
+    # 天端はこの点と海の間にあるので、線は必ず天端を横切る。
+    def default_section(hc: np.ndarray) -> dict:
+        v = hc[inland & np.isfinite(hc)]
+        lo = float(v.min())
+        mask = inland & np.isfinite(hc) & (hc <= lo + 1e-9)
+        rr, cc = np.nonzero(mask)
+        r0, c0 = int(rr[0]), int(cc[0])
+        # 距離場の勾配。np.gradient は (行, 列) の順で返す
+        gy, gx = np.gradient(dist)
+        # 行は北が小さいので、北向き成分は符号を反転する
+        ex, ny = float(gx[r0, c0]), -float(gy[r0, c0])
+        n = float(np.hypot(ex, ny))
+        if n < 1e-9:
+            ex, ny, n = 0.0, 1.0, 1.0
+        ex, ny = ex / n, ny / n
+        x0 = AOI.xmin + (c0 + 0.5) * RES_HIGHRES
+        y0 = AOI.ymax - (r0 + 0.5) * RES_HIGHRES
+        sea = (x0 - ex * SECTION_SEA_M, y0 - ny * SECTION_SEA_M)
+        land_ = (x0 + ex * SECTION_LAND_M, y0 + ny * SECTION_LAND_M)
+        to_wgs = Transformer.from_crs(CRS_ANALYSIS, "EPSG:4326", always_xy=True).transform
+        return {
+            "from_epsg6674": [round(sea[0], 1), round(sea[1], 1)],
+            "to_epsg6674": [round(land_[0], 1), round(land_[1], 1)],
+            "from_wgs84": [round(v, 7) for v in to_wgs(*sea)],
+            "to_wgs84": [round(v, 7) for v in to_wgs(*land_)],
+            "through_epsg6674": [round(x0, 1), round(y0, 1)],
+            "length_m": SECTION_SEA_M + SECTION_LAND_M,
+            "why": "越流開始水位を決めている点（海から最も入りやすい場所）を、"
+                   "汀線に直交して横切る。天端はこの点と海の間にある",
+        }
+
     # --- 2. 天端高の断面 --------------------------------------------------
     prof_hi = crest_profile(hi, seed, RES_HIGHRES)
     prof_base = crest_profile(base, seed, RES_HIGHRES)
@@ -132,6 +175,7 @@ def main() -> int:
             "水門・樋門・陸閘は考慮していない。閉まっていれば実際の越流水位は上がる",
         ],
     }
+    report["default_section"] = default_section(hc_hi)
     (OUT / "bank_crest.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))
     print(json.dumps(report["spill_level"], indent=2, ensure_ascii=False))
     print(json.dumps(report["crest_profile"], indent=2, ensure_ascii=False))
