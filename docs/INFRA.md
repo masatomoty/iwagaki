@@ -70,7 +70,7 @@ CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えるこ
 | Worker | `iwagaki-viewer` | `workers_dev: true`。既定で `*.workers.dev` に出る |
 | R2 バケット | `iwagaki-assets` | location hint `apac` |
 | R2 キー空間 | `data/pointcloud/*.copc.laz` | **URL パスと 1:1**（先頭の `/` を落としただけ） |
-| 〃（将来） | `raw/las/*` | アップロードされた原データ置き場（`docs/WEB_DESIGN.md` （アップロードは `docs/TODO.md`）） |
+| 〃（将来） | `raw/las/*` | アップロードされた原データ置き場。**今回は作らない**（下記「まだ作らないもの」） |
 
 キーと URL パスを一致させているので、Worker 側にマッピング表が無い。
 バケット名は `wrangler.jsonc` を単一の出所とし、`deploy.sh` はそこから読む。
@@ -174,9 +174,14 @@ node deploy/check.mjs http://localhost:8788
 
 `docs/WEB_DESIGN.md`「配信の境界」の図のうち、作ったのは静的配信だけ。
 
+**「作らない」は判断であって積み残しではない。** 2026-09-05 の成果物は
+「同じ高潮水位に対して地形データを変えると浸水判定がどこで変わるか」を見せることで、
+データを増やす経路はその外にある（`docs/DESIGN.md`「やらないこと」）。
+`docs/TODO.md` には置かない。
+
 | | 必要なもの |
 |---|---|
-| upload（§7） | Worker に `/api/uploads`、D1、R2 の CORS 設定、`aws4fetch` で presigned PUT |
+| upload | Worker に `/api/uploads`、D1、R2 の CORS 設定、`aws4fetch` で presigned PUT。**手元から R2 へ 315 MB 超を上げる経路は `web/deploy/r2put.sh` で確立済み**なので、要るのはブラウザからの経路と受け口だけ |
 | ジョブ | Queues + external compute（Cloud Run job など）。PDAL/GDAL は Workers で動かさない |
 | データセット追加 | `catalog.json` を生成物として R2 に置き、Worker が組み立てて返す形に変える |
 
