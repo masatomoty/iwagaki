@@ -134,7 +134,8 @@ if (!copcUrl) {
 
 // ---- 4. 圧縮とキャッシュ ----------------------------------------------------
 {
-  const { res, buf } = await get('data/objects.geojson', { 'accept-encoding': 'br, gzip' })
+  // URL に内容ハッシュが入るので直書きしない（catalog が唯一の出所）
+  const { res, buf } = await get(catalog.semantics.url, { 'accept-encoding': 'br, gzip' })
   const wire = Number(h(res, 'content-length'))
   // 570 kB の geojson は first_meaningful_render の 2 割を占めうる（docs/web_design.md「アセットの形式」）。
   // application/geo+json が Cloudflare の圧縮対象から外れると静かに効く

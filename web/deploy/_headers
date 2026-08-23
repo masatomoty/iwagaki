@@ -5,10 +5,15 @@
 # index.html / data/catalog.json / data/*_report.json は既定のまま（毎回再検証）。
 # catalog.json が入口なので、ここが再検証されればアセット差し替えに追従できる。
 #
-# 注意: data/tiles と data/3dtiles のパスは内容ハッシュを含まない。
-# データを作り直したら immutable キャッシュを持つブラウザは古いタイルを見続ける。
-# 差し替える時は URL を変える（catalog.json の url にバージョンを入れる）か、
-# Cloudflare 側のキャッシュを purge して index.html を跨いだ再訪を待つ。
+# data/tiles と data/3dtiles のディレクトリ名、objects.geojson と
+# pc_coverage.geojson のファイル名には**内容ハッシュが入る**
+# （`scripts/83_build_catalog.py` の versioned_urls / publish_file）。
+# 焼き直せば URL が変わるので、immutable のままでも古いキャッシュは参照されない。
+# 追従の起点は catalog.json（既定のまま毎回再検証）である。
+#
+# **例外: data/pointcloud の COPC はハッシュを持たない。** R2 に置いてあり
+# （deploy/worker.js が URL -> キーを 1:1 で引く）、272 MB を作り直すたびに
+# 上げ直すことになるため。差し替える時は手で名前を変えるか purge する。
 # ルールは 100 件・1行 2000 文字まで。
 
 /assets/*

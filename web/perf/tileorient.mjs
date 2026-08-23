@@ -16,11 +16,17 @@
 //   pitch 0 を前提にしている（視差の補正が中心対称であることを使っている）。
 import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
 
 const BASE = process.env.BASE ?? 'https://localhost:8443'
-const TILES = process.env.TILES ?? 'public/data/tiles/highres'
+// タイルのディレクトリ名には内容ハッシュが入る（docs/infra.md）。
+// 直書きすると焼き直すたびに壊れるので、catalog の url から引く
+const TILES = process.env.TILES ?? (() => {
+  const c = JSON.parse(readFileSync('public/data/catalog.json', 'utf8'))
+  return 'public/' + c.terrain.highres.url.replace('/{z}/{x}/{y}.png', '')
+})()
 const OUT = 'perf/shots'
 // 256 px 基準なので、画面 zoom 18 で要求されるのも z18。参照と同じタイルで比べられる
 const ZOOM = Number(process.env.ZOOM ?? 18)

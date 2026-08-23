@@ -26,7 +26,6 @@
 | # | 内容 | 根拠 |
 |---|---|---|
 | 4 | **`Points` の先の custom point-cloud renderer** | `docs/web_design.md`「レンダラを差し替える条件」に届いていない。deck.gl `PointCloudLayer` からの差し替えは済んでおり、いま `Points` で困っている兆候は無い |
-| 5 | **タイル URL のバージョニング** | `data/tiles` と `data/3dtiles` は `immutable` だが URL に内容ハッシュが無い。**データを更新する運用に入るとここが最初に効く**（`docs/infra.md`） |
 
 ---
 

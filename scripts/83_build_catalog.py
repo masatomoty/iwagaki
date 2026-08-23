@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from iwagaki.config import (AOI, CRS_ANALYSIS, H_MAX, H_MIN, H_STEP, OUT, RAW, ROOT,
                             REPRESENTATIVE_H, ROAD_DEPTH_CLASSES, TP_OF_MSL,
                             ATTRIBUTION)
+from iwagaki.versioning import publish_dir, publish_file
 
 WEB_DATA = ROOT / "web" / "public" / "data"
 
@@ -119,10 +120,38 @@ def default_section() -> dict:
 def pc_coverage() -> dict:
     """scripts/25 が書いた被覆輪郭。無ければ空で返す（配線だけ先に入っている状態を許す）"""
     p = WEB_DATA / "pc_coverage.geojson"
-    if not p.exists():
+    if not p.exists() and not list(WEB_DATA.glob("pc_coverage-*.geojson")):
         return {}
-    props = json.loads(p.read_text())["features"][0]["properties"]
-    return {"url": "data/pc_coverage.geojson", "bytes": p.stat().st_size, **props}
+    name = publish_file(p)
+    q = WEB_DATA / name
+    props = json.loads(q.read_text())["features"][0]["properties"]
+    return {"url": f"data/{name}", "bytes": q.stat().st_size, **props}
+
+
+def versioned_urls(tiles: dict | None, tiles3d: dict | None) -> None:
+    """
+    配信物のディレクトリ／ファイルに**内容ハッシュを入れて改名**し、
+    レポートの `url` を書き換える。
+
+    `web/deploy/_headers` は `data/tiles` と `data/3dtiles` を immutable で配るので、
+    **URL に内容が入っていないとデータを作り直しても古いキャッシュが残る**。
+    入口の `catalog.json` は毎回再検証されるので、そこが指す URL が変われば追従できる。
+
+    ここで一括してやるのは、**URL を決めているのがこのスクリプトだけ**だから。
+    タイルを焼く `scripts/80` と 3D Tiles を作る `scripts/82` は
+    `tiles/<名前>` / `3dtiles/<名前>` にそのまま書き、改名はここが引き受ける
+    （重い 2 本を再実行しなくてもバージョンを付け直せる）。
+    """
+    for cond, meta in ((tiles or {}).get("conditions") or {}).items():
+        name = publish_dir(WEB_DATA / "tiles", cond)
+        meta["url"] = f"data/tiles/{name}/{{z}}/{{x}}/{{y}}.png"
+    for key, meta in (tiles3d or {}).items():
+        if not isinstance(meta, dict) or "url" not in meta:
+            continue
+        # url は "data/3dtiles/<名前>/tileset.json"。<名前> だけを付け替える
+        base = str(meta["url"]).split("/")[2].split("-")[0]
+        name = publish_dir(WEB_DATA / "3dtiles", base)
+        meta["url"] = f"data/3dtiles/{name}/tileset.json"
 
 
 def main() -> int:
@@ -159,7 +188,10 @@ def main() -> int:
     objects = {"type": "FeatureCollection", "features": feats}
     op = WEB_DATA / "objects.geojson"
     op.write_text(json.dumps(objects, separators=(",", ":")))
-    print(f"objects.geojson: {len(feats)} features, {op.stat().st_size/1e6:.2f} MB")
+    # immutable で配るので URL に内容ハッシュを入れる（versioned_urls と同じ理由）
+    semantics_name = publish_file(op)
+    print(f"{semantics_name}: {len(feats)} features, "
+          f"{(WEB_DATA / semantics_name).stat().st_size/1e6:.2f} MB")
 
     # --- 属性コード -> 表示名（建物のみ。出現したコードに絞る）----------------
     codelists = {}
@@ -186,6 +218,8 @@ def main() -> int:
     tiles = load("tiles_report.json")
     tiles3d = load("3dtiles_report.json")
     pc = load("pointcloud_report.json")
+    # 内容ハッシュを URL に入れる（immutable キャッシュを差し替えられるように）
+    versioned_urls(tiles, tiles3d)
     summary = json.loads((OUT / "summary.json").read_text())
     tide_path = OUT / "tide_levels.json"
     tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
@@ -239,8 +273,8 @@ def main() -> int:
         "plateau": tiles3d or {},
         "pointcloud": pc or {},
         "semantics": {
-            "url": "data/objects.geojson",
-            "bytes": op.stat().st_size,
+            "url": f"data/{semantics_name}",
+            "bytes": (WEB_DATA / semantics_name).stat().st_size,
             "feature_count": len(feats),
             "road_depth_classes_m": list(ROAD_DEPTH_CLASSES),
             # 実際に出現したコードだけ載せる。viewer の凡例はこれを引く
@@ -255,7 +289,7 @@ def main() -> int:
             "tiles": dir_bytes("tiles"),
             "3dtiles": dir_bytes("3dtiles"),
             "pointcloud": dir_bytes("pointcloud"),
-            "semantics": op.stat().st_size,
+            "semantics": (WEB_DATA / semantics_name).stat().st_size,
         },
         "analysis_summary": {
             "features": summary["features"],

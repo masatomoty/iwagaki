@@ -192,3 +192,36 @@ node deploy/check.mjs http://localhost:8788
 
 配信プラットフォームの挙動（Range・圧縮・キャッシュ階層）とその実測、
 およびローカル配信との差は `docs/platform.md`。
+
+## 配信物の URL には内容ハッシュを入れる
+
+`data/tiles` と `data/3dtiles` は `immutable, max-age=31536000` で配る
+（`web/deploy/_headers`）。**URL に内容が反映されていないと、データを作り直しても
+immutable キャッシュを持つブラウザは古いタイルを見続ける。**
+
+| 配信物 | 名前 | 付ける場所 |
+|---|---|---|
+| 地形タイル | `data/tiles/highres-a0daede5/{z}/{x}/{y}.png` | ディレクトリ名 |
+| 3D Tiles | `data/3dtiles/bldg_lod1-d09e7496/tileset.json` | ディレクトリ名 |
+| 地物 | `data/objects-e0f8444f.geojson` | ファイル名 |
+| 点群の被覆 | `data/pc_coverage-d995f2e0.geojson` | ファイル名 |
+| **点群 COPC** | `data/pointcloud/yoshiwara-backpack-slam.copc.laz` | **付けない**（下記） |
+
+ハッシュを付けるのは **`scripts/83_build_catalog.py` の 1 か所だけ**
+（`iwagaki.versioning`）。**URL を決めているのがカタログだからで**、
+タイルを焼く `scripts/80` と 3D Tiles を作る `scripts/82` は
+`tiles/<名前>` / `3dtiles/<名前>` にそのまま書く。重い 2 本を再実行せずに
+バージョンを付け直せる。ハッシュ違いの古い兄弟は消す（`dist` と
+Workers Assets に両方載ると転送量と枚数が増えるだけ）。
+
+追従の起点は **`catalog.json`**。ここだけは既定の
+`max-age=0, must-revalidate` のままなので、再検証されれば新しい URL に移る。
+
+**COPC には付けていない。** R2 に置いてあって（`deploy/worker.js` が URL → キーを
+1:1 で引く）、272 MB を作り直すたびに上げ直すことになるため。差し替えるときは
+手で名前を変えるか purge する。
+
+**直書きしてはいけない。** `deploy/check.mjs` は `catalog.semantics.url` を、
+`perf/tileorient.mjs` は `catalog.terrain.highres.url` を引く。
+以前は両方が `data/objects.geojson` / `public/data/tiles/highres` を直書きしていて、
+ハッシュを入れた時点で壊れた。
