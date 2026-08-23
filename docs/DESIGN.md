@@ -225,75 +225,48 @@ data/out/
   h_conn_baseline.tif / h_conn_control.tif / h_conn_highres.tif
   objects.geojson             建物・道路 + assertion
   changed_H{h}.geojson        代表水位での判定変化ポリゴン
-  summary.json                設定・面積指標・go/no-go判定
+  summary.json                設定・面積指標・判定変化の集計
   pointcloud.copc.laz         （点群提供後）
 ```
 
 ---
 
-## 5. go / no-go
+## 5. 差が出たと言うための指標
 
-第一段階の成功条件は
-
-> 実際の高解像度地形と粗い地形を同一高潮水位で比較し、**浸水判定が変わる地点を最低1つ**
-> 地物IDつきで確認できること。
-
-判定に使う具体的な数値（`summary.json` に出力）:
+「地形を変えたら判定が変わった」を主張するには、何をもって変わったとするかを
+先に決めておく必要がある。`summary.json` に出力する。
 
 | 指標 | 意味 |
 |---|---|
-| `n_objects_changed` | `decision_changed` な建物・道路の数（代表H 1.0 / 1.5 / 2.0 m T.P.） |
-| `area_newly_wet_m2` / `area_newly_dry_m2` | |
+| `n_objects_changed` | `decision_changed` な建物・道路の数（代表 H = 1.0 / 1.5 / 2.0 m T.P.） |
+| `area_newly_wet_m2` / `area_newly_dry_m2` | 面積としての入れ替わり |
 | `delta_h_conn` の p5 / p50 / p95 | 判定が変わる水位帯の広さ |
-| `n_changed_control_vs_highres` | 解像度だけで生じる差 |
+| `n_changed_control_vs_highres` | **解像度だけ**で生じる差 |
 
-**no-go の兆候**: どの水位でも `n_objects_changed == 0`、または差が
-DEM高さ精度（**[未確認]**, 目安0.25 m）以下のノイズに収まる場合。
-その場合はAOIを変える（吉原入江の護岸沿い、より低平な河口部）か、水位刻みを見直す。
+**差が無いと判断する条件**: どの水位でも `n_objects_changed == 0`、または差が
+DEM 高さ精度（**[未確認]**、目安 0.25 m）以下のノイズに収まる場合。
+その場合は AOI を変える（より低平な河口部）か、水位刻みを見直す。
 
-現時点の**事前見込み [仮説]**: 吉原の集落地盤は 0.5〜3 m T.P. に集中しており（実測）、
-5m格子ではこのレンジの微地形が平滑化される。護岸天端と背後地盤の差が数十cmなので、
-差は出る可能性が高い。ただし**未検証**。
+`n_changed_control_vs_highres` を分けて出すのが要点である。
+これが無いと「解像度を上げたから変わった」と「元のデータが違うから変わった」を
+区別できない。実際の結果は後者が主因だった（`docs/RESULTS.md`）。
 
 ---
 
-## 6. Webアプリ（解析成立後）
+## 6. Webアプリへの要求
 
-### 構成 [第一候補]
+解析結果を「地物単位で判定が変わる場所」として見せるために、ブラウザ側が満たすこと。
+**実装と実測は `docs/WEB_DESIGN.md` / `docs/WEB_RESULTS.md`。**
 
-```
-静的ホスティング (S3/R2/Pages)
-  ├─ 3dtiles/       PLATEAU 建物 LOD1/LOD2（配布物をそのまま）
-  ├─ objects.geojson / roads.geojson
-  ├─ terrain/       dtm_* を terrain-RGB タイル（rio-rgbify）
-  ├─ hconn/         h_conn_* を同形式で
-  └─ pointcloud.copc.laz
-        ↓ HTTP Range
-ブラウザ: MapLibre GL JS + deck.gl
-  Tile3DLayer(建物) / GeoJsonLayer(道路・変化地物) /
-  TerrainLayer(地形) / PointCloudLayer + copc.js(点群)
-```
-
-CesiumJSも候補（3D Tilesと quantized-mesh 地形が素直）。
-**判断**: MapLibre+deck.gl を第一候補とする。理由は COPC の既存実装
-（`maplibre-gl-lidar` = copc.js + deck.gl）がこの構成で動いており、
-点群Web配信の再発明を避けられるため。
-
-### UI（最小）
-
-- 水位スライダ（T.P. 0.0 〜 3.0 m）。目盛りに MSL(+0.124 m) を表示。
-  H.W.L. / 既往最高潮位 / 設計高潮位が確定したら追加（`docs/DATA.md` §4 未確認）
-- 地形切替: baseline / highres / control
+- 水位スライダ（T.P. 0.0〜3.0 m）。参照水位（MSL・朔望平均満潮位・既往最高潮位ほか）に目盛りを置く
+- 地形条件の切替: `baseline` / `highres` / `control` / `pointcloud` と、その差分
 - 点群 ON/OFF
-- 差分表示 ON/OFF（newly-wet を赤、newly-dry を青）
-- 建物・道路クリック → `ground_elev`, `h_conn`, `depth`, 判定クラス、baselineとの差
+- 建物・道路をクリックすると、条件ごとの `ground_elev` / `h_conn` / 浸水深 / 判定を出す
+- **水位を変えてもサーバ往復も再計算も発生しない。** シェーダで
+  `h_conn <= H` を評価し `max(0, H - E)` を描く。これは §1.2 の `h_conn` を
+  持っていることの直接の帰結で、UI の都合ではなく設計の要請である
 
-浸水深の描画は**シェーダで `max(0, H - E)` を評価し、`h_conn <= H` でマスク**する。
-水位変更でサーバ往復もCPU再計算も発生しない。
-
-### やらないこと
-
-過度なUI作り込み、レイヤ管理UI、時系列アニメーション、印刷レイアウト。
+やらないこと: 過度な UI 作り込み、レイヤ管理 UI、時系列アニメーション、印刷レイアウト。
 
 ---
 
@@ -328,23 +301,7 @@ CesiumJSも候補（3D Tilesと quantized-mesh 地形が素直）。
 
 ---
 
-## 9. 実装順序
-
-| # | 内容 | 状態 |
-|---|---|---|
-| 1 | `iwagaki.kokudo`: 国土基本図図郭 ↔ 平面直角座標。京都府DEMタイル特定 | **完了**（8タイルで検証） |
-| 2 | `scripts/10_fetch_kyoto_dem.py`: HTTP Rangeでタイル抽出 | **完了** |
-| 3 | `scripts/11_fetch_plateau.py`: CityGMLからメンバー抽出 | **完了** |
-| 4 | `scripts/20_build_baseline.py`: TIN頂点 → 5mラスタ | **完了**（fill 85.2%） |
-| 5 | `scripts/21_build_highres.py`: 0.5mモザイク + control生成 | **完了** |
-| 6 | `scripts/30_flood.py`: h_conn 計算（3条件） | **完了** |
-| 7 | `scripts/40_compare.py`: 差分指標と changed ポリゴン | **完了** |
-| 8 | `scripts/50_join_semantics.py`: bldg/tran パース + 地物別 assertion | **完了**（911地物） |
-| 9 | `scripts/60_report.py` **go/no-go 判定** | **完了 → GO**（`docs/RESULTS.md`） |
-| 10 | 点群パス（PDAL → DTM 融合 → COPC） | **完了**。実 LAS 10 本（20.0 GB / 4.98 億点）で検証（`scripts/17`〜`19`, `22`, `24`。`docs/RESULTS.md`） |
-| 11 | Webアプリ | **完了**（`docs/WEB_DESIGN.md` / `docs/WEB_RESULTS.md`）。Cloudflare に配信済み。ただし **`control` と `pointcloud` の 2 条件が viewer に載っていない**（`docs/TODO.md` A1・A4） |
-
-### 設計から変わった点（実装して分かったこと）
+## 9. 設計から変わった点
 
 - PLATEAU dem は AOI が 3次メッシュ象限ファイルの境界をまたぐため**複数ファイルが必要**だった。
   京都府DEMも 1/50000 図郭 `06LC`/`06MC` の境界をまたぐ。どちらも「1枚で足りる」と思い込むと欠測する。
@@ -355,3 +312,5 @@ CesiumJSも候補（3D Tilesと quantized-mesh 地形が素直）。
   で、DTM由来の地盤高が意味を持たない地物を除外した。これが無いと橋の上の道路が
   「水面標高の地盤」として偽陽性の上位に並ぶ。
 - 差の主因は**解像度ではなくデータソース**だった（`docs/RESULTS.md`）。当初の見立てと異なる。
+- 地形条件は 3 つ（baseline / highres / control）で始めたが、実点群を得て
+  **`pointcloud`（0.5m DEM に地上点群の地表面を融合）を 4 つ目として足した**。

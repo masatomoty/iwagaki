@@ -260,7 +260,7 @@ LOD が選んだノードを `pointDataOffset` でソートし、gap < 64 KiB・
 `extraBytes = 0` で無損失なので既定 ON のままにしているが、**効果があるとは書けない。**
 `?coalesce=0` で無効化できる。
 
-R2 はマルチレンジ（`bytes=a-b, c-d`）に 400 を返すため、飛び地の結合はできない。
+飛び地の結合はできない。R2 がマルチレンジを受け付けないため（`docs/PLATFORM.md`）。
 
 ---
 
@@ -353,7 +353,7 @@ A/B は `perf/ab.mjs` で**交互に**複数回まわし、中央値と範囲を
 | 点群被覆の輪郭 | 118 kB | **24 kB** | 4.8× |
 | b3dm・PNG | — | ほぼ等しい | 1.0× |
 
-Cloudflare は br 応答に `content-length` を付けないので、`fetch` のヘッダからは取れない。
+`fetch` のヘッダからは取れない（`docs/PLATFORM.md`）ので、
 `PerformanceResourceTiming.encodedBodySize` を URL と開始時刻で引き当てる。
 引き当てられない場合は**デコード後の値に戻す**。過大に出る方に倒す。
 小さく見せる方に倒すと判断を誤る。

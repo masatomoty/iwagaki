@@ -39,6 +39,20 @@ R2 は範囲を持つ `R2ObjectBody` を返すので、Worker は 206 と `Conte
 マルチレンジに 200 を返すのが最悪で、クライアントは正しく動いているように見えたまま
 毎回ファイル全体を落とす。`deploy/check.mjs` はこれを MUST として検査する。
 
+### br 応答に `content-length` が付かない **[実測]**
+
+Cloudflare は br で返すとき `content-encoding: br` は付けるが
+**`content-length` を付けない**。そのため `fetch` のヘッダからは
+符号化後の長さが取れず、**アプリ側で「回線を流れたバイト数」を数えられない。**
+
+同一オリジンなら `PerformanceResourceTiming.encodedBodySize` が
+content-coding 適用後のボディ長そのものなので、そこから引き当てる。
+クロスオリジンだと 0 になるので引き当てられない。
+
+デコード後のバイト数で代用すると、圧縮が効くアセットで 6 倍ずれる
+（`objects.geojson`: decode 662 kB / wire 109 kB）。
+計測側の扱いは `docs/WEB_RESULTS.md`。
+
 ---
 
 ## COPC は CDN キャッシュに乗らない **[既知]**
