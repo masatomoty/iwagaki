@@ -60,8 +60,10 @@ for (const f of fx.features) {
 }
 
 // 3) GLSL に同じ定数が入っているか（式の二重管理が崩れていないかの最低限のガード）
-const glsl = readFileSync(path.join(HERE, '../src/view/floodMeshLayer.ts'), 'utf8')
-for (const token of ['32768', '256.0', 'fmesh.hStep', 'fmesh.waterLevel']) {
+// three.js 化で UBO (fmesh.*) をやめて個別 uniform (u*) にしたので、名前だけ追従させた。
+// 見ているものは変えていない: 標高のバイアス・パッキングの基数・h_conn の刻み・水位。
+const glsl = readFileSync(path.join(HERE, '../src/three/floodMaterial.ts'), 'utf8')
+for (const token of ['32768', '256.0', 'uHStep', 'uWaterLevel']) {
   checked++
   if (!glsl.includes(token)) { failed++; console.error(`FAIL glsl missing ${token}`) }
 }

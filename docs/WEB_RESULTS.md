@@ -739,6 +739,95 @@ package.json の `exports` に無く解決できなかった。
 
 ---
 
+### 8.1.1 MapLibre + deck.gl をやめて three.js にした **[実測]**
+
+§8.1 の「判断材料として記録するに留める」を実行した。**MapLibre と deck.gl を両方外し、
+描画層を three.js で書き直した**（ブランチ `threejs-migration`）。
+
+`net/` `domain/` `state.ts` `perf/` と、点群の index / LOD / decode は**一行も変えていない**。
+renderer に依存しない設計（`docs/WEB_DESIGN.md` §1・§10）がそのまま効いて、
+差し替えたのは `view/` と `pointcloud/deckRenderer.ts` だけで済んだ。
+
+#### 転送量
+
+同一コミット（`59e8dd4`）で両方をビルドし、`brotli -q 11` で実測:
+
+| | before (maplibre+deck) | after (three.js) | 差 |
+|---|---:|---:|---:|
+| 初期 JS | 425,942 B | **124,337 B** | −301,605 B |
+| 初期 CSS（`maplibre-gl.css`） | 8,150 B | **0 B** | −8,150 B |
+| **shell 合計** | **434,092 B** | **124,337 B** | **−309,755 B（−71.4 %）** |
+| 遅延 `plateau` | 99.7 kB (gz) | 71.8 kB (gz) | −27.9 kB |
+
+`perf/shellcost.mjs` の表示でも **0.57 MB → 0.20 MB**。
+
+> §8.1 で見積もった maplibre 単体の削減幅（推定 180〜230 kB br）より大きい。
+> maplibre を外すと `@luma.gl` `@math.gl` `mjolnir.js` `@probe.gl` も
+> まとめて落ちるためで、**個別パッケージの足し算では出ない**。
+
+#### プロファイル別（`perf/run.mjs`、同一マシン・headed・同一データ）
+
+| profile | FMR ms | terrain ms | PLATEAU ms | MB shell | MB→FMR | camera ms |
+|---|---|---|---|---|---|---|
+| normal | 1046 → **158** | 1129 → **160** | — → **832** | 0.57 → **0.20** | 0.62 → 0.53 | 231 → 326 |
+| fast4g | 1238 → **785** | 1521 → **1025** | — → **7938** | 0.57 → **0.20** | 0.62 → **0.32** | 233 → 329 |
+| slow-highrtt | 2744 → **3171** | 5744 → **4189** | — → — | 0.57 → **0.20** | 0.59 → **0.32** | 234 → 326 |
+| fatpipe-highrtt | 2543 → **974** | 5443 → **1315** | — → **4787** | 0.57 → **0.20** | 0.61 → **0.29** | 232 → 323 |
+
+読み取れること:
+
+1. **`normal` の FMR が 1,046 → 158 ms**。`fatpipe-highrtt`（20 Mbps / 400 ms）も
+   2,543 → 974 ms。バンドルが critical path を支配していたという §1 の結論が、
+   コード分割を尽くしたあとでもまだ生きていたことの確認になる。
+2. **`slow-highrtt` だけ悪化している（2,744 → 3,171 ms）。**
+   shell を 0.37 MB 減らし FMR までの転送も 0.59 → 0.32 MB に減らしているのに遅い。
+   1 Mbps では baseline の 0.59 MB を 12 秒窓に運びきれないはずで、
+   **baseline 側の 2,744 ms の方が説明できていない**。未解決。§9 に置く。
+3. **PLATEAU は baseline では全プロファイルで「—」だった**（この計測環境では
+   deck.gl の `Tile3DLayer` が 1 タイルも読まない。リクエスト数 33 に b3dm が無い）。
+   three.js 版は 22/22 タイル・2,005 棟を読む。**したがって `MB@10s` の
+   0.71 → 3.76 MB は退行ではなく、baseline が測れていなかった 3D Tiles の実体である。**
+   両者を同じ土俵で比べたければ PLATEAU を切って測り直す必要がある。
+
+#### 正しさ
+
+- `test/parity.test.mjs`: **1,564 チェック / 0 失敗**。
+  GLSL 側の参照先を `view/floodMeshLayer.ts` → `three/floodMaterial.ts` に、
+  トークンを UBO 名（`fmesh.hStep`）から個別 uniform 名（`uHStep`）に追従させた。
+  **見ている式は変えていない。**
+- 地物ポリゴン（GeoJSON 由来）と PLATEAU 建物（b3dm 由来）は独立に配置しているので、
+  平面図で重なることが移植の検算になる。**重なることを目視で確認した。**
+
+#### 移植で判明した、元実装には無かった事実 **[実測]**
+
+1. **タイル PNG は row 0 が北。** `scripts/80_build_web_tiles.py` の
+   `from_bounds(west, south, east, north, 256, 256)` は北上がりの transform を作る。
+   実測（z17/114808/51713）: row0 平均 78.4 m / row255 平均 36.5 m に対し、
+   同緯度の `dtm_highres_050.tif` は北端 80.4 m / 南端 28.0 m。
+   luma.gl は ImageBitmap を既定で上下反転して上げるため元実装は素の uv で合っていたが、
+   **three には暗黙の反転が無いので `flipY = false` + シェーダ側で `1 - v`** にした。
+2. **PLATEAU の b3dm は `rtcCenter`（ECEF）からの ECEF オフセットで頂点を持ち、
+   `rotateYtoZ: true` が立っている。** tileset.json に `transform` が無く、
+   standalone の `parse()` では `cartographicOrigin` も `modelMatrix` も付いてこない。
+   回転を掛けると up が 33〜84 m（tileset の `region` が宣言する 37.25〜79.26 m と一致）、
+   掛けないと ±4,900 m になる。**ECEF → ローカル ENU を自前で持つ必要がある**
+   （`src/three/mercator.ts`）。
+3. **`_BATCHID` による色分けで primitive を分割する必要が無くなった。**
+   deck 版が分割していたのは luma.gl v9 の pbr が頂点色を読まないからで（§8.1 の脚注）、
+   自前シェーダなら頂点色 1 本で済む。**draw call はタイルあたり 1（22 タイルで 22）**。
+4. **正射投影（`docs/TODO.md` B1）が入った。** 1〜5 のカメラプリセットは
+   `OrthographicCamera` に切り替わる。`O` キーと `?ortho=1` でも切り替わる。
+
+#### 残っている宿題
+
+- `slow-highrtt` の FMR 悪化（上記 2）。
+- 点群の描画コストの再計測。§6.2 の「23 ns/点/frame・上限 60 万点」は
+  deck.gl `PointCloudLayer` での実測で、`THREE.Points` では取り直しが要る。
+- Draco デコーダは相変わらず外部 CDN（§8 の高優先項目）。three.js 化では変わっていない。
+- `catalog.terrain` が 6 条件に増える件（`docs/TODO.md` A1〜A4）への追従。
+
+---
+
 ### 8.2 実配信の HAR から出た最適化 — **b3dm の 70% は未使用の属性だった** **[実測]**
 
 実配信（`https://iwagaki-viewer.tonbo.workers.dev`）を初回表示した HAR を分解した。
@@ -811,6 +900,11 @@ console エラー 0、失敗リクエスト 0）。属性を増やす時は `BAT
    試行間のばらつきと区別できていない。差が無いという結論は妥当だが、
    「どちらが速い」を言える精度は無い。
 6. 12 秒の計測窓で切っている。PLATEAU と点群が窓内に収まらないプロファイルがある。
-7. **計測ハーネス自体にバグがあった。** `--suffix=?pc=1` を `split('=')[1]` で読んでいて
+7. **`slow-highrtt` の before/after が説明できていない（§8.1.1）。**
+   1 Mbps で baseline は FMR まで 0.59 MB 運んだことになっているが、
+   それだけで 4.7 秒かかるはずのところ FMR は 2,744 ms と出ている。
+   three.js 版は 0.32 MB で 3,171 ms とほぼ帯域どおりなので、
+   **疑わしいのは baseline 側の計測**だが未確認。この 1 行だけ結論を保留する。
+8. **計測ハーネス自体にバグがあった。** `--suffix=?pc=1` を `split('=')[1]` で読んでいて
    `?pc` に化けており、点群ありのつもりの計測が点群なしになっていた（修正済み）。
    計測コードも検証対象であって、出た数字をそのまま信じてはいけない。

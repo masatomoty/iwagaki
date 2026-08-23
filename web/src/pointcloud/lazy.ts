@@ -4,11 +4,11 @@
 import type { Scheduler } from '../net/scheduler'
 import type { PerfRecorder } from '../perf/recorder'
 import { PointCloudController } from './controller'
-import { DeckPointCloudRenderer } from './deckRenderer'
+import { ThreePointCloudRenderer } from '../three/pointsRenderer'
 
 export interface PcBundle {
   controller: PointCloudController
-  renderer: DeckPointCloudRenderer
+  renderer: ThreePointCloudRenderer
 }
 
 export function createPointCloud(opts: {
@@ -23,7 +23,7 @@ export function createPointCloud(opts: {
   usefulFraction: number
   onChange: () => void
 }): PcBundle {
-  const renderer = new DeckPointCloudRenderer(opts.originWgs84, opts.onChange)
+  const renderer = new ThreePointCloudRenderer(opts.onChange)
   const controller = new PointCloudController({
     url: opts.url,
     scheduler: opts.scheduler,
