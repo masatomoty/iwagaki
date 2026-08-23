@@ -281,6 +281,11 @@ MapLibre の zoom はタイル 512 px 基準、`three/mercator.ts` は 256 px �
 規約は `docs/web_design.md`「ズームの規約」。`perf/tileorient.mjs` と
 `perf/zmix.mjs` が要求タイルの z ごと照合するので、次からはここで捕まる。
 
+**この節の「正しくは 16.6」は当時の値である。** 既定視点を点群の帯に寄せたので
+いまは `INITIAL_ZOOM = 17.2`（`docs/web_design.md`「既定の視点」）。
+要求本数と転送量は 16.6 と同じだが、**この文書の時刻はまだ 16.6 で測ったもの**である
+（`docs/todo.md` 中 6）。
+
 ### `objects.geojson` のパースコストは 3 ms、遅延ロードの往復が 568 ms だった **[実測]**
 
 `docs/todo.md` に「転送は wire 109 kB でバイトの問題ではない。残る理由は
