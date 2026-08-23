@@ -107,6 +107,17 @@ async function boot() {
   if (OPT.ortho) viewer.setProjection('orthographic')
   attachViewCube(viewer)
 
+  // インスペクタはビューキューブの下に置く。**高さを決め打ちにしない。**
+  // ViewCube には size: 128 を渡しているのに host の矩形は 152x158 px で、
+  // CSS の top: 146px では 20 px 重なっていた（実測）。キューブから測って置く
+  const placeInspector = () => {
+    const cube = document.getElementById('viewcube')?.getBoundingClientRect()
+    const el = document.getElementById('inspector')
+    if (el) el.style.top = `${Math.round((cube?.bottom ?? 166) + 12)}px`
+  }
+  placeInspector()
+  window.addEventListener('resize', placeInspector)
+
   // 出典。**必ず出す。** MapLibre の AttributionControl が担っていた分で、
   // PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めている
   document.getElementById('attrib')!.textContent = catalog.attribution.join(' / ')

@@ -147,31 +147,18 @@ function pickChips(refs: [string, number][]): [string, number, string][] {
   return out
 }
 
-function aboutHtml(catalog: Catalog, refs: [string, number][]): string {
-  const pc = catalog.pointcloud
-  const cov = catalog.pointcloud_coverage
-  const pcNote = pc.synthetic
-    ? '点群は <b>DTM から生成した合成データ</b>（配信検証用）。観測値ではない。'
-    : `点群は <b>2026-07 取得のバックパック SLAM 実測</b>
-       （${(pc.point_count / 1e6).toFixed(1)} M 点 / ${(pc.bytes / 1e6).toFixed(0)} MB）。
-       <b>表示専用</b>で、浸水解析には点群を融合した地形ラスタを使っている。
-       歩いた線に沿った帯しか無い。`
-  return `
-    <p class="grouplabel">参照潮位（押すと水位が動く）</p>
-    <div class="reflist" id="refs">${refs.map(([k, v]) =>
-      `<button data-h="${v}" type="button">${k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>
-    <p class="srcnote">既往最高潮位は 1998-09-22 の台風 7 号（京都府 丹後沿岸海岸保全基本計画）。
-      天文潮は気象庁の推算潮位表から計算（年平均が公表 MSL と一致することで検算）。</p>
-    <p class="srcnote">${pcNote}</p>
-    ${cov ? `<p class="srcnote">点群が地形に効いているのは <b>${cov.area_ha_cells} ha</b>
-      （AOI 100 ha の ${((cov.area_ha_cells / 100) * 100).toFixed(1)} %）だけ。
-      黄線の外側は京都府 0.5m DEM のままで、点群は効いていない。</p>` : ''}
-    <p class="srcnote">建物の色は b3dm に入っていない（texture・頂点色・baseColorFactor すべて無し）。
-      属性コードの表示名は CityGML 配布 zip 同梱のコードリスト。</p>
-    <p class="grouplabel">この判定に含まないもの</p>
-    <p class="srcnote">静水位モデル。越流の時間発展・流量・波の打ち上げを含まない。
-      水門・樋門・暗渠を考慮していない（連結性モデルの最大の弱点）。
-      京都府 DEM は森林資源把握を目的とした成果で、市街地の精度は保証されていない。</p>`
+/**
+ * 参照潮位の一覧。押すと水位が動く。
+ * 頭のチップに出す 3 つ（普段・高潮想定・既往最高）以外もここから選べる。
+ *
+ * 出典と既知の限界の文章はここに置いていた。**画面には出さない**
+ * （`README.md` と `docs/RESULTS.md` が持っている）。出典表記だけは
+ * ライセンス上の要求なので画面下辺（`#attrib`）に常時出る。
+ */
+function refListHtml(refs: [string, number][]): string {
+  return `<div class="reflist" id="refs">${refs.map(([k, v]) =>
+    `<button data-h="${v}" type="button" title="T.P. ${v.toFixed(3)} m"
+    >${k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
 }
 
 /**
@@ -319,8 +306,8 @@ export function renderControls(
       </details>
 
       <details>
-        <summary>このデータについて</summary>
-        <div class="inner">${aboutHtml(catalog, refs)}</div>
+        <summary>参照潮位</summary>
+        <div class="inner">${refListHtml(refs)}</div>
       </details>
     </div>
   `
