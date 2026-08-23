@@ -850,7 +850,7 @@ lng/lat に直し、**焼いた PNG の同じ座標の (標高, h_conn)** と突
 | 1 リクエスト内のストリーミングデコード | §4.2。あわせて coalescing の結論が反転（§4.1） |
 | 実 LAS への差し替え後に decode / LOD を再計測 | §6.5 |
 | b3dm の未使用属性（batch table JSON）の削減 | §8.2。初回転送 15.5 → 8.0 MB |
-| 実配信での配信条件の確定（Range 206 / 圧縮 / キャッシュ） | `docs/INFRA.md` §7.1 |
+| 実配信での配信条件の確定（Range 206 / 圧縮 / キャッシュ） | `docs/PLATFORM.md` |
 | **実配信で `perf/run.mjs` を回す** | §6.6.2。4 プロファイル headed 実測。normal で FMR 383 ms / terrain 551 ms / PLATEAU 3,269 ms / pc useful 3,591 ms |
 | **COPC hierarchy の往復削減** | §6.6。33 → 3 リクエスト（転送量は 0.20 MB のまま不変）。20 Mbps / RTT 400 ms で 22.2 → 3.7 秒 |
 | **転送バイトを wire で数える** | §6.6.3。デコード後で数えていたため `objects.geojson` を 5.9 倍に過大計上し、帯域推定も 6 倍狂っていた |

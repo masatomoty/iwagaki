@@ -1,7 +1,7 @@
 # deploy/deploy.sh が dist/.assetsignore にコピーする（.gitignore と同じ書式）。
 # ここに書いたものは Workers Assets にアップロードされない。
 
-# COPC は Workers Assets ではなく R2 に置く。Range 206 を保証するため（docs/INFRA.md §2）
+# COPC は Workers Assets ではなく R2 に置く。Range 206 を保証するため（docs/PLATFORM.md）
 data/pointcloud/*.copc.laz
 
 # 配信設定そのものは公開アセットにしない

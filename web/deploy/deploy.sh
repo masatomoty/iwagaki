@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # viewer + 生成済みアセットを Cloudflare に載せる。
 #   静的アセット -> Workers Assets（dist/ をそのまま）
-#   COPC        -> R2（Range 206 が要るため。docs/INFRA.md §2）
+#   COPC        -> R2（Range 206 が要るため。docs/PLATFORM.md）
 #
 # 前提: `npx wrangler login` 済み。scripts/build_web.sh でアセットが生成済み。
 #
