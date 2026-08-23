@@ -35,7 +35,7 @@
 | # | 内容 | 根拠 |
 |---|---|---|
 | 10 | **Draco / デバッグ用の CDN 参照をバンドルから消す** | 現行ビルドでは発火しない（22 個の b3dm に `KHR_draco_mesh_compression` が無く、実配信でクロスオリジンのリクエストは 0 件）。ただし `www.gstatic.com/draco/…`・`unpkg.com/webgl-debug`・`cdn.jsdelivr.net/npm/spectorjs` の URL は残る。**潜在リスク**なので、ローカル同梱に固定し「クロスオリジンを 1 件も出さない」を `deploy/check.mjs` の MUST に入れる |
-| 11 | **custom point-cloud renderer** | `docs/WEB_DESIGN.md` §10 の移行条件に届いていない。常駐 12,174 点 / draw call 1 で、置き換える理由が無い |
+| 11 | **custom point-cloud renderer** | `docs/WEB_DESIGN.md`「レンダラを差し替える条件」の移行条件に届いていない。常駐 12,174 点 / draw call 1 で、置き換える理由が無い |
 | 12 | **タイル URL のバージョニング** | `data/tiles` と `data/3dtiles` は `immutable` だが URL に内容ハッシュが無い。**データを更新する運用に入るとここが最初に効く**（`docs/INFRA.md`） |
 
 ---
@@ -47,6 +47,3 @@
   **「過度な UI 作り込み、印刷レイアウト」**を挙げている。要件を確認してから決める。
 - **時系列（潮位の時間変化）。** 同上「やらないこと」。静水位モデルなので、
   出すなら「時間発展ではなくパラメータ掃引」であることを画面で明示する必要がある。
-- **`docs/WEB_ARCH_REVIEW.md` の扱い。** GeoLibre 採否の判断文書で、
-  結論「A: 現行実装を継続」は three.js 移行で覆っている。
-  そのまま残すと現行仕様と誤読される。移すか消すかを決める。

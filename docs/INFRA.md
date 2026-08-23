@@ -46,7 +46,7 @@ Worker は 1 本（`iwagaki-viewer`）。**静的アセットと COPC を同一�
 `catalog.json` の url は全て相対のままでよく、アプリ側に分岐は無い。
 
 同一オリジンに揃える理由は 2 つある。`PerformanceResourceTiming.transferSize` は
-クロスオリジンだと 0 になり転送量が測れなくなること（`docs/WEB_DESIGN.md` §8.3）と、
+クロスオリジンだと 0 になり転送量が測れなくなること（`docs/WEB_DESIGN.md`「収集する量」）と、
 CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えること。
 
 **COPC だけ Worker + R2 を経由するのは、Workers Assets が Range に 200 を返すから**である。
@@ -70,7 +70,7 @@ CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えるこ
 | Worker | `iwagaki-viewer` | `workers_dev: true`。既定で `*.workers.dev` に出る |
 | R2 バケット | `iwagaki-assets` | location hint `apac` |
 | R2 キー空間 | `data/pointcloud/*.copc.laz` | **URL パスと 1:1**（先頭の `/` を落としただけ） |
-| 〃（将来） | `raw/las/*` | アップロードされた原データ置き場（`docs/WEB_DESIGN.md` §7） |
+| 〃（将来） | `raw/las/*` | アップロードされた原データ置き場（`docs/WEB_DESIGN.md` （アップロードは `docs/TODO.md`）） |
 
 キーと URL パスを一致させているので、Worker 側にマッピング表が無い。
 バケット名は `wrangler.jsonc` を単一の出所とし、`deploy.sh` はそこから読む。
@@ -172,7 +172,7 @@ node deploy/check.mjs http://localhost:8788
 
 ## まだ作らないもの
 
-`docs/WEB_DESIGN.md` §6 の図のうち、作ったのは静的配信だけ。
+`docs/WEB_DESIGN.md`「配信の境界」の図のうち、作ったのは静的配信だけ。
 
 | | 必要なもの |
 |---|---|

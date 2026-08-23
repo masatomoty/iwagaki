@@ -57,7 +57,7 @@ AOI に出現するのは class 3 種・usage 11 種。
 津波・洪水の想定浸水深まで棟ごとに入っている。
 つまり **3D Tiles だけで棟ごとの属性表示ができる**（objects.geojson の解析対象 694 棟に限られない。
 タイル側は AOI 外まで含めて 2,005 棟）。viewer の建物色分けはこれを使う
-（`docs/WEB_RESULTS.md` §6.4）。
+（`docs/WEB_RESULTS.md`「b3dm の 70 % は使っていない属性だった」）。
 
 ### 地形モデル `dem` の実態 **[実測]**
 
@@ -385,7 +385,7 @@ https://cais.gsi.go.jp/cmdc/center/kenchojo/maizuru/maizuru.html
 舞鶴市・宮津市・京丹後市・伊根町・与謝野町）を対象に公表している。
 
 > **以前このリポジトリは「舞鶴に高潮浸水想定区域の指定は存在しない」と書いていた。
-> それは誤りだった。** `docs/DESIGN.md` §8 と `docs/RESULTS.md` も訂正した。
+> それは誤りだった。** `docs/DESIGN.md`「既知の限界」と `docs/RESULTS.md` も訂正した。
 
 想定条件（同解説資料 表 3.2 ほか）:
 

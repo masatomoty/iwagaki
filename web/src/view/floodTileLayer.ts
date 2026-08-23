@@ -1,9 +1,9 @@
 // 浸水・地形・差分のタイルレイヤ。描画実体は FloodMeshLayer（板ではなくメッシュ）。
-// タイル取得は必ず net/Scheduler を通す（renderer は fetch を持たない: docs/WEB_DESIGN.md §1）。
+// タイル取得は必ず net/Scheduler を通す（renderer は fetch を持たない: docs/WEB_DESIGN.md「層の分け方」）。
 
 // NOTE: 深いパス（dist/tile-layer/tile-layer.js）から入れて @deck.gl/layers を
 // 初期チャンクから外そうとしたが、package.json の exports に無く解決できない。
-// 初期チャンクの内訳は docs/WEB_RESULTS.md §8.1 を参照
+// 初期チャンクの内訳は docs/WEB_RESULTS.md「初期チャンクの内訳」を参照
 import { TileLayer } from '@deck.gl/geo-layers'
 
 import { decodeTileImage } from '../assets/packing'

@@ -7,7 +7,7 @@
 // タイルは既存の RGBA パッキングをそのまま使う（アセットの作り直し不要）:
 //   RGB = Terrarium 標高, A = h_conn コード
 // 標高は **頂点シェーダでテクスチャから読む**。自前で decode するので、
-// 画像デコーダに premultiply されて標高が壊れる問題（docs/WEB_DESIGN.md §5.2）を踏まない。
+// 画像デコーダに premultiply されて標高が壊れる問題（docs/WEB_DESIGN.md「RGBA タイルのパッキング」）を踏まない。
 
 import { Layer, project32, picking, type LayerProps, type UpdateParameters } from '@deck.gl/core'
 import { Geometry, Model } from '@luma.gl/engine'

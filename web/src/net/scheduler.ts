@@ -1,6 +1,6 @@
 // 単一の choke point。3D Tiles も COPC も タイルも GeoJSON も、ネットワークは全部ここを通る。
 // renderer は fetch を呼ばない。必要なもの（key + class + rank）を submit するだけ。
-// docs/WEB_DESIGN.md §4
+// docs/WEB_DESIGN.md「リクエストスケジューラ」
 
 import { ByteLru } from './cache'
 import { rangeFetch, RangeNotHonoured } from './rangefetch'
@@ -20,7 +20,7 @@ interface Live {
   received: number
 }
 
-/** 並列上限（docs/WEB_DESIGN.md §4.2）。すべて初期値であり、実測でチューニングする前提 */
+/** 並列上限（docs/WEB_DESIGN.md「並列上限」）。すべて初期値であり、実測でチューニングする前提 */
 const CAPS = {
   h1: { global: 6, group: { a: 4, b: 4, c: 3, d: 3, e: 1 } },
   h2: { global: 12, group: { a: 6, b: 6, c: 4, d: 6, e: 2 } },

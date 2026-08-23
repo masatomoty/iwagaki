@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""3条件（baseline / control / highres）について連結浸水開始水位 h_conn を計算する。
+"""4 条件（baseline / control / highres / pointcloud）について連結浸水開始水位 h_conn を計算する。
 
 seed（開放水面）は高解像度地形から 1 度だけ求め、全条件で同一のものを使う。
 地形ごとに seed が変わると、比較が seed の差に汚染されるため。

@@ -1,5 +1,5 @@
 // PLATEAU 3D Tiles。@loaders.gl/3d-tiles は重いので、この module ごと遅延読み込みする
-// （first_meaningful_render を JS バンドルで押し出さないため: docs/WEB_DESIGN.md §9.3）。
+// （first_meaningful_render を JS バンドルで押し出さないため: docs/WEB_DESIGN.md「既知の制約」）。
 
 import { Tile3DLayer } from '@deck.gl/geo-layers'
 import { Tiles3DLoader } from '@loaders.gl/3d-tiles'

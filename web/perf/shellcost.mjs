@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 「地理データを 1 バイトも見る前に、アプリの JS で何バイト・何秒使うか」だけを測る。
 //
-// docs/WEB_RESULTS.md §1 の結論（FMR を決めているのはバンドルだった）を、
+// docs/WEB_RESULTS.md「転送の内訳」の結論（FMR を決めているのはバンドルだった）を、
 // iwagaki と別の Web shell（GeoLibre 等）で同じ条件で比べるために切り出した。
 // perf/run.mjs と違って計測対象の内部 API を必要としないので、
 // 任意の URL に当てられる。__iwagaki があれば FMR も併記する。
@@ -9,7 +9,7 @@
 //   node perf/shellcost.mjs --url=https://localhost:8477/ --label=iwagaki
 //   node perf/shellcost.mjs --url=https://web.geolibre.app/ --label=geolibre
 //
-// プロファイルの数値は perf/run.mjs と同一（docs/WEB_DESIGN.md §8.5）。
+// プロファイルの数値は perf/run.mjs と同一（docs/WEB_DESIGN.md「ネットワークプロファイル」）。
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'

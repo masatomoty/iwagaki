@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ブラウザ側の実装が Python 側とずれていないか検証するためのフィクスチャ。
 
-docs/WEB_DESIGN.md §8.4。性能とは別に「静かに間違う」のを防ぐためのもの。
+docs/WEB_DESIGN.md「正しさを守るテスト」。性能とは別に「静かに間違う」のを防ぐためのもの。
 """
 from __future__ import annotations
 

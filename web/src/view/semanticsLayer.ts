@@ -1,7 +1,7 @@
 // PLATEAU 地物（建物・道路）+ assertion のレイヤ。
 // @deck.gl/layers の GeoJsonLayer は PolygonLayer / PathLayer / TextLayer を
 // 引き連れてくるので、初回描画のバンドルに入れず遅延読み込みする
-// （FMR を決めているのはバンドルだった: docs/WEB_RESULTS.md §1）。
+// （FMR を決めているのはバンドルだった: docs/WEB_RESULTS.md「転送の内訳」）。
 
 import { GeoJsonLayer } from '@deck.gl/layers'
 
@@ -61,7 +61,7 @@ export function createSemanticsLayer(o: SemanticsOptions) {
  *
  * `GeoJsonLayer` を持つこのモジュールに同居させているのは、
  * チャンクを増やすと往復が 1 回増えるから。実配信では往復回数が
- * 待ち時間を支配していた（docs/WEB_RESULTS.md §6.6）。
+ * 待ち時間を支配していた（docs/WEB_RESULTS.md「点群の配信」）。
  */
 export function createPcCoverageLayer(data: unknown) {
   return new GeoJsonLayer({

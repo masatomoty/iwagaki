@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""解析ラスタ -> Web 配信用 RGBA タイル（docs/WEB_DESIGN.md §5.2）。
+"""解析ラスタ -> Web 配信用 RGBA タイル（docs/WEB_DESIGN.md「RGBA タイルのパッキング」）。
 
 1 タイル = 1 地形条件。RGB に標高(Terrarium)、A に h_conn コードを詰める。
 
@@ -39,7 +39,7 @@ ORIGIN = math.pi * R_EARTH        # 20037508.342789244
 # 以前は baseline / highres の 2 つしか焼いておらず、**点群を融合した地形の
 # 浸水判定を viewer から一切見られなかった**（docs/TODO.md A1）。
 # control は「解像度だけを落とした highres」で、データ源と解像度のどちらが
-# 効いているかを切り分けるための条件（docs/DESIGN.md §4.4）。
+# 効いているかを切り分けるための条件（docs/DESIGN.md「地形の生成」）。
 CONDITIONS = {
     "baseline": ("dtm_baseline_500.tif", "h_conn_baseline.tif"),
     "highres": ("dtm_highres_050.tif", "h_conn_highres.tif"),

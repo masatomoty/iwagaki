@@ -1,6 +1,6 @@
 // MapLibre はカメラ・投影・basemap だけを持つ。データは全部 deck.gl 側。
 // MapLibre の 3D terrain は使わない（deck.gl のレイヤが地形に貼り付かないため:
-// docs/WEB_DESIGN.md §2.2）。起伏は FloodTileLayer のシェーダ内の陰影で出す。
+// docs/WEB_DESIGN.md「MapLibre の 3D terrain は使わない」）。起伏は FloodTileLayer のシェーダ内の陰影で出す。
 
 import {
   Map as MlMap, AttributionControl,
@@ -8,7 +8,7 @@ import {
 } from 'maplibre-gl'
 
 // maplibre-gl は 5.x に固定している。6.x は `map.transform` を廃止しており、
-// @deck.gl/mapbox 9.3 の interleaved 描画が毎フレーム例外で落ちる（docs/WEB_DESIGN.md §11）。
+// @deck.gl/mapbox 9.3 の interleaved 描画が毎フレーム例外で落ちる（docs/WEB_DESIGN.md「既知の制約」）。
 
 import type { Catalog } from '../domain/catalog'
 import { ViewCube } from './viewCube'

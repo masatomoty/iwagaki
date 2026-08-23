@@ -1,6 +1,6 @@
-// scheduler の公開型。描画ライブラリを一切知らない（docs/WEB_DESIGN.md §1）。
+// scheduler の公開型。描画ライブラリを一切知らない（docs/WEB_DESIGN.md「層の分け方」）。
 
-/** 小さいほど先。docs/WEB_DESIGN.md §4.1 */
+/** 小さいほど先。docs/WEB_DESIGN.md「優先度クラス」 */
 export const P = {
   catalog: 0,
   terrainCoarse: 0,
@@ -33,7 +33,7 @@ export interface FetchTask {
   /**
    * 1 本の Range にまとめた中の各部分。届いた分から順に `onPart` へ払い出す。
    * これが無いと、まとめた range は全部届くまで 1 つもデコードできない
-   * （docs/WEB_RESULTS.md §4.2）。
+   * （docs/WEB_RESULTS.md「スケジューリング」）。
    * begin/end はファイル先頭からの絶対オフセット、end は排他。
    */
   parts?: { key: string; begin: number; end: number }[]

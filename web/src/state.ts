@@ -33,7 +33,7 @@ export function initialState(catalog: Catalog): AppState {
     layers: {
       flood: true, ground: true, plateau: true,
       // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
-      // GPU 44 MB / 転送 14 MB を使う（docs/WEB_RESULTS.md §6）
+      // GPU 44 MB / 転送 14 MB を使う（docs/WEB_RESULTS.md「点群の配信」）
       pointcloud: false, semantics: true, changedOnly: false,
       // 既定 ON。これが無いと「点群で高精度に見た結果」が AOI 全域に
       // 効いているように読めてしまう（実際に効いているのは 3.17 ha だけ）

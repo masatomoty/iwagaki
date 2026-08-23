@@ -1,4 +1,4 @@
-// Worker プール。docs/WEB_DESIGN.md §3.5
+// Worker プール。docs/WEB_DESIGN.md「decode pool」
 
 import type { DecodedChunk } from './types'
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cold cache でネットワークプロファイルを変えて計測する（docs/WEB_DESIGN.md §8.5）。
+// cold cache でネットワークプロファイルを変えて計測する（docs/WEB_DESIGN.md「ネットワークプロファイル」）。
 // FPS は測らない。「いつ・何バイトで・何が見えたか」を測る。
 //
 //   node perf/run.mjs                 # 既定 3 プロファイル
@@ -31,7 +31,7 @@ const PROFILES = {
   fast4g: { offline: false, downloadThroughput: (4e6) / 8, uploadThroughput: (3e6) / 8, latency: 70 },
   'slow-highrtt': { offline: false, downloadThroughput: (1e6) / 8, uploadThroughput: (0.5e6) / 8, latency: 400 },
   // 帯域は十分だが RTT が大きい回線。往復回数が支配的になる条件で
-  // range coalescing の効果を切り分けるために足した（docs/WEB_RESULTS.md §4）
+  // range coalescing の効果を切り分けるために足した（docs/WEB_RESULTS.md「range coalescing」）
   'fatpipe-highrtt': { offline: false, downloadThroughput: (20e6) / 8, uploadThroughput: (5e6) / 8, latency: 400 },
 }
 
@@ -177,7 +177,7 @@ if (SCENARIO === 'profiles') {
     // 実点群は歩いた帯（3.17 ha / AOI 100 ha）にしか無いので、
     // 被覆の中心に寄ってから被覆外の隅へ跳べば、発行済みノードが確実に
     // `wanted` から外れる。合成点群は AOI 全体を覆っていたので、
-    // この状況が原理的に作れなかった（docs/WEB_RESULTS.md §5）。
+    // この状況が原理的に作れなかった（docs/WEB_RESULTS.md「キャンセル」）。
     const PC_CENTER = [135.328894, 35.456748]   // 点群 bounds の中心
     const AOI_SW = [135.323041, 35.453227]      // 被覆外
     const AOI_NE = [135.332888, 35.461394]      // 被覆外

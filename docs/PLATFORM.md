@@ -20,7 +20,7 @@ COPC は「必要なノードのバイト範囲だけ取る」ことが前提の
 R2 は範囲を持つ `R2ObjectBody` を返すので、Worker は 206 と `Content-Range` を
 組み立てるだけでよい。
 
-`docs/WEB_DESIGN.md` §6.1 は Cloudflare Pages についてこれを [既知] としていたが、
+`docs/WEB_DESIGN.md`「配信の境界」は Cloudflare Pages についてこれを [既知] としていたが、
 **Workers Assets でも同じだった**。
 
 ### Range の応答規約
@@ -62,7 +62,7 @@ Worker → R2 binding は subrequest であり、Cache API に 206 を put で�
 
 乗せたい場合の選択肢は「R2 をカスタムドメインで直接配信する」だが、
 別オリジンになるので `PerformanceResourceTiming.transferSize` が 0 になり、
-転送量の計測が濁る（`docs/WEB_DESIGN.md` §8.3）。**今は取らない。**
+転送量の計測が濁る（`docs/WEB_DESIGN.md`「収集する量」）。**今は取らない。**
 
 ---
 

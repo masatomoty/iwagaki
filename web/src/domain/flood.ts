@@ -1,4 +1,4 @@
-// 浸水判定。docs/DESIGN.md §1.2 の h_conn をそのまま使う。
+// 浸水判定。docs/DESIGN.md「任意の水位を定数時間で評価できること」の h_conn をそのまま使う。
 // GLSL 側（view/floodMeshLayer.ts）と同じ式であることを test/parity で検証する。
 
 import type { FeatureAssertion, MTP, TerrainCondition } from './types'

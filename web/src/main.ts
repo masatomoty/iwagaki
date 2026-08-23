@@ -1,5 +1,5 @@
 // アプリの組み立て。ここが唯一「全部を知っている」場所。
-// 依存の向き: ui -> view -> pointcloud -> net -> assets -> domain（docs/WEB_DESIGN.md §1）
+// 依存の向き: ui -> view -> pointcloud -> net -> assets -> domain（docs/WEB_DESIGN.md「層の分け方」）
 
 import 'maplibre-gl/dist/maplibre-gl.css'
 
@@ -37,10 +37,10 @@ const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_me
  * 「点群が見えた」とみなす、LOD が選んだ点数に対する割合。
  * 絶対値（旧: 20 万点）は合成点群向けの値で、実点群では LOD の選択が
  * 17.3〜21.6 万点と閾値をまたぎ、同じ画面でも計測できたりできなかったりした。
- * 割合にすればデータ密度・LOD 予算を変えても同じものを指す（docs/WEB_RESULTS.md §6.3）。
+ * 割合にすればデータ密度・LOD 予算を変えても同じものを指す（docs/WEB_RESULTS.md「計測の方針」）。
  */
 const USEFUL_FRACTION = 0.5
-/** 実測で決めた常駐点数の上限（docs/WEB_RESULTS.md §6.2）。?maxpts= で上書きできる */
+/** 実測で決めた常駐点数の上限（docs/WEB_RESULTS.md「点群の配信」）。?maxpts= で上書きできる */
 const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 600_000
 /** LOD のバイト予算の上書き。計測専用（既定は帯域推定から決める） */
 const PC_MAX_BYTES = Number(new URLSearchParams(location.search).get('maxbytes')) || undefined
@@ -49,7 +49,7 @@ const PC_MAX_BYTES = Number(new URLSearchParams(location.search).get('maxbytes')
 const qs = new URLSearchParams(location.search)
 const OPT = {
   // coalescing は既定 ON。1 リクエスト内のストリーミングデコードを入れた結果、
-  // 「束ねると最初の点が遅れる」不利が消えて速い側になった（docs/WEB_RESULTS.md §4）
+  // 「束ねると最初の点が遅れる」不利が消えて速い側になった（docs/WEB_RESULTS.md「range coalescing」）
   coalesce: qs.get('coalesce') !== '0',
   // 点群は既定 OFF。?pc=1 で有効化
   pointcloud: qs.get('pc') === '1',
@@ -434,7 +434,7 @@ async function boot() {
    * LOD 予算。当初 maxPoints を 3,000,000 と根拠なく置いていたが、実測すると
    * deck.gl PointCloudLayer の描画コストは点数にほぼ線形で約 23 ns/点/frame。
    * 300 万点ではドラッグ中 68 ms/frame（15 fps）になる。
-   * 60 fps を保てる上限として 60 万点に置く（docs/WEB_RESULTS.md §6.2）。
+   * 60 fps を保てる上限として 60 万点に置く（docs/WEB_RESULTS.md「点群の配信」）。
    */
   const budget = (): LodBudget => {
     const bw = scheduler.bandwidthBps || 2e6
@@ -443,7 +443,7 @@ async function boot() {
       // 帯域推定から毎回決める。遅い回線では自動的に浅い LOD で止まる。
       // ?maxbytes= で上書きできる。**キャンセル経路の検証に必要**で、
       // 絞った回線ではこの予算が pcFine の発行そのものを止めてしまい、
-      // 「キャンセルすべき飛行中の要求」が作れない（docs/WEB_RESULTS.md §5）
+      // 「キャンセルすべき飛行中の要求」が作れない（docs/WEB_RESULTS.md「キャンセル」）
       maxBytes: PC_MAX_BYTES ?? Math.max(2e6, Math.min(20e6, bw * 6)),
       screenSpaceError: 2.0,
       coarseDepth: 1,
@@ -457,7 +457,7 @@ async function boot() {
    * `cameraToCenterDistance` はキャンバス高さと fov だけで決まり
    * **ズームに依存しない**ので、視点は事実上の定数だった。
    * 実測で zoom 18.4 と 12.5 の `wantedPoints` が完全に一致し、
-   * LOD が働いていないことが分かった（docs/WEB_RESULTS.md §5.1）。
+   * LOD が働いていないことが分かった（docs/WEB_RESULTS.md「キャンセル」）。
    * 換算そのものは `domain/camera.ts` に置いてある（レンダラに依らないため）。
    */
   const viewState = (): ViewState => {
@@ -524,7 +524,7 @@ async function boot() {
         // それが書き換わるのは update() の中である。先に reap すると
         // 古い `wanted` を見て「まだ必要」と答えてしまい、
         // **視野から外れたノードが一度もキャンセルされない**
-        // （docs/WEB_RESULTS.md §5.1）。
+        // （docs/WEB_RESULTS.md「キャンセル」）。
         void pcb.controller.update(viewState(), budget()).then(() => scheduler.reap())
       }
     }, 60)
@@ -547,7 +547,7 @@ async function boot() {
   })
 
   // PerfRecorder は常時走らせるが、パネルは既定で隠す。内訳を読むのは開発者だけで、
-  // 浸水を見に来た人には要らない。?perf=1 か P キーで出す（docs/WEB_DESIGN.md §8.1）
+  // 浸水を見に来た人には要らない。?perf=1 か P キーで出す（docs/WEB_DESIGN.md「FPS は指標にしない」）
   const perfEl = document.getElementById('perf')!
   let perfVisible = new URLSearchParams(location.search).get('perf') === '1'
   const drawPerf = () => {

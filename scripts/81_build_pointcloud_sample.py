@@ -72,7 +72,7 @@ def main() -> int:
     print(json.dumps(report, indent=2))
     if size < 5_000_000:
         print("\n注意: COPC が 5 MB 未満。規則格子なので LAZ が効きすぎている可能性がある。"
-              "\nネットワーク負荷源としては弱い。docs/WEB_DESIGN.md §11 risk 6b を参照。")
+              "\nネットワーク負荷源としては弱い。docs/WEB_DESIGN.md「既知の制約」を参照。")
     return 0
 
 

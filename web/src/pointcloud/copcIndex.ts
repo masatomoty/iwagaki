@@ -1,4 +1,4 @@
-// COPC の octree インデックス。IO は必ず Scheduler 経由（docs/WEB_DESIGN.md §3.2）。
+// COPC の octree インデックス。IO は必ず Scheduler 経由（docs/WEB_DESIGN.md「4 つに割る」）。
 // copc.js の Getter は (begin, end) => Promise<Uint8Array> なので、そこに差し込むだけで
 // 優先度・キャンセル・キャッシュがすべて効く。
 

@@ -2,7 +2,7 @@
 """Web 用の catalog.json と objects.geojson(WGS84) を作る。
 
 catalog.json は「ブラウザが最初に読む 1 ファイル」であり、
-**ローカル配信と Cloudflare 配信の唯一の境界**（docs/WEB_DESIGN.md §6）。
+**ローカル配信と Cloudflare 配信の唯一の境界**（docs/WEB_DESIGN.md「配信の境界」）。
 URL を差し替えるだけで配信先を変えられるようにする。
 """
 from __future__ import annotations

@@ -1,4 +1,4 @@
-// COPC のノード群を「連続した 1 本の Range」にまとめる（docs/WEB_DESIGN.md §4.4）。
+// COPC のノード群を「連続した 1 本の Range」にまとめる（docs/WEB_DESIGN.md「range coalescing」）。
 // R2 はマルチレンジ（bytes=a-b, c-d）に 400 を返すので、飛び地は結合できない。
 // gap 分の「読むが使わないバイト」を許容するトレードオフになる。
 

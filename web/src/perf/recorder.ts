@@ -1,5 +1,5 @@
 // 計測。FPS は見ない。「いつ・何バイトで・何が見えたか」を測る。
-// docs/WEB_DESIGN.md §8
+// docs/WEB_DESIGN.md「計測のしかけ」
 
 import type { Scheduler } from '../net/scheduler'
 
@@ -103,10 +103,10 @@ export class PerfRecorder {
    * 作られるまでの時間。= **アプリの JS を落として実行し終えるまで**。
    *
    * マイルストーンはすべて `t0` 基準（アプリ起動から）で記録している。
-   * `docs/WEB_DESIGN.md` §8.2 は `app_start = performance.timeOrigin` と書いていたが、
+   * `docs/WEB_DESIGN.md`「マイルストーンの定義」は `app_start = performance.timeOrigin` と書いていたが、
    * 実装はそうなっていなかった。つまり公表していた `first_meaningful_render` は
    * **バンドルの取得と実行にかかった時間を含んでいない**。
-   * shell のコストを比較する土俵ではそこが本体なので（`docs/WEB_ARCH_REVIEW.md` §4）、
+   * shell のコストを比較する土俵ではそこが本体なので（`docs/adr/2026-08-22-web-shell.md`）、
    * 既存の値はそのまま残したうえで、ナビゲーション基準の値を併記する。
    */
   get bootOffsetMs() { return this.t0 }
