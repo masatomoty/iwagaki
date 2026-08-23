@@ -228,6 +228,9 @@ sse(node) = (spacing / 2^depth) * (viewportHeight / 2) / (distance * tan(fovY / 
 LOD が「近くは細かく遠くは粗く」を一切やらなくなる。
 
 常駐点数の上限は描画コストから決める。実測値は `docs/WEB_RESULTS.md`。
+**`Points` は 6.0 M 点まで 60 fps を保つ**（deck.gl `PointCloudLayer` は 3.0 M で 68〜82 ms）。
+既定は 200 万点。測った上限をそのまま採らないのは、計測が開発機で、
+配信先の GPU が分かっていないため [未確認]。
 `three/pointsRenderer.ts` はノード 1 つを `Points` 1 つで持ち、ジオメトリは
 decode の返り（Transferable）をそのまま `BufferAttribute` にする。
 

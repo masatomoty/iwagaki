@@ -44,8 +44,22 @@ const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_me
  * 割合にすればデータ密度・LOD 予算を変えても同じものを指す（docs/WEB_RESULTS.md「計測の方針」）。
  */
 const USEFUL_FRACTION = 0.5
-/** 実測で決めた常駐点数の上限（docs/WEB_RESULTS.md「点群の配信」）。?maxpts= で上書きできる */
-const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 600_000
+/**
+ * 常駐点数の上限。`?maxpts=` で上書きできる。
+ *
+ * 60 万点は deck.gl `PointCloudLayer`（1 点 = インスタンス化クアッド 6 頂点）での
+ * 実測値だった。three.js の `Points` で測り直すと**桁が違う**: 6.0 M 点 /
+ * draw call 132 / GPU 90 MB でもドラッグ中 p50 16.6 ms・p95 18.2 ms で 60 fps を保ち、
+ * 崩れ始めるのは 9.9 M 点から（`docs/WEB_RESULTS.md`「点群の配信」）。
+ *
+ * **測った上限をそのまま入れない。** 計測は開発機（Apple Silicon）で、
+ * 配信先の庁内 PC の GPU は分かっていない [未確認]。実測の 1/3 に当たる
+ * 200 万点（GPU 30 MB）なら、3 倍遅い GPU でも 60 fps に収まる計算になる。
+ *
+ * なお**細い回線ではここは効かない**。既定の視点で LOD が要求するのは 12.5 万点で、
+ * 効いているのは `maxBytes`（帯域推定）と screen-space error のほうである。
+ */
+const PC_MAX_POINTS = Number(new URLSearchParams(location.search).get('maxpts')) || 2_000_000
 /** LOD のバイト予算の上書き。計測専用（既定は帯域推定から決める） */
 const PC_MAX_BYTES = Number(new URLSearchParams(location.search).get('maxbytes')) || undefined
 
