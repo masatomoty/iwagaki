@@ -2,14 +2,15 @@
 //
 // **4 条件を横並びにするのをやめた。** 地図はいま 1 つの条件（か 1 組の差分）で
 // 塗られているのに、パネルだけが 4 条件を等価に並べていたので、
-// 「いま見ているのはどれか」が読めなかった。主にするのは
-// `comparisonPair(surface)` の 2 条件で、4 条件の表は畳んで下に置く。
+// 「いま見ているのはどれか」が読めなかった。出すのは
+// `comparisonPair(surface)` の 2 条件だけにしてある。
+// 4 条件ぶんの値は `FeatureAssertion` が持っているので、要るときは
+// `__iwagaki.store.state.selected` から引ける（画面には出さない）。
 
 import type { Catalog } from '../domain/catalog'
 import { changeBand, decisionChanged, featureDepth, roadClass } from '../domain/flood'
 import { comparisonPair } from '../domain/terrain'
 import type { ComparisonPair, TerrainCondition } from '../domain/types'
-import { TERRAIN_CONDITIONS } from '../domain/types'
 import type { Store } from '../state'
 
 const ROAD_CLASS_LABEL = ['支障なし', '≥0.1 m', '≥0.3 m 通行困難', '≥0.5 m']
@@ -28,29 +29,6 @@ const fmt = (v: number | undefined, u = ' m') =>
 const signed = (v: number | undefined) =>
   v === undefined || !Number.isFinite(v) ? '—'
     : `${v > 0 ? '+' : ''}${v.toFixed(2)} m`
-
-/** 4 条件の表。既定では畳んである。検算用に値そのものは残す */
-function allConditionsTable(
-  a: NonNullable<Store['state']['selected']>, H: number, th: number[], isRoad: boolean,
-): string {
-  const depthOf = (c: TerrainCondition) =>
-    a.hConn[c] === undefined ? undefined : featureDepth(a, c, H)
-  const cell = (c: TerrainCondition, v: string) => `<td class="num">${v}</td>`
-  const row = (label: string, f: (c: TerrainCondition) => string) =>
-    `<tr><td>${label}</td>${TERRAIN_CONDITIONS.map((c) => cell(c, f(c))).join('')}</tr>`
-  return `
-    <table>
-      <tr><td></td>${TERRAIN_CONDITIONS.map((c) =>
-        `<td class="num">${CONDITION_LABEL[c]}</td>`).join('')}</tr>
-      ${row('地盤高', (c) => fmt(a.groundElev[c]))}
-      ${row('h_conn', (c) => fmt(a.hConn[c]))}
-      ${row('浸水深', (c) => fmt(depthOf(c)))}
-      ${isRoad ? row('通行', (c) => {
-        const d = depthOf(c)
-        return d === undefined ? '—' : ROAD_CLASS_LABEL[roadClass(d, th)]
-      }) : ''}
-    </table>`
-}
 
 /** いま見ている条件の値。ここが主 */
 function currentTable(
@@ -121,11 +99,6 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
       ${a.sectionTypeLabel
         ? `<tr><td>区間種別</td><td class="num">${a.sectionTypeLabel}</td></tr>` : ''}
     </table>
-
-    <details>
-      <summary>全条件</summary>
-      <div class="inner">${allConditionsTable(a, H, th, isRoad)}</div>
-    </details>
 
     <div class="note">h_conn = 海側と連結して浸水し始める最小水位。
       水位を動かしてもサーバには問い合わせず、この値から即座に計算している。</div>
