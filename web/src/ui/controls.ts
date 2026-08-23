@@ -38,6 +38,8 @@ const MENU_EXAGGERATIONS = [1, 5, 20] as const
  * 並びは作られ方の順。源を替える → 解像度を上げる → 地上観測を足す。
  * `5m 対照` は「4 つ目の選択肢」ではなく **源だけを替えた地点**なので、
  * `PLATEAU 5m` の隣に置かないとその意味が読めない。
+ * ボタンを 4 つ並べるのはやめて `<select>` にしたが、**この順序は option の
+ * 並びとして残る**（開けば梯子が見える）。
  */
 const CONDITIONS: { id: TerrainCondition; label: string; hint: string }[] = [
   { id: 'baseline', label: 'PLATEAU 5m',
@@ -180,9 +182,8 @@ export function renderControls(
     if (range && document.activeElement !== range && range.value !== String(s.waterLevel)) {
       range.value = String(s.waterLevel)
     }
-    for (const b of el.querySelectorAll<HTMLButtonElement>('#cond button')) {
-      b.setAttribute('aria-pressed', String(cond === b.dataset.c))
-    }
+    const sel = el.querySelector<HTMLSelectElement>('#cond')
+    if (sel && sel.value !== cond) sel.value = cond
     // 判定差は差分タイルがある条件だけ。無い条件では押せないことがそのまま出る
     const diffBtn = el.querySelector<HTMLButtonElement>('#diffbtn')
     if (diffBtn) {
@@ -190,7 +191,7 @@ export function renderControls(
       diffBtn.disabled = !target
       diffBtn.setAttribute('aria-pressed', String(isDiff(s.surface)))
       diffBtn.title = target ? '2 条件の判定差で塗る'
-        : 'この条件の差分タイルは配信していない'
+        : 'この条件の差分タイルは配信していないので出せない'
     }
     const nl = el.querySelector<HTMLElement>('#nowline')
     if (nl) nl.innerHTML = nowLine(s)
@@ -233,13 +234,12 @@ export function renderControls(
       <h1>舞鶴・吉原 高潮浸水</h1>
 
       <p class="grouplabel">地形データ</p>
-      <div class="seg wrap" id="cond">${CONDITIONS.map((c) =>
-        `<button data-c="${c.id}" type="button" title="${c.hint}"
-                 aria-pressed="${cond === c.id}">${c.label}</button>`).join('')}</div>
-      <div class="seg" style="margin-top:4px">
+      <div class="condrow">
+        <select id="cond" aria-label="地形データ">${CONDITIONS.map((c) =>
+          `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
         <button id="diffbtn" type="button"
                 aria-pressed="${isDiff(s.surface)}"
-                ${DIFF_OF[cond] ? '' : 'disabled'}>判定差で塗る</button>
+                ${DIFF_OF[cond] ? '' : 'disabled'}>判定差</button>
       </div>
 
       <p class="grouplabel" style="margin-top:9px">水位</p>
@@ -313,12 +313,10 @@ export function renderControls(
   `
   el.dataset.built = '1'
 
-  el.querySelector('#cond')!.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest('button')
-    if (!b) return
-    const c = b.dataset.c as TerrainCondition
+  el.querySelector('#cond')!.addEventListener('change', (e) => {
+    const c = (e.target as HTMLSelectElement).value as TerrainCondition
     // 判定差を見ていたら、条件を替えてもその条件の判定差に移る（見方を保つ）
-    const next = isDiff(s.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
+    const next = isDiff(store.state.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
     store.set({ surface: next })
   })
   el.querySelector('#diffbtn')!.addEventListener('click', () => {

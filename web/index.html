@@ -121,6 +121,31 @@
     border-top: 1px dashed rgba(148,163,184,.22); }
   .nowline .why { color: var(--muted); display: block; font-size: 10.5px; margin-top: 2px; }
 
+  /* 地形データは 1 つ選ぶだけなので select。ボタン 4 つを 2 行に折り返すより、
+     頭が 1 行分空く。判定差は「差分タイルが無い条件では押せない」を見せたいので
+     ボタンのまま隣に置く */
+  .condrow { display: flex; gap: 4px; align-items: stretch; }
+  .condrow select {
+    flex: 1 1 auto; min-width: 0; appearance: none;
+    background: #232936 no-repeat right 7px center;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                      linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-size: 5px 5px, 5px 5px;
+    background-position: right 12px center, right 7px center;
+    color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 24px 6px 8px; font: 12px/1.3 inherit; cursor: pointer;
+  }
+  .condrow select:hover { border-color: #3d4657; }
+  .condrow button {
+    flex: 0 0 auto; background: #232936; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 9px; font-size: 11px; cursor: pointer;
+  }
+  .condrow button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
+  .condrow button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600;
+  }
+  .condrow button:disabled { opacity: .38; cursor: default; }
+
   .chips { display: flex; gap: 4px; margin-top: 6px; }
   .chips button { flex: 1; background: transparent; color: var(--muted); cursor: pointer;
     border: 1px solid var(--line); border-radius: 5px; padding: 3px 4px; font-size: 10px; }
