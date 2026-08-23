@@ -141,6 +141,12 @@ export function renderControls(
         属性コードの表示名は CityGML 配布 zip 同梱のコードリスト。</div>
     </fieldset>
 
+    <fieldset><legend>断面</legend>
+      <div class="seg"><button id="secbtn" type="button">測線を引く</button></div>
+      <div class="note">地図を 2 点クリックすると、その線に沿った地形と水位を
+        横から見られる。3D では 0〜3 m の起伏が潰れて読めない。Esc で中止。</div>
+    </fieldset>
+
     <fieldset><legend>鉛直強調（[ ] キー）</legend>
       <div class="seg" id="exag">${EXAGGERATIONS.map((x) =>
         `<button data-x="${x}" aria-pressed="${s.exaggeration === x}">×${x}</button>`).join('')}</div>

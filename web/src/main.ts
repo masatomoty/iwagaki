@@ -9,7 +9,8 @@ import type { Layer } from '@deck.gl/core'
 import type { Catalog } from './domain/catalog'
 import { type CameraDescription, eyeInLocal, visibleBoxLocal } from './domain/camera'
 import { resolveSurface } from './domain/terrain'
-import type { BuildingColorMode, FeatureAssertion, SurfaceMode } from './domain/types'
+import type { BuildingColorMode, FeatureAssertion, SurfaceMode,
+              TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
@@ -18,7 +19,10 @@ import { initialState, Store } from './state'
 import { createFloodTileLayer, FLOOD_MODE } from './view/floodTileLayer'
 import type { FloodMeshUniforms } from './view/floodMeshLayer'
 import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
+import { sampleLine, type SamplePoint } from './assets/terrainSampler'
+import { drawSection, type SectionSeries } from './ui/section'
 import { applyPreset, attachViewCube, bindCameraKeys, createMap } from './view/map'
+import { SectionTool, type LonLat } from './view/sectionTool'
 import { liftZ, toAssertion, type RawFeature } from './view/semantics'
 import type { createPcCoverageLayer as CreatePcCoverageLayer,
               createSemanticsLayer as CreateSemanticsLayer } from './view/semanticsLayer'
@@ -136,6 +140,80 @@ async function boot() {
       // 表示の補助なので、取れなくても地図は動かす
     }
   }
+
+  // ---- 断面 ---------------------------------------------------------------
+  //
+  // 3D の俯瞰では起伏 0〜3 m が潰れて読めない。測線に沿って横から見る。
+  // 標高は**画面に出ているのと同じタイル**から読むので、追加の通信は起きない。
+  const SECTION_SERIES: { condition: TerrainCondition; label: string; color: string }[] = [
+    { condition: 'highres', label: '0.5m', color: '#e2e8f0' },
+    { condition: 'baseline', label: 'PLATEAU 5m', color: '#f7d129' },
+    { condition: 'pointcloud', label: '点群融合', color: '#4ade80' },
+  ]
+  const secEl = document.getElementById('section')!
+  const secCanvas = document.getElementById('sec-canvas') as HTMLCanvasElement
+  const secNote = document.getElementById('sec-note')!
+  let secSeries: SectionSeries[] = []
+  let secLine: [LonLat, LonLat] | null = null
+  // 既定は水位まわり。全体に合わせると市街地の 0〜3 m が背後の 40 m に潰される
+  let secFit: 'water' | 'all' = 'water'
+
+  const redrawSection = () => {
+    if (secSeries.length === 0) return
+    // いま選んでいる条件を先頭にする。塗り（連結して浸水する区間）はそれで判定する
+    const cur = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
+    const ordered = [...secSeries].sort((a, b) =>
+      (a.condition === cur ? -1 : 0) - (b.condition === cur ? -1 : 0))
+    drawSection(secCanvas, ordered, store.state.waterLevel, secFit)
+  }
+
+  async function buildSection(from: LonLat, to: LonLat) {
+    secLine = [from, to]
+    secEl.style.display = 'block'
+    secNote.textContent = '読み込み中…'
+    const zoom = catalog.terrain.highres?.max_zoom ?? 18
+    const got = await Promise.all(SECTION_SERIES.map(async (s) => {
+      const asset = catalog.terrain[s.condition]
+      if (!asset) return null
+      const points = await sampleLine({
+        urlTemplate: asset.url, zoom, hStep: catalog.packing.h_step,
+        from, to,
+        fetchTile: (url) => scheduler.submit({ key: url, url, cls: 'terrainFine' }),
+      })
+      return { ...s, points } as SectionSeries
+    }))
+    secSeries = got.filter((x): x is SectionSeries => x !== null)
+    const n = secSeries[0]?.points.length ?? 0
+    const len = secSeries[0]?.points.at(-1)?.d ?? 0
+    secNote.textContent =
+      `測線 ${len.toFixed(0)} m / ${n} 点。標高は配信中のタイル（${zoom} ズーム、`
+      + `1 セル ${(len / Math.max(1, n - 1)).toFixed(2)} m 相当）から読んでいる。`
+      + '水色は「海と連結して浸水する」区間で、標高が水位より低いだけでは塗らない。'
+    redrawSection()
+  }
+
+  const sectionTool = new SectionTool({
+    map,
+    onLine: (a, b) => void buildSection(a, b),
+    onState: ({ active, hasFirst }) => {
+      const btn = document.getElementById('secbtn')
+      if (btn) {
+        btn.textContent = active ? (hasFirst ? '2 点目をクリック' : '1 点目をクリック') : '測線を引く'
+        btn.setAttribute('aria-pressed', String(active))
+      }
+    },
+  })
+  document.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement
+    if (t.id === 'secbtn') sectionTool.toggle()
+    if (t.id === 'sec-close') { secEl.style.display = 'none'; secSeries = []; secLine = null }
+    if (t.id === 'sec-fit') {
+      secFit = secFit === 'water' ? 'all' : 'water'
+      t.textContent = secFit === 'water' ? '全体を見る' : '水位まわり'
+      redrawSection()
+    }
+  })
+  window.addEventListener('resize', redrawSection)
 
   // ---- 描画ループ -------------------------------------------------------
   const extent = catalog.aoi.bbox_wgs84
@@ -331,6 +409,7 @@ async function boot() {
               store.state.exaggeration, geoid) : []),
       ],
     })
+    redrawSection()
     const sch = schemeFor(store.state.buildingColor)
     renderControls(document.getElementById('controls')!, store, catalog,
       sch ? legendOf(plateauValues, sch) : [])
@@ -482,6 +561,7 @@ async function boot() {
     perf, scheduler, store, map, overlay,
     get pc() { return pcb?.controller },
     plateauTileset: () => plateauTileset,
+    get section() { return secSeries },
     snapshot: () => ({
       ...perf.snapshot(),
       pointcloud: pcb?.controller.stats() ?? null,

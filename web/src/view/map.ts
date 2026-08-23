@@ -67,6 +67,21 @@ export function attachViewCube(map: MlMap): ViewCube {
   const host = document.createElement('div')
   host.id = 'viewcube'
   host.appendChild(cube.el)
+
+  // ホーム。起動時の視点に戻す。**キューブは向きしか戻せない**
+  // （面をクリックしても中心とズームは動かない）ので、別に要る
+  const home0 = {
+    center: map.getCenter(), zoom: map.getZoom(),
+    bearing: map.getBearing(), pitch: map.getPitch(),
+  }
+  const home = document.createElement('button')
+  home.id = 'viewcube-home'
+  home.type = 'button'
+  home.textContent = '⌂'
+  home.title = 'ホーム（起動時の俯瞰に戻る）'
+  home.addEventListener('click', () => map.easeTo({ ...home0, duration: 600 }))
+  host.appendChild(home)
+
   map.getContainer().appendChild(host)
   const sync = () => cube.setOrientation({
     bearingDeg: map.getBearing(), pitchDeg: map.getPitch(),
