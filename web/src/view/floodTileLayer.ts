@@ -49,7 +49,23 @@ export function createFloodTileLayer(o: FloodTileLayerOptions) {
     opacity: o.opacity,
     maxRequests: 0,                 // 絞りは Scheduler 側で行う
     refinementStrategy: o.refinementStrategy ?? 'best-available',
-    updateTriggers: { getTileData: [o.urlTemplate, o.diffUrlTemplate ?? ''] },
+    updateTriggers: {
+      getTileData: [o.urlTemplate, o.diffUrlTemplate ?? ''],
+      // **これが無いと水位スライダが効かない。**
+      // TileLayer は renderSubLayers の結果をタイルごとにキャッシュし、
+      // 親の props が変わっただけでは作り直さない。uniforms は
+      // renderSubLayers のクロージャ越しにしか渡していないので、
+      // 水位を変えてもサブレイヤは古い値を持ち続ける（実測: 28 レイヤ全部が
+      // 初期値 1.0 のまま固定されていた）。
+      //
+      // 地形条件を変えたときはレイヤ id 自体が変わる（flood-coarse-<surface>）ので
+      // 作り直され、そちらは動いていた。**だから気づけなかった。**
+      renderSubLayers: [
+        o.uniforms.waterLevel, o.uniforms.mode, o.uniforms.exaggeration,
+        o.uniforms.floodOpacity, o.uniforms.groundOpacity, o.uniforms.showGround,
+        o.uniforms.geoid, o.uniforms.hStep,
+      ],
+    },
 
     getTileData: async (tile: {
       index: { x: number; y: number; z: number }

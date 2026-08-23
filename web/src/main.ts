@@ -479,7 +479,7 @@ async function boot() {
 
   // 計測ハーネスからの取り出し口
   ;(window as unknown as Record<string, unknown>).__iwagaki = {
-    perf, scheduler, store, map,
+    perf, scheduler, store, map, overlay,
     get pc() { return pcb?.controller },
     plateauTileset: () => plateauTileset,
     snapshot: () => ({

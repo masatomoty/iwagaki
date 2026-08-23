@@ -174,7 +174,7 @@ node deploy/check.mjs http://localhost:8788
 
 `docs/WEB_DESIGN.md` §6 の図のうち、作ったのは静的配信だけ。
 
-| | 何が要るか |
+| | 必要なもの |
 |---|---|
 | upload（§7） | Worker に `/api/uploads`、D1、R2 の CORS 設定、`aws4fetch` で presigned PUT |
 | ジョブ | Queues + external compute（Cloud Run job など）。PDAL/GDAL は Workers で動かさない |
