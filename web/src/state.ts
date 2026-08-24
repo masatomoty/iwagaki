@@ -66,7 +66,18 @@ export function initialState(catalog: Catalog): AppState {
       pcCoverage: false,
     },
     coalesceEnabled: true,
-    buildingColor: 'usage',
+    /**
+     * **既定は浸水深（床下・床上）。**
+     *
+     * 以前は `usage`（用途）だった。市の要望が「浸水深 50cm を基準に床下浸水・
+     * 床上浸水で建物の色を区別できないか」だったのに、**既定が用途のままで
+     * ドロップダウンに見出しも無かった**ため、開いた画面のどこにも
+     * 床下/床上が出ておらず「入っていない」と受け取られた（2026-08）。
+     *
+     * このアプリの主題は浸水なので、建物の色も既定は浸水深にする。
+     * 用途はドロップダウンで 1 クリック。凡例も用途 11 種より短くなる。
+     */
+    buildingColor: 'depth',
     exaggeration: 1,
   }
 }

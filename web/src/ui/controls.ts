@@ -377,8 +377,12 @@ export function renderControls(
         >高さを強調している間は隠す（建物は実高のまま）</div>
       <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
         <!-- **チェックボックスから select にした。** 塗り分けが 3 通りになり、
-             浸水深（床下・床上）は「用途で塗る」の on/off では表せない -->
-        <select id="bcol" aria-label="建物の塗り分け">${MENU_BUILDING_COLORS.map((m) =>
+             浸水深（床下・床上）は「用途で塗る」の on/off では表せない。
+             **見出しを付ける。** 無いと「用途」とだけ書かれた裸のドロップダウンに
+             なり、中に浸水深があることが画面から分からない（実際に
+             「床下/床上の色分けが入っていない」と受け取られた。2026-08） -->
+        <p class="grouplabel">建物の色</p>
+        <select id="bcol" aria-label="建物の色">${MENU_BUILDING_COLORS.map((m) =>
           `<option value="${m.id}" ${s.buildingColor === m.id ? 'selected' : ''}
           >${m.id === 'none' ? '塗り分けない' : m.label}</option>`).join('')}</select>
         <div id="bldglegend">${buildingLegendHtml(s, buildingLegend)}</div>
