@@ -14,7 +14,7 @@ import { type CameraDescription, eyeInLocal, visibleBoxLocal,
 import type { Catalog } from './domain/catalog'
 import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
 import { comparisonPair, resolveSurface } from './domain/terrain'
-import type { BuildingColorMode, FeatureAssertion, SurfaceMode,
+import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
               TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
@@ -644,6 +644,7 @@ async function boot() {
         // 「判定差 0.5m↔点群」でも赤い地物は 5m↔0.5m のままだった
         pair: comparisonPair(s.surface),
         roads: s.layers.roads,
+        roadColor: s.roadColor,
       })
       semantics.setHighlight({ selected: s.selected?.gmlId, hovered })
     }
@@ -825,6 +826,7 @@ async function boot() {
     setProjection: (m: 'perspective' | 'orthographic') => { viewer.setProjection(m); refresh() },
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),
     setBuildingColor: (v: BuildingColorMode) => store.set({ buildingColor: v }),
+    setRoadColor: (v: RoadColorMode) => store.set({ roadColor: v }),
     setPerfVisible,
   }
 }

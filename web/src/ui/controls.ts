@@ -21,7 +21,8 @@
 import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
 import { comparisonPair } from '../domain/terrain'
-import type { BuildingColorMode, SurfaceMode, TerrainCondition } from '../domain/types'
+import type { BuildingColorMode, RoadColorMode, SurfaceMode,
+              TerrainCondition } from '../domain/types'
 import type { Store } from '../state'
 import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
@@ -39,6 +40,18 @@ const MENU_EXAGGERATIONS = [1, 5, 20] as const
  * `perf/bldgcolor.mjs` は全モードを回すので値そのものは残す）。
  */
 const MENU_BUILDING_COLORS = BUILDING_COLOR_MODES.filter((m) => m.id !== 'class')
+
+/**
+ * 道路の塗り分け。**既定は「一律」。**
+ *
+ * 通行支障の色（クリーム〜琥珀〜赤）は建物の浸水深（灰/黄/赤）と色域が重なる。
+ * 両方を同時に既定にすると町が一様な黄色の塊になり、**道路と建物の区別が
+ * つかなくなった**（`src/state.ts` の roadColor）。見たい人だけが切り替える。
+ */
+const MENU_ROAD_COLORS: { id: RoadColorMode; label: string }[] = [
+  { id: 'plain', label: '一律' },
+  { id: 'trafficability', label: '通行支障（0.1 / 0.3 / 0.5 m）' },
+]
 
 /**
  * 地形条件は 4 つ。**同時に 2 枚は描けない**（同じ場所の標高を 4 通りに測ったもので、
@@ -148,13 +161,15 @@ function legendHtml(
     rows.push(`<div><i style="background:#f24434"></i>判定が変わる地物`
       + `<span class="sub"> ${label[pair.from]} → ${label[pair.to]}</span></div>`)
   }
-  // 道路。**建物と別の配色**にしてあるので、凡例も別に 1 行出す
-  // （`three/semanticsMesh.ts` の ROAD_DRY / ROAD_WET と同じ色）
+  // 道路。**塗り分けのモードで凡例が変わる**
+  // （`three/semanticsMesh.ts` の ROAD_PLAIN / ROAD_WET と同じ色）
   if (s.layers.roads) {
-    rows.push('<div><i style="background:#ffe699"></i>道路 &nbsp;'
-      + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
-        .map((h) => `<i style="background:${h}"></i>`).join('')
-      + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>')
+    rows.push(s.roadColor === 'trafficability'
+      ? '<div><i style="background:#ffe699"></i>道路 &nbsp;'
+        + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
+          .map((h) => `<i style="background:${h}"></i>`).join('')
+        + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
+      : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
   }
   return `<div class="legend">${rows.join('')}</div>`
 }
@@ -314,6 +329,10 @@ export function renderControls(
     if (bwrap) bwrap.hidden = hidden || !s.layers.plateau
     const bcb = el.querySelector<HTMLSelectElement>('#bcol')
     if (bcb && bcb.value !== s.buildingColor) bcb.value = s.buildingColor
+    const rcb = el.querySelector<HTMLSelectElement>('#rcol')
+    if (rcb && rcb.value !== s.roadColor) rcb.value = s.roadColor
+    const rwrap = el.querySelector<HTMLElement>('#rcolwrap')
+    if (rwrap) rwrap.hidden = !s.layers.roads
     const blg = el.querySelector<HTMLElement>('#bldglegend')
     if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
     for (const b of el.querySelectorAll<HTMLButtonElement>('#exag button')) {
@@ -373,6 +392,12 @@ export function renderControls(
         `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
           ><input type="checkbox" data-l="${l.key}"
           ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
+      <div class="nested" id="rcolwrap" ${s.layers.roads ? '' : 'hidden'}>
+        <p class="grouplabel">道路の色</p>
+        <select id="rcol" aria-label="道路の色">${MENU_ROAD_COLORS.map((m) =>
+          `<option value="${m.id}" ${s.roadColor === m.id ? 'selected' : ''}
+          >${m.label}</option>`).join('')}</select>
+      </div>
       <div class="whyoff" id="why-plateau" ${s.exaggeration > 1 ? '' : 'hidden'}
         >高さを強調している間は隠す（建物は実高のまま）</div>
       <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
@@ -453,6 +478,9 @@ export function renderControls(
   el.querySelector('#wl-up')!.addEventListener('click', () => nudge(1))
   el.querySelector('#cb-changed')!.addEventListener('change', (e) => {
     store.setLayer({ changedOnly: (e.target as HTMLInputElement).checked })
+  })
+  el.querySelector('#rcol')!.addEventListener('change', (e) => {
+    store.set({ roadColor: (e.target as HTMLSelectElement).value as RoadColorMode })
   })
   el.querySelector('#bcol')!.addEventListener('change', (e) => {
     // メニューに出すのは なし / 用途 / 浸水深。'class'（普通建物・堅ろう建物）は

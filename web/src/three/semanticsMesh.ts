@@ -13,7 +13,8 @@ import {
 } from 'three'
 
 import { decisionChanged, featureDepth, roadClass } from '../domain/flood'
-import type { ComparisonPair, FeatureAssertion, TerrainCondition } from '../domain/types'
+import type { ComparisonPair, FeatureAssertion, RoadColorMode,
+              TerrainCondition } from '../domain/types'
 import type { RawFeature } from '../view/semantics'
 import { lngLatToWorld, type LocalFrame } from './mercator'
 
@@ -26,6 +27,8 @@ export interface SemanticsStyle {
   pair: ComparisonPair
   /** 道路（`tran:Road`）を描くか。建物と別に切れる */
   roads: boolean
+  /** 道路の塗り分け。既定は一律（`domain/types.ts` の RoadColorMode） */
+  roadColor: RoadColorMode
 }
 
 /**
@@ -47,6 +50,18 @@ export interface SemanticsStyle {
  */
 // 塗りメッシュの不透明度は 0.55 なので、地面（灰）に負けない彩度が要る。
 // 最初 [0.90, 0.85, 0.72] にしたら**平面視で道路が輪郭線しか見えなかった**
+/**
+ * **一律のときの道路の色。ほぼ白。**
+ *
+ * 画面で使える色の枠は 地面＝暗い灰 / 建物＝灰・黄・赤（浸水深）/ 水＝青 で
+ * 埋まっている。道路をそのどれとも当たらない色にするには明色しか残らない。
+ * 白なら暗い地面の上でも、青い水面の上でも、黄・赤の建物の隣でも読める。
+ *
+ * **最初は暖色の淡色（クリーム）にしていた。** 建物の既定が用途（青・緑・桃）
+ * だったころは分かれていたが、既定を浸水深にした瞬間に床下浸水の黄と
+ * 同じ色域になり、**町が一様な黄色の塊になって道路が消えた**（2026-08）。
+ */
+const ROAD_PLAIN: [number, number, number] = [0.94, 0.96, 0.98]
 const ROAD_DRY: [number, number, number] = [1.00, 0.90, 0.60]
 /**
  * 浸かった道路。**水と混ざらない暖色〜赤の一本道**にしてある。
@@ -64,8 +79,11 @@ const ROAD_WET: [number, number, number][] = [
  * **0.55 のままでは水の下で道路が消える**（実測）。
  */
 const ROAD_ALPHA = 1.75
-/** 道路の輪郭。乾いていても道路の形が読めるように建物より濃くする */
-const ROAD_LINE: [number, number, number] = [0.52, 0.38, 0.15]
+/**
+ * 道路の輪郭（縁石）。**塗りが何色でも網としての形が読めるようにする。**
+ * 暗くしておけば、明色の一律でも通行支障の暖色でも縁が立つ。
+ */
+const ROAD_LINE: [number, number, number] = [0.09, 0.10, 0.12]
 
 /** 選択中・ホバー中の地物。強調は色属性だけで表す（ジオメトリは不変） */
 export interface SemanticsHighlight {
@@ -498,13 +516,19 @@ export class SemanticsMesh {
       if (s.changedOnly && !changed) { hide[i] = 1; c = [0, 0, 0] }
       else if (isRoad && !s.roads) { hide[i] = 1; c = [0, 0, 0] }
       else if (a?.unreliable) c = [0.43, 0.43, 0.47]
-      // **道路の塗りは通行支障だけを表す。** 判定が変わったことは輪郭（黄）が担う。
+      // **道路の塗りは道路の話だけを表す。** 判定が変わったことは輪郭（黄）が担う。
       // 塗りに 2 つの意味（判定変化の赤 / 通行支障）を載せると、
       // どちらを見ているのか画面から決められない
-      else if (isRoad) c = depth > 0 ? ROAD_WET[roadClass(depth, s.roadThresholds)] : ROAD_DRY
+      else if (isRoad) {
+        c = s.roadColor === 'trafficability'
+          ? (depth > 0 ? ROAD_WET[roadClass(depth, s.roadThresholds)] : ROAD_DRY)
+          : ROAD_PLAIN
+      }
       else if (changed) c = [0.95, 0.27, 0.20]
       else if (depth > 0) c = [0.27, 0.51, 0.78]
-      else c = [0.75, 0.76, 0.80]
+      // 建物の非浸水。3D の箱（view/buildingColor.ts の DEPTH_CLASSES.dry）と
+      // 同じ中間の灰にする。明るくすると一律の道路（ほぼ白）と分からなくなる
+      else c = [0.60, 0.63, 0.66]
       alpha[i] = isRoad ? ROAD_ALPHA : 1
       let l: [number, number, number] = changed ? [1.0, 0.86, 0.47]
         : isRoad ? ROAD_LINE : [0.08, 0.09, 0.13]

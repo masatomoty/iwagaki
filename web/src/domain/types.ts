@@ -66,6 +66,17 @@ export interface ComparisonPair {
  */
 export type BuildingColorMode = 'none' | 'class' | 'usage' | 'depth'
 
+/**
+ * 道路の塗り分け。
+ *
+ * - `plain`          一律。**どこが道路かを見せることだけ**をする
+ * - `trafficability` 通行支障クラス（閾値は catalog の `road_depth_classes_m`）
+ *
+ * 既定は `plain`。通行支障の色は建物の浸水深（灰/黄/赤）と色域が重なるので、
+ * 両方を同時に既定にすると道路と建物の区別がつかない（`state.ts`）。
+ */
+export type RoadColorMode = 'plain' | 'trafficability'
+
 /** 地物ごとの derived assertion（docs/design.md「PLATEAU を書き換えない」） */
 export interface FeatureAssertion {
   gmlId: string

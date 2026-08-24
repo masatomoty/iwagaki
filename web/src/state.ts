@@ -1,5 +1,6 @@
 import type { Catalog } from './domain/catalog'
-import type { BuildingColorMode, FeatureAssertion, SurfaceMode } from './domain/types'
+import type { BuildingColorMode, FeatureAssertion, RoadColorMode,
+              SurfaceMode } from './domain/types'
 
 export interface LayerToggles {
   flood: boolean
@@ -39,6 +40,20 @@ export interface AppState {
   coalesceEnabled: boolean
   /** PLATEAU 建物の塗り分け。b3dm には色が無いので属性から与える */
   buildingColor: BuildingColorMode
+  /**
+   * 道路の塗り分け。
+   *
+   * **既定は `plain`（一律）。** 市の要望は「道路がどこなのか分かるように
+   * 表示してほしい」であって、通行支障の色分けはこちらで足したものだった。
+   * 建物の既定を浸水深（灰/黄/赤）にしたところ、**通行支障の色（クリーム〜
+   * 琥珀〜赤）と正面衝突して町が一様な黄色の塊になり、道路と建物の区別が
+   * つかなくなった**（2026-08、再指摘）。
+   *
+   * 画面の色の枠は 地面＝暗い灰 / 建物＝灰・黄・赤 / 水＝青 で埋まっている。
+   * 道路はそのどれとも当たらない明色（ほぼ白）を一律で持ち、
+   * 通行支障は建物と同じく選択式に下げる。
+   */
+  roadColor: RoadColorMode
   /** 鉛直強調。吉原は起伏が 0〜3 m しかないので、真横から見るには必須 */
   exaggeration: number
 }
@@ -78,6 +93,7 @@ export function initialState(catalog: Catalog): AppState {
      * 用途はドロップダウンで 1 クリック。凡例も用途 11 種より短くなる。
      */
     buildingColor: 'depth',
+    roadColor: 'plain',
     exaggeration: 1,
   }
 }

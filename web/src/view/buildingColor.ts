@@ -41,8 +41,15 @@ export const BUILDING_COLOR_MODES: { id: BuildingColorMode; label: string }[] = 
 export const FLOOR_ABOVE_DEPTH_M = 0.5
 
 /** 浸水深の区分。順序は凡例の並び */
+/**
+ * **非浸水は中間の灰。** 明るい灰（旧 `#c9cbd0`）にしていたら、
+ * 一律の道路（ほぼ白）と明度が近すぎて寄ったときに区別できなかった（2026-08）。
+ *
+ * 無彩色は明度で 3 段に分ける。**地面（暗）< 建物（中間）< 道路（明）**。
+ * 有彩色は 床下＝黄 / 床上＝赤 / 水＝青 で、無彩色とは当たらない。
+ */
 export const DEPTH_CLASSES: { id: 'dry' | 'under' | 'above'; label: string; hex: string }[] = [
-  { id: 'dry', label: '非浸水', hex: '#c9cbd0' },
+  { id: 'dry', label: '非浸水', hex: '#9aa1a8' },
   { id: 'under', label: '床下浸水', hex: '#f4c542' },
   { id: 'above', label: '床上浸水', hex: '#c62828' },
 ]
