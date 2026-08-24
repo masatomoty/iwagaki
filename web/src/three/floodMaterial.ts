@@ -210,13 +210,11 @@ vec3 depthRamp(float d) {
 }
 
 void main() {
-  if (vValid < 0.999) discard;   // 少しでも nodata が混ざった三角形は捨てる
-  vec3 n = normalize(vNormal);
-  vec3 sun = normalize(vec3(-0.6, 0.7, 0.75));
-  float shade = clamp(0.45 + 0.75 * dot(n, sun), 0.25, 1.35);
-
   // h_conn は判定値なので絶対に補間しない。必ず最寄りセルで引く
   vec2 cu = cellUv(vUv);
+
+  // **nodata の discard は地形パスだけ。** 水面は地面の標高を知らなくても張れる。
+  // 詳細は下の水面パスの枝を見ること
 
   // ---- 水面パス ------------------------------------------------------
   //
@@ -242,6 +240,11 @@ void main() {
     fragColor = vec4(col, mix(a, 0.92, shore));
     return;
   }
+
+  if (vValid < 0.999) discard;   // 少しでも nodata が混ざった三角形は捨てる
+  vec3 n = normalize(vNormal);
+  vec3 sun = normalize(vec3(-0.6, 0.7, 0.75));
+  float shade = clamp(0.45 + 0.75 * dot(n, sun), 0.25, 1.35);
 
   vec4 outColor;
 

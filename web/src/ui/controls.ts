@@ -136,6 +136,13 @@ function legendHtml(
     rows.push('<div><i style="background:#6bccf2"></i>浅い &nbsp;'
       + '<i style="background:#0d2985"></i>深い（0〜3 m）</div>')
   }
+  // **水深が分からない水域は別に出す。** 航空レーザは水面から反射が返らないので
+  // 港と湾は 0.5m DEM では nodata である。水面は張れる（連結しているかは
+  // h_conn が知っている）が、深さは知らない。ランプの色で塗ると嘘になる
+  if (s.layers.waterSurface) {
+    rows.push('<div><i style="background:#174c8c"></i>水深不明の水域'
+      + '<span class="sub"> 航空レーザが水面を計測しない</span></div>')
+  }
   // 判定が変わる地物は、比較のペアが決まっているときだけ出る
   if (pair.from !== pair.to) {
     rows.push(`<div><i style="background:#f24434"></i>判定が変わる地物`
