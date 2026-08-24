@@ -46,6 +46,36 @@ import { toAssertion, type RawFeature } from './view/semantics'
 const COARSE_MAX_ZOOM = 15          // ここまでが terrain-coarse（first_meaningful_render の対象）
 
 /**
+ * 粗ピラミッドの上限。**範囲が広いほど 1 段粗くする。**
+ *
+ * FMR は「粗ピラミッドの可視集合が揃った時点」なので、**待つ枚数がそのまま
+ * FMR になる**。上限を 15 で固定していたとき、625 ha の範囲では起動倍率 16.1 で
+ * ビューポートが AOI をほぼ覆うため、z15 のタイルを**ほぼ全部**待っていた [実測]。
+ *
+ * | | 起動倍率 | FMR が待つ粗タイル | 粗のバイト | FMR |
+ * |---|---:|---:|---:|---:|
+ * | 吉原 100 ha | 17.2 | 4 枚 | 73 kB | 1,629 ms |
+ * | 西舞鶴 625 ha | 16.1 | 12 枚 | 454 kB | 3,176 ms |
+ * | 東舞鶴 625 ha | 16.1 | 16 枚 | 267 kB | 4,362 ms |
+ *
+ * **効いているのはバイトではなく枚数**である。西舞鶴は東舞鶴より 1.7 倍重いのに
+ * 速い。fast4g は RTT 70 ms で並列上限もあるので、往復回数が支配する。
+ *
+ * z14 なら西舞鶴 4 枚 / 東舞鶴 6 枚で済む。細（z16 以上）は裏で降りてくるので
+ * **最終的な絵は変わらない**。「範囲が広いほど最初は粗く出す」は素直な振る舞いでもある。
+ *
+ * **吉原は 15 のまま。** `docs/web_results.md` の実測値がこの倍率・この段で
+ * 取ってあるので、変えると過去の数字と比べられなくなる。
+ */
+function coarseMaxZoom(catalog: Catalog): number {
+  const [w, s, e, n] = catalog.aoi.bbox_wgs84
+  const lat = (s + n) / 2
+  const widthM = (e - w) * 111_320 * Math.cos((lat * Math.PI) / 180)
+  const heightM = (n - s) * 110_950
+  return Math.max(widthM, heightM) <= 1200 ? COARSE_MAX_ZOOM : COARSE_MAX_ZOOM - 1
+}
+
+/**
  * 「点群が見えた」とみなす、LOD が選んだ点数に対する割合。
  * 絶対値（旧: 20 万点）は合成点群向けの値で、実点群では LOD の選択が
  * 17.3〜21.6 万点と閾値をまたぎ、同じ画面でも計測できたりできなかったりした。
@@ -203,9 +233,11 @@ async function boot() {
       viewer, frame, scheduler, extent,
       urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl,
     }
+    // 粗の上限は範囲の広さで決まる（coarseMaxZoom）。細はその 1 段上から
+    const coarseMax = coarseMaxZoom(catalog)
     coarse = new TerrainTiles({
       ...common, cls: 'terrainCoarse', renderOrder: 0,
-      minZoom: geomAsset.min_zoom, maxZoom: COARSE_MAX_ZOOM,
+      minZoom: geomAsset.min_zoom, maxZoom: coarseMax,
       onViewportLoad: () => {
         if (coarseDone) return
         coarseDone = true
@@ -220,7 +252,7 @@ async function boot() {
     }, floodUniforms())
     fine = new TerrainTiles({
       ...common, cls: 'terrainFine', renderOrder: 1,
-      minZoom: COARSE_MAX_ZOOM + 1, maxZoom: geomAsset.max_zoom,
+      minZoom: coarseMax + 1, maxZoom: geomAsset.max_zoom,
       onViewportLoad: () => {
         if (!fineDone) { fineDone = true; perf.mark('time_to_terrain') }
         // 粗メッシュは FMR 用と割り切る。細が出たら隠す（メッシュ同士は z-fight する）
