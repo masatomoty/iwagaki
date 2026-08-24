@@ -4,9 +4,22 @@ import type { BuildingColorMode, FeatureAssertion, SurfaceMode } from './domain/
 export interface LayerToggles {
   flood: boolean
   ground: boolean
+  /**
+   * **水平な水面**を潮位の高さに張るか（`three/floodMaterial.ts` の FLOOD_PASS）。
+   * これが無かった間、浸水は地形の面に塗る色だけだったので
+   * **潮位を動かしても水面の高さが変わらなかった**（外部からの指摘、2026-08）。
+   * タイルは増えないので既定 ON にしてよい
+   */
+  waterSurface: boolean
   plateau: boolean
   pointcloud: boolean
   semantics: boolean
+  /**
+   * 道路（`tran:Road` 293 本）を描くか。**建物と別に切れる。**
+   * 道路は前から読み込んでいたが建物と同じ配色だったので区別できなかった
+   * （`three/semanticsMesh.ts` の ROAD_DRY / ROAD_WET）
+   */
+  roads: boolean
   changedOnly: boolean
   /** 点群が地表面として効いている範囲の輪郭。AOI 100 ha に対し 3 ha しかない */
   pcCoverage: boolean
@@ -42,10 +55,10 @@ export function initialState(catalog: Catalog): AppState {
     waterLevel: catalog.water_level.reference_levels_m_tp?.['MSL']
       ?? catalog.water_level.representative[0] ?? 1.0,
     layers: {
-      flood: true, ground: true, plateau: true,
+      flood: true, ground: true, waterSurface: true, plateau: true,
       // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
       // GPU 44 MB / 転送 14 MB を使う（docs/web_results.md「点群の配信」）
-      pointcloud: false, semantics: true, changedOnly: false,
+      pointcloud: false, semantics: true, roads: true, changedOnly: false,
       // **点群が関わる条件を選んだときだけ出す。** これが無いと「点群で高精度に
       // 見た結果」が AOI 全域に効いているように読めてしまう（実際は 3.17 ha だけ）。
       // 既定の条件は highres なので、起動時は出さない。

@@ -18,6 +18,12 @@ export interface Catalog {
     bbox_wgs84: [number, number, number, number]
     centre_wgs84: [number, number]
     local_origin_wgs84: [number, number]
+    /**
+     * 起動時の注視点。**AOI の矩形の中心ではない**（625 ha だと港と山に落ちて
+     * 市街が画面に入らない）。標高 5 m 以下の建物の位置の中央値を解析側が入れる。
+     * 古い配信物には無いので optional
+     */
+    focus_wgs84?: [number, number]
   }
   local_frame: {
     origin_epsg6674: [number, number]
@@ -60,6 +66,13 @@ export interface Catalog {
                           cells: number; resolution_m: number; note: string }
   semantics: { url: string; bytes: number; feature_count: number
                road_depth_classes_m: number[]
+               /**
+                * 床上浸水とみなす浸水深 [m]。**地盤面からの水深**の閾値で、
+                * PLATEAU LOD1 は床高を持たないので床面を超えた証明ではない
+                * （`view/buildingColor.ts` の FLOOR_ABOVE_DEPTH_M）。
+                * 古い配信物には無いので optional
+                */
+               floor_above_depth_m?: number
                /** 属性コード -> 表示名。CityGML 配布 zip 同梱のコードリスト由来 */
                codelists?: Record<string, Record<string, string>> }
   totals_bytes: Record<string, number>

@@ -33,6 +33,22 @@ const TEX = 256
 
 export const FLOOD_MODE = { terrain: 0, diff: 1 } as const
 
+/**
+ * 描画パス。**同じタイル・同じテクスチャを 2 回描く。**
+ *
+ * - `ground` … 地形の面（従来どおり。標高で上下し、浸水色を面に塗る）
+ * - `water`  … **水平な水面**。z = geoid + H * 鉛直強調 に置く
+ *
+ * 水面を別パスにしたのは、以前は水面という物体が無かったからである。
+ * 浸水は地形メッシュのピクセルを深さランプで塗るだけだったので、
+ * **潮位を動かすと色は変わるが高さは変わらない**（外部から
+ * 「海面は潮位を変えると高さも変動しているのか」と質問が来た。2026-08）。
+ *
+ * 判定式は増やしていない。水面パスも `h_conn <= H` と `depth = H - 標高` を
+ * そのまま使う（`src/domain/flood.ts` と同一）。**要求するタイルも増えない。**
+ */
+export const FLOOD_PASS = { ground: 0, water: 1 } as const
+
 export interface FloodUniformValues {
   /** ワールドメートルでのタイル境界 [xWest, ySouth, xEast, yNorth] */
   worldBounds: [number, number, number, number]
@@ -48,6 +64,16 @@ export interface FloodUniformValues {
   showGround: number
   /** 平常時に水がある範囲の閾値 [m T.P.]。MSL を渡す */
   waterBase: number
+  /**
+   * 水面パスを描くか。`TerrainTiles` が水面メッシュの `visible` に使い、
+   * **地形パスにも uniform として渡る**。
+   *
+   * 水面を出しているときに地形の面へ浸水深ランプを塗ると、
+   * **水面の青と地面の青が重なって水面の高さが読めなくなる**（実測: 真横から見ても
+   * 水面 ON / OFF の絵が区別できなかった）。だから水面 ON のときは地形を
+   * 乾いた地面として描き、**水は水面メッシュだけが持つ**。
+   */
+  waterSurface: boolean
 }
 
 const DECODE = /* glsl */ `
@@ -84,6 +110,8 @@ uniform float uHStep;
 uniform float uExaggeration;
 uniform float uGeoid;
 uniform float uMetersPerTexel;
+uniform float uPass;
+uniform float uWaterLevel;
 
 out vec2 vUv;
 out float vElev;
@@ -137,6 +165,11 @@ void main() {
   float base = e < -9000.0 ? 0.0 : e;
   float z = uGeoid + (base - aSkirt * ${SKIRT_M}.0) * uExaggeration;
 
+  // **水面は水平面。** 標高ではなく潮位そのものを高さにする。
+  // スカートも下げない（隣のタイルの水面と同じ z なので継ぎ目が開かない）。
+  // 鉛直強調は地形と同じ係数を掛ける。掛けないと ×5 で地面が水面を突き抜ける
+  if (uPass > 0.5) z = uGeoid + uWaterLevel * uExaggeration;
+
   // XYZ タイルは Web メルカトル上で正方なので、ワールド（= メルカトルの線形変換）で
   // 線形補間してよい。経緯度で補間すると緯度方向が非線形になる
   vec2 xy = mix(uWorldBounds.xy, uWorldBounds.zw, aUv);
@@ -157,6 +190,8 @@ uniform float uGroundOpacity;
 uniform float uShowGround;
 uniform float uWaterBase;
 uniform float uHasDiff;
+uniform float uPass;
+uniform float uWaterSurface;
 
 in vec2 vUv;
 in float vElev;
@@ -182,6 +217,31 @@ void main() {
 
   // h_conn は判定値なので絶対に補間しない。必ず最寄りセルで引く
   vec2 cu = cellUv(vUv);
+
+  // ---- 水面パス ------------------------------------------------------
+  //
+  // **差分モードでも elevTexture のアルファを見る。** そこに入っているのは
+  // 「いま形を取っている条件」の h_conn なので、差分タイルが欠けている区画でも
+  // 水面は張れる（domain/terrain.ts の resolveSurface が返す condition と一致する）。
+  if (uPass > 0.5) {
+    float hConn = decodeHConn(texture(elevTexture, cu).a);
+    if (hConn > uWaterLevel) discard;          // 海と連結して到達しない
+    float depth = uWaterLevel - vElev;
+    if (depth <= 0.0) discard;                 // 潮位より高い地面
+    // **汀線を白く出す。** 潮位を動かしたときに動くものは面の色ではなく
+    // 水際の位置なので、そこが読めないと「高さが変わった」ことが伝わらない
+    float shore = 1.0 - smoothstep(0.0, 0.10, depth);
+    // **ランプは 0〜2 m で振る**（0〜3 m だと吉原の浸水深がほぼ最浅端に固まって
+    // 一様な水色になる。市街の標高が 0.5〜3 m しかないため）
+    vec3 col = mix(vec3(0.45, 0.79, 0.95), vec3(0.03, 0.18, 0.55),
+                   clamp(depth / 2.0, 0.0, 1.0));
+    col = mix(col, vec3(0.95, 0.99, 1.00), shore * 0.85);
+    // 地面の陰影を残しすぎると水に見えない。**道路と建物は水面より後に描く**ので、
+    // ここを不透明側に寄せても地物の判定色は隠れない
+    float a = mix(0.46, 0.84, clamp(depth / 1.5, 0.0, 1.0));
+    fragColor = vec4(col, mix(a, 0.92, shore));
+    return;
+  }
 
   vec4 outColor;
 
@@ -227,6 +287,15 @@ void main() {
     bool isWet = hConn <= uWaterLevel;
     bool baseWater = a > 0.0 && hConn <= uWaterBase;
     float depth = isWet ? max(0.0, uWaterLevel - vElev) : 0.0;
+    // **水面メッシュを出しているときは、地形に水の色を塗らない。**
+    // 水面パスの青とランプの青がほぼ同色なので、両方塗ると
+    // 「水面が潮位の高さに張られている」ことが絵から消える
+    if (uWaterSurface > 0.5) {
+      if (uShowGround < 0.5) discard;
+      float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
+      fragColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
+      return;
+    }
     if (isWet && depth > 0.0) {
       outColor = vec4(depthRamp(depth) * mix(1.0, shade, 0.35), uFloodOpacity);
     } else if (baseWater) {
@@ -305,13 +374,17 @@ export function makeTileTexture(img: ImageBitmap): Texture {
   return t
 }
 
-export function createFloodMaterial(): ShaderMaterial {
+export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMaterial {
+  const water = pass > 0.5
   return new ShaderMaterial({
     glslVersion: GLSL3,
     vertexShader: VS,
     fragmentShader: FS,
     transparent: true,
-    depthWrite: true,
+    // **水面は深度を書かない。** 書くと後から描く地物ポリゴンと PLATEAU 建物が
+    // 水面に隠れる。深度テスト自体は残すので、不透明な建物が先に埋めた画素は
+    // 水面に上書きされない（= 建物は水面を突き抜けて見える）
+    depthWrite: !water,
     side: DoubleSide,       // CAD 視点では裏からスカートを見ることがある
     uniforms: {
       elevTexture: { value: null },
@@ -328,6 +401,8 @@ export function createFloodMaterial(): ShaderMaterial {
       uShowGround: { value: 1 },
       uWaterBase: { value: 0 },
       uHasDiff: { value: 0 },
+      uPass: { value: pass },
+      uWaterSurface: { value: 0 },
     },
   })
 }
@@ -345,4 +420,5 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uGroundOpacity.value = v.groundOpacity
   u.uShowGround.value = v.showGround
   u.uWaterBase.value = v.waterBase
+  u.uWaterSurface.value = v.waterSurface ? 1 : 0
 }

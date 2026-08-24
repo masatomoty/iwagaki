@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pyproj import Transformer
 
-from iwagaki.config import AOI, CRS_ANALYSIS, ROOT
+from iwagaki.config import AOI, asset_name, CRS_ANALYSIS, WEB_DATA
 from iwagaki.remotezip import open_remote_zip
 
 TILES3D_URL = ("https://assets.cms.plateau.reearth.io/assets/55/2c1991-f75e-4bf8-9108-"
@@ -25,8 +25,6 @@ SETS = {
     "bldg_lod1": "26202_maizuru-shi_city_2025_citygml_1_op_bldg_3dtiles_lod1",
     "bldg_lod2": "26202_maizuru-shi_city_2025_citygml_1_op_bldg_3dtiles_lod2",
 }
-WEB_DATA = ROOT / "web" / "public" / "data"
-
 # batch table から残すキー -----------------------------------------------------
 # PLATEAU の b3dm は batch table JSON に全属性（水系別の洪水浸水想定区域、
 # 土砂災害リスク、uro:* など約 70 キー）を持っており、**これが b3dm の 70% を占める**。
@@ -133,7 +131,7 @@ def main() -> int:
             continue
         out_ts = {**ts, "root": pruned_root}
         wanted = sorted(set(uris(pruned_root)))
-        dest = WEB_DATA / "3dtiles" / name
+        dest = WEB_DATA / "3dtiles" / asset_name(name)
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "tileset.json").write_text(json.dumps(out_ts, separators=(",", ":")))
         total = 0
@@ -148,7 +146,7 @@ def main() -> int:
             raw_total += len(raw)
         mh = min_height(pruned_root)
         report[name] = {
-            "url": f"data/3dtiles/{name}/tileset.json",
+            "url": f"data/3dtiles/{asset_name(name)}/tileset.json",
             "b3dm_count": len(wanted),
             "bytes": total,
             "bytes_before_batch_table_trim": raw_total,
@@ -158,7 +156,8 @@ def main() -> int:
         print(f"{name}: {len(wanted)} b3dm, {total/1e6:.2f} MB "
               f"(batch table 削減前 {raw_total/1e6:.2f} MB), "
               f"region minH(ellipsoidal) = {mh:.3f} m")
-    (WEB_DATA / "3dtiles_report.json").write_text(json.dumps(report, indent=2))
+    (WEB_DATA / asset_name("3dtiles_report.json")).write_text(
+        json.dumps(report, indent=2))
     return 0
 
 

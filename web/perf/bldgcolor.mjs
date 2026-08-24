@@ -58,7 +58,7 @@ async function drag() {
   })
 }
 
-for (const mode of ['none', 'usage', 'class']) {
+for (const mode of ['none', 'usage', 'class', 'depth']) {
   await page.evaluate((m) => { globalThis.__mode = m; globalThis.__iwagaki.setBuildingColor(m) }, mode)
   // レイヤを作り直すので、22 タイルが揃って落ち着いてから測る。
   // 切り替え直後に測るとタイルの再パースと GPU アップロードを測ることになる

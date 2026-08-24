@@ -87,10 +87,14 @@ const count = (surface, H) => {
   const pair = comparisonPair(surface)
   return features.filter((f) => decisionChanged(f.properties, H, TH, pair)).length
 }
+// **2026-08-24 に全部動いた。** 吉原の建物・道路を 3 次メッシュ 1 枚からしか
+// 取っていなかったのを 4 枚に直し、911 -> 1,223 地物になったため
+// （docs/results.md「3 次メッシュの取りこぼし」）。
+// 旧値: 0.93 {95,140,18} / 1.0 {137,119,30} / 1.5 {32,40,14}
 const EXPECT = {
-  0.93: { highres: 95, control: 140, diff_pc: 18, baseline: 0 },
-  1.0: { highres: 137, control: 119, diff_pc: 30, baseline: 0 },
-  1.5: { highres: 32, control: 40, diff_pc: 14, baseline: 0 },
+  0.93: { highres: 106, control: 149, diff_pc: 22, baseline: 0 },
+  1.0: { highres: 155, control: 136, diff_pc: 33, baseline: 0 },
+  1.5: { highres: 43, control: 44, diff_pc: 16, baseline: 0 },
 }
 for (const [H, rows] of Object.entries(EXPECT)) {
   for (const [surface, want] of Object.entries(rows)) {
@@ -127,7 +131,8 @@ for (const f of unreliable) {
 // 点群は歩いた線に沿った帯しか無いので、h_conn(pointcloud) が無い地物がある
 const noPc = features.filter((f) => f.properties.h_conn_pointcloud === null
   || f.properties.h_conn_pointcloud === undefined)
-eq(features.length - noPc.length, 880, '点群の h_conn を持つ地物')
+// 旧値 880（911 地物の時代）。3 次メッシュを 4 枚に直して 1,223 地物になった
+eq(features.length - noPc.length, 1049, '点群の h_conn を持つ地物')
 for (const f of noPc) {
   eq(decisionChanged(f.properties, 1.0, TH, comparisonPair('diff_pc')), false,
     `点群の値が無い ${f.properties.gml_id}`)

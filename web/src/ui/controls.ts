@@ -18,17 +18,27 @@
 // 叩いていて、`docs/web_results.md` の実測値はそこから出ている。
 // メニューに出さないだけで、`__iwagaki` からは全部触れる。
 
+import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
 import { comparisonPair } from '../domain/terrain'
-import type { SurfaceMode, TerrainCondition } from '../domain/types'
+import type { BuildingColorMode, SurfaceMode, TerrainCondition } from '../domain/types'
 import type { Store } from '../state'
-import { UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry } from '../view/buildingColor'
+import {
+  BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
+} from '../view/buildingColor'
 
 /** `[` `]` キーが回る段。**キーは 5 段すべて**、メニューは 3 段だけ出す */
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 
 /** メニューに出す段。×2 と ×10 を押し分ける判断が発生しないので落とした */
 const MENU_EXAGGERATIONS = [1, 5, 20] as const
+
+/**
+ * 建物の塗り分けでメニューに出すもの。`class`（普通建物・堅ろう建物）は
+ * 浸水の話に効かないので出さない（`__iwagaki.setBuildingColor('class')` で触れる。
+ * `perf/bldgcolor.mjs` は全モードを回すので値そのものは残す）。
+ */
+const MENU_BUILDING_COLORS = BUILDING_COLOR_MODES.filter((m) => m.id !== 'class')
 
 /**
  * 地形条件は 4 つ。**同時に 2 枚は描けない**（同じ場所の標高を 4 通りに測ったもので、
@@ -69,12 +79,38 @@ const DIFF_OF: Partial<Record<TerrainCondition, SurfaceMode>> = {
   pointcloud: 'diff_pc',
 }
 
+/**
+ * **その範囲が配信している条件だけを出す。** 面的表示用の 2 範囲は
+ * `baseline` と `highres` しか焼いていない（点群が無く、`control` はタイルを
+ * 焼いていない）。出してしまうと選んでもタイルが 404 になる。
+ */
+function conditionsOf(catalog: Catalog) {
+  const have = CONDITIONS.filter((c) => catalog.terrain[c.id])
+  return have.length ? have : CONDITIONS
+}
+
+/** 点群が無い範囲では「点群」のチェックを出さない（押しても何も出ない） */
+function layersOf(catalog: Catalog) {
+  return LAYERS.filter((l) => l.key !== 'pointcloud' || !!catalog.pointcloud?.url)
+}
+
 const surfaceCondition = (s: SurfaceMode): TerrainCondition => comparisonPair(s).to
 const isDiff = (s: SurfaceMode) =>
   s === 'diff' || s === 'diff_src' || s === 'diff_res' || s === 'diff_pc'
 
-/** メニューに出すレイヤ。`flood` / `ground` / `semantics` / `pcCoverage` は出さない */
-const LAYERS: { key: 'plateau' | 'pointcloud'; label: string }[] = [
+/**
+ * メニューに出すレイヤ。`flood` / `ground` / `semantics` / `pcCoverage` は出さない。
+ *
+ * `waterSurface` と `roads` は外部からの要望で足した（2026-08）。
+ * どちらも**配信物が増えないので既定 ON にできる**（水面は同じタイルを 2 回描くだけ、
+ * 道路は前から objects.geojson に入っていて描いてもいた）。
+ */
+type LayerKey = 'waterSurface' | 'roads' | 'plateau' | 'pointcloud'
+const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
+  { key: 'waterSurface', label: '水面',
+    hint: '潮位の高さに水平な水面を張る。切ると浸水域を地面の色だけで見る' },
+  { key: 'roads', label: '道路（PLATEAU）',
+    hint: '浸かると通行支障クラスで塗る。閾値は解析側の 0.1 / 0.3 / 0.5 m' },
   { key: 'plateau', label: 'PLATEAU 建物' },
   { key: 'pointcloud', label: '点群' },
 ]
@@ -105,6 +141,14 @@ function legendHtml(
     rows.push(`<div><i style="background:#f24434"></i>判定が変わる地物`
       + `<span class="sub"> ${label[pair.from]} → ${label[pair.to]}</span></div>`)
   }
+  // 道路。**建物と別の配色**にしてあるので、凡例も別に 1 行出す
+  // （`three/semanticsMesh.ts` の ROAD_DRY / ROAD_WET と同じ色）
+  if (s.layers.roads) {
+    rows.push('<div><i style="background:#ffe699"></i>道路 &nbsp;'
+      + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
+        .map((h) => `<i style="background:${h}"></i>`).join('')
+      + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>')
+  }
   return `<div class="legend">${rows.join('')}</div>`
 }
 
@@ -116,6 +160,13 @@ function legendHtml(
 function buildingLegendHtml(s: Store['state'], entries: LegendEntry[]): string {
   if (s.buildingColor === 'none' || s.exaggeration > 1
       || !s.layers.plateau || entries.length === 0) return ''
+  // 浸水深モードは**属性ではなく潮位から決まる**ので、閾値を凡例に添える。
+  // PLATEAU LOD1 は床高を持たないため「地盤から 50 cm」の意味であることも書く
+  if (s.buildingColor === 'depth') {
+    return `<div class="legend">${entries.map((e) =>
+      `<div><i style="background:${e.hex}"></i>${e.label}<span class="sub"> ${e.count} 棟</span></div>`)
+      .join('')}<div class="sub">床上 = 地盤面から 0.50 m 以上（床高は考慮しない）</div></div>`
+  }
   const top = entries.slice(0, 4)
   const rest = entries.length - top.length
   return `<div class="legend">${top.map((e) =>
@@ -182,9 +233,33 @@ function refListHtml(refs: [string, number][]): string {
  * 毎回 innerHTML を作り直すと、水位スライダを掴んでいる最中に
  * スライダ自身の DOM が消えて作り直される（掴み直しが必要になる）。
  */
+/**
+ * 対象範囲。**範囲を替えるとページごと読み直す。**
+ *
+ * 範囲が変わると `local_frame`（ローカル ENU の原点と回転）・タイルの URL・
+ * 地物・3D Tiles・既定の視点が**すべて**入れ替わる。差分で入れ替える経路を
+ * 用意すると `main.ts` の組み立てが二重になるので、`?area=<id>` を付けて
+ * 読み直す。庁内で「範囲を行き来しながら見る」使い方は聞いていない [未確認]。
+ */
+export interface AreaChoice {
+  index: AreaIndex
+  current: Area
+}
+
+function areaHtml(a: AreaChoice | undefined): string {
+  if (!a || a.index.areas.length < 2) return ''
+  return `
+      <p class="grouplabel">対象範囲</p>
+      <select id="area" aria-label="対象範囲">${a.index.areas.map((x) =>
+        `<option value="${x.id}" ${x.id === a.current.id ? 'selected' : ''}
+                 title="${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}"
+        >${x.label}</option>`).join('')}</select>`
+}
+
 export function renderControls(
   el: HTMLElement, store: Store, catalog: Catalog,
   buildingLegend: LegendEntry[] = [],
+  area?: AreaChoice,
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
@@ -198,6 +273,8 @@ export function renderControls(
     }
     const sel = el.querySelector<HTMLSelectElement>('#cond')
     if (sel && sel.value !== cond) sel.value = cond
+    const ar = el.querySelector<HTMLSelectElement>('#area')
+    if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
     // 判定差は差分タイルがある条件だけ。無い条件では押せないことがそのまま出る
     const diffBtn = el.querySelector<HTMLButtonElement>('#diffbtn')
     if (diffBtn) {
@@ -214,7 +291,7 @@ export function renderControls(
     const cb = el.querySelector<HTMLInputElement>('#cb-changed')
     if (cb && cb.checked !== s.layers.changedOnly) cb.checked = s.layers.changedOnly
     for (const box of el.querySelectorAll<HTMLInputElement>('input[data-l]')) {
-      const k = box.dataset.l as 'plateau' | 'pointcloud'
+      const k = box.dataset.l as LayerKey
       if (box.checked !== s.layers[k]) box.checked = s.layers[k]
     }
     // 鉛直強調中は PLATEAU 建物を隠している。チェックが嘘をつかないように無効化する
@@ -228,8 +305,8 @@ export function renderControls(
     if (why) why.hidden = !hidden
     const bwrap = el.querySelector<HTMLElement>('#bcolwrap')
     if (bwrap) bwrap.hidden = hidden || !s.layers.plateau
-    const bcb = el.querySelector<HTMLInputElement>('#cb-bcol')
-    if (bcb) bcb.checked = s.buildingColor !== 'none'
+    const bcb = el.querySelector<HTMLSelectElement>('#bcol')
+    if (bcb && bcb.value !== s.buildingColor) bcb.value = s.buildingColor
     const blg = el.querySelector<HTMLElement>('#bldglegend')
     if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
     for (const b of el.querySelectorAll<HTMLButtonElement>('#exag button')) {
@@ -245,11 +322,12 @@ export function renderControls(
   el.innerHTML = `
     <!-- 固定の頭。ここがこのアプリの入力で、スクロールで消えてはいけない -->
     <div class="head">
-      <h1>舞鶴・吉原 高潮浸水</h1>
+      <h1>舞鶴 高潮浸水</h1>
+      ${areaHtml(area)}
 
-      <p class="grouplabel">地形データ</p>
+      <p class="grouplabel" style="margin-top:11px">地形データ</p>
       <div class="condrow">
-        <select id="cond" aria-label="地形データ">${CONDITIONS.map((c) =>
+        <select id="cond" aria-label="地形データ">${conditionsOf(catalog).map((c) =>
           `<option value="${c.id}" title="${c.hint}"
                    ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
         <button id="diffbtn" type="button"
@@ -284,14 +362,18 @@ export function renderControls(
         ${s.layers.changedOnly ? 'checked' : ''}/>判定が変わる地物のみ</label>
 
       <p class="subhead">重ねる</p>
-      ${LAYERS.map((l) =>
-        `<label class="row"><input type="checkbox" data-l="${l.key}"
+      ${layersOf(catalog).map((l) =>
+        `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
+          ><input type="checkbox" data-l="${l.key}"
           ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
       <div class="whyoff" id="why-plateau" ${s.exaggeration > 1 ? '' : 'hidden'}
         >高さを強調している間は隠す（建物は実高のまま）</div>
       <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
-        <label class="row"><input type="checkbox" id="cb-bcol"
-          ${s.buildingColor !== 'none' ? 'checked' : ''}/>用途で塗る</label>
+        <!-- **チェックボックスから select にした。** 塗り分けが 3 通りになり、
+             浸水深（床下・床上）は「用途で塗る」の on/off では表せない -->
+        <select id="bcol" aria-label="建物の塗り分け">${MENU_BUILDING_COLORS.map((m) =>
+          `<option value="${m.id}" ${s.buildingColor === m.id ? 'selected' : ''}
+          >${m.id === 'none' ? '塗り分けない' : m.label}</option>`).join('')}</select>
         <div id="bldglegend">${buildingLegendHtml(s, buildingLegend)}</div>
       </div>
 
@@ -318,6 +400,12 @@ export function renderControls(
   `
   el.dataset.built = '1'
 
+  el.querySelector('#area')?.addEventListener('change', (e) => {
+    // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す
+    const u = new URL(location.href)
+    u.searchParams.set('area', (e.target as HTMLSelectElement).value)
+    location.href = u.toString()
+  })
   el.querySelector('#cond')!.addEventListener('change', (e) => {
     const c = (e.target as HTMLSelectElement).value as TerrainCondition
     // 判定差を見ていたら、条件を替えてもその条件の判定差に移る（見方を保つ）
@@ -355,9 +443,10 @@ export function renderControls(
   el.querySelector('#cb-changed')!.addEventListener('change', (e) => {
     store.setLayer({ changedOnly: (e.target as HTMLInputElement).checked })
   })
-  el.querySelector('#cb-bcol')!.addEventListener('change', (e) => {
-    // メニューに出すのは「用途」だけ。'class' は __iwagaki からのみ
-    store.set({ buildingColor: (e.target as HTMLInputElement).checked ? 'usage' : 'none' })
+  el.querySelector('#bcol')!.addEventListener('change', (e) => {
+    // メニューに出すのは なし / 用途 / 浸水深。'class'（普通建物・堅ろう建物）は
+    // 浸水の話に効かないので __iwagaki からのみ
+    store.set({ buildingColor: (e.target as HTMLSelectElement).value as BuildingColorMode })
   })
   for (const cb of el.querySelectorAll<HTMLInputElement>('input[data-l]')) {
     cb.addEventListener('change', () => store.setLayer({ [cb.dataset.l!]: cb.checked } as never))

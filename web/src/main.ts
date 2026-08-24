@@ -12,6 +12,7 @@ import { sampleLine } from './assets/terrainSampler'
 import { type CameraDescription, eyeInLocal, visibleBoxLocal,
          visiblePolygonLocal } from './domain/camera'
 import type { Catalog } from './domain/catalog'
+import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
 import { comparisonPair, resolveSurface } from './domain/terrain'
 import type { BuildingColorMode, FeatureAssertion, SurfaceMode,
               TerrainCondition } from './domain/types'
@@ -34,8 +35,10 @@ import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
-import { createColorScheme, legendOf, type ColorScheme } from './view/buildingColor'
-import { applyPreset, attachViewCube, bindCameraKeys, createViewer, INITIAL_ZOOM,
+import {
+  createColorScheme, depthLegend, FLOOR_ABOVE_DEPTH_M, legendOf, type ColorScheme,
+} from './view/buildingColor'
+import { applyPreset, attachViewCube, bindCameraKeys, createViewer, initialZoom,
          showSectionLine } from './view/map'
 import { SectionTool, type LonLat } from './view/sectionTool'
 import { toAssertion, type RawFeature } from './view/semantics'
@@ -98,11 +101,26 @@ async function boot() {
   const scheduler = new Scheduler()
   const perf = new PerfRecorder(scheduler)
 
-  // catalog は唯一の入口。URL を差し替えれば配信先が変わる
+  // **入口は範囲の索引。** 範囲は 3 つあり（`domain/areas.ts`）、それぞれに
+  // catalog が 1 枚ある。索引が無い配信物（`areas.json` を焼く前の世代）では
+  // `data/catalog.json` 1 枚の単一範囲として動く = 旧配信物と互換。
+  const text = (b: ArrayBuffer | Uint8Array) =>
+    new TextDecoder().decode(b as ArrayBuffer)
+  let areaIndex = SINGLE_AREA
+  try {
+    areaIndex = parseAreaIndex(JSON.parse(text(await scheduler.submit({
+      key: 'areas', url: 'data/areas.json', cls: 'catalog',
+    }))))
+  } catch {
+    // 404 も壊れた JSON もここに来る。単一範囲として続ける
+  }
+  const area = pickArea(areaIndex, qs.get('area'))
+
+  // catalog は範囲ごとの入口。URL を差し替えれば配信先が変わる
   const catalogBytes = await scheduler.submit({
-    key: 'catalog', url: 'data/catalog.json', cls: 'catalog',
+    key: 'catalog', url: area.catalog, cls: 'catalog',
   })
-  const catalog: Catalog = JSON.parse(new TextDecoder().decode(catalogBytes))
+  const catalog: Catalog = JSON.parse(text(catalogBytes))
   perf.mark('catalog_loaded')
   scheduler.detectProtocol()
 
@@ -117,7 +135,7 @@ async function boot() {
 
   const viewer: Viewer = createViewer(document.getElementById('map')!, catalog)
   // 旧実装（MapLibre zoom 15.6）と同じ景色にする。規約の違いは INITIAL_ZOOM を見ること
-  viewer.setZoom(Number(qs.get('z')) || INITIAL_ZOOM)
+  viewer.setZoom(Number(qs.get('z')) || initialZoom(catalog))
   if (OPT.ortho) viewer.setProjection('orthographic')
   attachViewCube(viewer)
 
@@ -155,6 +173,8 @@ async function boot() {
       showGround: s.layers.ground ? 1 : 0,
       // 平常時に水がある範囲の下地。潮位を MSL より下げても川が消えないようにする
       waterBase: catalog.water_level.reference_levels_m_tp?.['MSL'] ?? 0,
+      // 水面メッシュの可視。uniform ではなく TerrainTiles が visible に使う
+      waterSurface: s.layers.waterSurface,
     }
   }
 
@@ -248,32 +268,50 @@ async function boot() {
   let plateau: PlateauTiles | undefined
   let plateauLoading = false
   let plateauMode: BuildingColorMode | undefined
+  /** 浸水深モードのとき、地盤高を取った条件。変わったら焼き直しが要る */
+  let plateauCondition = ''
   let plateauFailed = 0
   let scheme: ColorScheme | undefined
+  /**
+   * 属性で塗るモードだけが ColorScheme を要る。`depth` は**属性ではなく水位**から
+   * 決まるので scheme を持たない（色は buildingColor.ts の DEPTH_CLASSES 固定）。
+   */
   function schemeFor(mode: BuildingColorMode): ColorScheme | undefined {
-    if (mode === 'none') return undefined
+    if (mode !== 'class' && mode !== 'usage') return undefined
     if (scheme?.mode !== mode) scheme = createColorScheme(catalog, mode)
     return scheme
   }
+  /** 床上とみなす浸水深。配信物にあればそれを使う（無い世代の catalog もある） */
+  const floorDepth = catalog.semantics.floor_above_depth_m ?? FLOOR_ABOVE_DEPTH_M
   const plateauValues = new Map<string, string>()
   let legendTimer: number | undefined
 
   async function ensurePlateau() {
     const asset = catalog.plateau.bldg_lod1
     const mode = store.state.buildingColor
+    // 浸水深で塗るときだけ、地盤高と h_conn を**どの条件から取るか**が効く。
+    // 属性で塗っているときは条件が変わっても色は変わらないので作り直さない
+    const depthMode = mode === 'depth'
+    const cond = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
+    const condKey = depthMode ? cond : ''
     if (!asset || plateauLoading) return
-    if (plateau && plateauMode === mode) return
+    if (plateau && plateauMode === mode && plateauCondition === condKey) return
     plateauLoading = true
     try {
       const { PlateauTiles } = await import('./three/plateauTiles')
       const first = plateauMode === undefined
       if (first) perf.mark('plateau_module_loaded')
       plateauMode = mode
+      plateauCondition = condKey
       if (plateau) { viewer.world.remove(plateau.group); plateau.dispose() }
       plateauValues.clear()
       plateau = new PlateauTiles({
         url: asset.url, scheduler, viewer, frame, geoid,
         scheme: schemeFor(mode),
+        // **潮位はここに渡さない。** 渡すとスライダを動かすたびに b3dm を
+        // 作り直すことになる。水位は setWaterLevel で uniform だけ書き換える
+        depthMode, condition: cond, floorDepth,
+        assertionOf: (id) => assertions.get(id),
         onValues: (vals) => {
           for (const [id, v] of vals) plateauValues.set(id, v)
           // 凡例の件数はタイルが届くたびに増える。タイル 1 枚ごとに
@@ -369,7 +407,7 @@ async function boot() {
     secSeries = got.filter((x): x is SectionSeries => x !== null)
     const n = secSeries[0]?.points.length ?? 0
     const len = secSeries[0]?.points.at(-1)?.d ?? 0
-    const why = catalog.default_section && secLine
+    const why = catalog.default_section?.from && secLine
       && secLine[0][0] === catalog.default_section.from[0]
       ? `${catalog.default_section.why}。` : ''
     redrawSection()
@@ -377,8 +415,11 @@ async function boot() {
 
   // 起動時に既定の断面を出す。**測線を引かせる前に、一番読む価値のある断面を見せる。**
   // 天端を横切る線で、3D では潰れて見えない 0〜3 m の起伏がここで読める
+  // **`from` / `to` の有無まで見る。** 以前は `catalog.default_section` の
+  // truthy だけを見ていて、`{}`（= 天端の解析を回していない範囲）で
+  // `ds.from[0]` を読んで落ちていた
   const ds = catalog.default_section
-  if (ds) void buildSection(ds.from as LonLat, ds.to as LonLat)
+  if (ds?.from && ds?.to) void buildSection(ds.from as LonLat, ds.to as LonLat)
 
   const sectionTool = new SectionTool({
     viewer,
@@ -570,19 +611,27 @@ async function boot() {
         // domain/flood.ts が baseline/highres を固定していたので、
         // 「判定差 0.5m↔点群」でも赤い地物は 5m↔0.5m のままだった
         pair: comparisonPair(s.surface),
+        roads: s.layers.roads,
       })
       semantics.setHighlight({ selected: s.selected?.gmlId, hovered })
     }
     // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない
     if (coverage) coverage.visible = s.layers.pcCoverage
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
+    // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない
+    plateau?.setWaterLevel(s.waterLevel)
     pcb?.renderer.setVisible(s.layers.pointcloud)
     pcb?.renderer.setExaggeration(s.exaggeration, geoid)
 
     redrawSection()
     const sch = schemeFor(s.buildingColor)
-    renderControls(document.getElementById('controls')!, store, catalog,
-      sch ? legendOf(plateauValues, sch) : [])
+    const bldgLegend = s.buildingColor === 'depth'
+      ? depthLegend(assertions.values(),
+          resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
+          s.waterLevel, floorDepth)
+      : sch ? legendOf(plateauValues, sch) : []
+    renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
+      { index: areaIndex, current: area })
     renderInspector(document.getElementById('inspector')!, store, catalog)
     viewer.invalidate()
   }

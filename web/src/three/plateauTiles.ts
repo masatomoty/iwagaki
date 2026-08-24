@@ -23,11 +23,14 @@ import { Tiles3DLoader } from '@loaders.gl/3d-tiles'
 // （= `_headers` の `/assets/*` で immutable になる）。
 import dracoWorkerUrl from '@loaders.gl/draco/draco-worker.js?url'
 import {
-  BufferAttribute, BufferGeometry, DoubleSide, GLSL3, Group, Mesh, ShaderMaterial,
+  BufferAttribute, BufferGeometry, Color, DoubleSide, GLSL3, Group, Mesh, ShaderMaterial,
 } from 'three'
 
 import type { Scheduler } from '../net/scheduler'
-import { hexToRgb, UNKNOWN_HEX, type ColorScheme, type Rgb } from '../view/buildingColor'
+import type { FeatureAssertion, TerrainCondition } from '../domain/types'
+import {
+  DEPTH_HEX, hexToRgb, UNKNOWN_HEX, type ColorScheme, type Rgb,
+} from '../view/buildingColor'
 import { createEcefFrame, ecefToLocal, type EcefFrame, type LocalFrame } from './mercator'
 import type { Viewer } from './viewer'
 
@@ -58,10 +61,19 @@ const DRACO_LOCAL = {
 
 const VS = /* glsl */ `
 in vec3 aColor;
+in float aGround;
+in float aHConn;
+in float aHas;
 out vec3 vColor;
 out vec3 vNormal;
+out float vGround;
+out float vHConn;
+out float vHas;
 void main() {
   vColor = aColor;
+  vGround = aGround;
+  vHConn = aHConn;
+  vHas = aHas;
   vNormal = normalMatrix * normal;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
@@ -70,13 +82,38 @@ const FS = /* glsl */ `
 precision highp float;
 in vec3 vColor;
 in vec3 vNormal;
+in float vGround;
+in float vHConn;
+in float vHas;
 out vec4 fragColor;
 uniform float uOpacity;
+uniform float uDepthMode;
+uniform float uWaterLevel;
+uniform float uFloorDepth;
+uniform vec3 uDry;
+uniform vec3 uUnder;
+uniform vec3 uAbove;
+uniform vec3 uUnknown;
+
+/**
+ * 床下 / 床上。**判定式は src/domain/flood.ts と同一**
+ * （h_conn <= H で連結、depth = max(0, H - 地盤高) ）。
+ * 潮位が変わっても uniform 1 個で済むので、b3dm の作り直しは起きない。
+ */
+vec3 depthColor() {
+  if (vHas < 0.5) return uUnknown;               // 解析範囲外の棟（assertion が無い）
+  if (vHConn > uWaterLevel) return uDry;         // 海と連結して到達しない
+  float d = max(0.0, uWaterLevel - vGround);
+  if (d <= 0.0) return uDry;
+  return d >= uFloorDepth ? uAbove : uUnder;
+}
+
 void main() {
   vec3 n = normalize(vNormal);
   vec3 sun = normalize(vec3(-0.4, 0.5, 0.75));
   float shade = clamp(0.55 + 0.55 * abs(dot(n, sun)), 0.35, 1.25);
-  fragColor = vec4(vColor * shade, uOpacity);
+  vec3 base = uDepthMode > 0.5 ? depthColor() : vColor;
+  fragColor = vec4(base * shade, uOpacity);
 }
 `
 
@@ -94,7 +131,18 @@ export interface PlateauOptions {
   frame: LocalFrame
   geoid: number
   scheme?: ColorScheme
-  /** gml_id -> 属性値。凡例の数え上げ用 */
+  /**
+   * 浸水深で塗るとき（`buildingColor: 'depth'`）に使う。
+   * gml_id で assertion を引き、地盤高と h_conn を頂点属性に焼く。
+   * **潮位はここに入らない**（uniform で渡す）ので、水位を動かしても作り直さない。
+   */
+  depthMode?: boolean
+  /** 地盤高・h_conn をどの条件から取るか。**変わったら作り直しが必要** */
+  condition?: TerrainCondition
+  /** 床上とみなす浸水深 [m] */
+  floorDepth?: number
+  assertionOf?: (gmlId: string) => FeatureAssertion | undefined
+  /** gml_id -> 属性値。凡例の数え上げ用。浸水深モードでは値が空文字で来る */
   onValues: (values: [string, string][]) => void
   /** 現在の視野に必要なタイルが揃った瞬間 */
   onLoaded: () => void
@@ -144,14 +192,40 @@ export class PlateauTiles {
 
   constructor(private readonly o: PlateauOptions) {
     this.ecef = createEcefFrame(o.frame.centre[0], o.frame.centre[1])
+    // **色空間の変換は掛けない。** 頂点色 `aColor` は hexToRgb を 255 で割った
+    // 生の値をそのまま渡していて、レンダラ側でも変換していない。ここで
+    // convertSRGBToLinear を掛けると属性で塗った棟と浸水深で塗った棟の明るさが揃わない
+    const rgb = (hex: string) => {
+      const [r, g, b] = hexToRgb(hex)
+      return new Color(r / 255, g / 255, b / 255)
+    }
     this.material = new ShaderMaterial({
       glslVersion: GLSL3,
       vertexShader: VS,
       fragmentShader: FS,
       side: DoubleSide,
       transparent: false,
-      uniforms: { uOpacity: { value: 1 } },
+      uniforms: {
+        uOpacity: { value: 1 },
+        uDepthMode: { value: o.depthMode ? 1 : 0 },
+        uWaterLevel: { value: 0 },
+        uFloorDepth: { value: o.floorDepth ?? 0.5 },
+        uDry: { value: rgb(DEPTH_HEX.dry) },
+        uUnder: { value: rgb(DEPTH_HEX.under) },
+        uAbove: { value: rgb(DEPTH_HEX.above) },
+        uUnknown: { value: rgb(UNKNOWN_HEX) },
+      },
     })
+  }
+
+  /**
+   * 潮位。**浸水深モードでもタイルは作り直さない**（uniform を書き換えるだけ）。
+   * 地形タイルの水位スライダと同じ性質で、`h_conn` を頂点属性に持っているから成り立つ。
+   */
+  setWaterLevel(h: number) {
+    if (this.material.uniforms.uWaterLevel.value === h) return
+    this.material.uniforms.uWaterLevel.value = h
+    this.o.viewer.invalidate()
   }
 
   setVisible(v: boolean) {
@@ -236,6 +310,35 @@ export class PlateauTiles {
       this.stat.buildings += ids.length
       this.stat.coloured += attr.filter((v) => this.o.scheme!.colorOf(v) != null).length
       this.o.onValues(ids.map((id, i) => [String(id), attr[i] == null ? '' : String(attr[i])]))
+    } else if (ids) {
+      // 属性で塗っていないとき（none / depth）も、**どの棟が描かれたかは要る**。
+      // 浸水深の凡例は「いま画面にある棟」を数えるので、gml_id だけ流す
+      this.stat.buildings += ids.length
+      this.o.onValues(ids.map((id) => [String(id), '']))
+    }
+
+    // 棟 -> 地盤高・h_conn。**assertion が無い棟（解析 AOI の外）は aHas = 0** で、
+    // 「非浸水」ではなく「解析範囲外」として別の色にする。
+    // 3D Tiles は AOI より広く 2,005 棟を持つので、これを混ぜてはいけない。
+    const cond = this.o.condition ?? 'highres'
+    const batchGround = new Float32Array(ids?.length ?? 0)
+    const batchHConn = new Float32Array(ids?.length ?? 0)
+    const batchHas = new Float32Array(ids?.length ?? 0)
+    if (ids && this.o.assertionOf) {
+      for (let i = 0; i < ids.length; i++) {
+        const a = this.o.assertionOf(String(ids[i]))
+        const g = a?.groundElev[cond]
+        const h = a?.hConn[cond]
+        // 橋梁・高架は地盤高が意味を持たない（unreliable）。色でも区別しない方が
+        // 嘘が少ないので、解析範囲外と同じ扱いにする
+        if (a && !a.unreliable && g !== undefined && Number.isFinite(g)) {
+          batchGround[i] = g
+          batchHConn[i] = h !== undefined && Number.isFinite(h) ? h : 1e9
+          batchHas[i] = 1
+        } else {
+          batchHConn[i] = 1e9
+        }
+      }
     }
 
     // 頂点は rtcCenter（ECEF）からの ECEF オフセット。ワールドへは
@@ -310,6 +413,21 @@ export class PlateauTiles {
           colors[v * 3 + 2] = c[2] / 255
         }
         geom.setAttribute('aColor', new BufferAttribute(colors, 3))
+
+        // 浸水深モード用。**水位は入れない**（uniform）ので、
+        // 潮位を動かしてもここは作り直さない
+        const ground = new Float32Array(n)
+        const hconn = new Float32Array(n)
+        const has = new Float32Array(n)
+        for (let v = 0; v < n; v++) {
+          const b = batch ? batch[v] : 0
+          ground[v] = batchGround[b] ?? 0
+          hconn[v] = batchHConn[b] ?? 1e9
+          has[v] = batchHas[b] ?? 0
+        }
+        geom.setAttribute('aGround', new BufferAttribute(ground, 1))
+        geom.setAttribute('aHConn', new BufferAttribute(hconn, 1))
+        geom.setAttribute('aHas', new BufferAttribute(has, 1))
         if (!nrm) geom.computeVertexNormals()
         geom.computeBoundingSphere()
 

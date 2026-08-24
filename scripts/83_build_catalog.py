@@ -16,12 +16,12 @@ import pyproj
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, CRS_ANALYSIS, H_MAX, H_MIN, H_STEP, OUT, RAW, ROOT,
-                            REPRESENTATIVE_H, ROAD_DEPTH_CLASSES, TP_OF_MSL,
-                            ATTRIBUTION)
+from iwagaki.config import (AOI, AOI_LABELS, AOIS, asset_name, catalog_name,
+                            CRS_ANALYSIS, DEFAULT_AOI, H_MAX, H_MIN, H_STEP, OUT, RAW,
+                            FLOOR_ABOVE_DEPTH, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
+                            TP_OF_MSL,
+                            WEB_DATA, ATTRIBUTION)
 from iwagaki.versioning import publish_dir, publish_file
-
-WEB_DATA = ROOT / "web" / "public" / "data"
 
 KEEP_PROPS = [
     "gml_id", "feature_type", "name", "class", "usage", "area_m2",
@@ -119,6 +119,10 @@ def default_section() -> dict:
 
 def pc_coverage() -> dict:
     """scripts/25 が書いた被覆輪郭。無ければ空で返す（配線だけ先に入っている状態を許す）"""
+    # **点群は吉原にしか無い。** `pc_coverage-*.geojson` は共有ディレクトリに
+    # 1 枚だけ置いてあるので、範囲を見ないとほかの範囲まで吉原の輪郭を指してしまう
+    if AOI.name != DEFAULT_AOI:
+        return {}
     p = WEB_DATA / "pc_coverage.geojson"
     if not p.exists() and not list(WEB_DATA.glob("pc_coverage-*.geojson")):
         return {}
@@ -143,15 +147,50 @@ def versioned_urls(tiles: dict | None, tiles3d: dict | None) -> None:
     （重い 2 本を再実行しなくてもバージョンを付け直せる）。
     """
     for cond, meta in ((tiles or {}).get("conditions") or {}).items():
-        name = publish_dir(WEB_DATA / "tiles", cond)
+        # ディレクトリ名は範囲で分かれている（`config.asset_name`）が、
+        # **catalog のキーは条件名のまま**にする。viewer が `terrain.highres` で
+        # 引いているので、ここを範囲ごとに変えると読み側が範囲を知る必要が出る
+        name = publish_dir(WEB_DATA / "tiles", asset_name(cond))
         meta["url"] = f"data/tiles/{name}/{{z}}/{{x}}/{{y}}.png"
     for key, meta in (tiles3d or {}).items():
         if not isinstance(meta, dict) or "url" not in meta:
             continue
         # url は "data/3dtiles/<名前>/tileset.json"。<名前> だけを付け替える
-        base = str(meta["url"]).split("/")[2].split("-")[0]
+        base = str(meta["url"]).split("/")[2].rsplit("-", 1)[0]
         name = publish_dir(WEB_DATA / "3dtiles", base)
         meta["url"] = f"data/3dtiles/{name}/tileset.json"
+
+
+def write_areas_index() -> None:
+    """
+    範囲の索引 `data/areas.json`。**viewer の入口はここ**（無ければ
+    `data/catalog.json` だけの単一範囲として動く = 旧配信物との互換）。
+
+    ディスクにある catalog を数えるだけにしてある。範囲を 1 つだけ焼き直しても
+    索引が壊れない（`AOIS` を素直に並べると、まだ焼いていない範囲を指してしまう）。
+    """
+    areas = []
+    for name in AOIS:
+        fn = "catalog.json" if name == DEFAULT_AOI else f"catalog-{name}.json"
+        if not (WEB_DATA / fn).exists():
+            continue
+        cat = json.loads((WEB_DATA / fn).read_text())
+        areas.append({
+            "id": name,
+            "label": AOI_LABELS.get(name, name),
+            "catalog": f"data/{fn}",
+            "bbox_wgs84": cat["aoi"]["bbox_wgs84"],
+            "centre_wgs84": cat["aoi"]["centre_wgs84"],
+            "area_ha": round(
+                (AOIS[name].xmax - AOIS[name].xmin)
+                * (AOIS[name].ymax - AOIS[name].ymin) / 10_000, 1),
+            "conditions": sorted(cat.get("terrain", {})),
+            "has_pointcloud": bool(cat.get("pointcloud")),
+        })
+    (WEB_DATA / "areas.json").write_text(
+        json.dumps({"default": DEFAULT_AOI, "areas": areas},
+                   indent=2, ensure_ascii=False))
+    print("areas.json:", " / ".join(f"{a['id']}({a['area_ha']} ha)" for a in areas))
 
 
 def main() -> int:
@@ -186,7 +225,33 @@ def main() -> int:
             continue
         feats.append({"type": "Feature", "properties": props, "geometry": g})
     objects = {"type": "FeatureCollection", "features": feats}
-    op = WEB_DATA / "objects.geojson"
+
+    # --- 起動時の注視点 ---------------------------------------------------
+    #
+    # **AOI の中心ではない。** 625 ha の矩形の真ん中は港と山に落ちるので、
+    # 起動直後の画面に市街が入らない（実測: 東舞鶴で市街が画面の隅に来た）。
+    #
+    # 低平な建物の位置の中央値を使う。**浸水の話が起きるのはそこ**であり、
+    # 山手の建物に引っ張られない（平均ではなく中央値にしている理由）。
+    # 座標は viewer に埋め込まず catalog 経由で渡す（`default_section` と同じ方針）。
+    low = []
+    for f in feats:
+        if f["properties"].get("feature_type") != "bldg:Building":
+            continue
+        g = f["properties"].get("ground_elev_highres")
+        if g is None or g > 5.0:
+            continue
+        ring = (f["geometry"]["coordinates"][0] if f["geometry"]["type"] == "Polygon"
+                else f["geometry"]["coordinates"][0][0])
+        low.append((sum(c[0] for c in ring) / len(ring),
+                    sum(c[1] for c in ring) / len(ring)))
+    focus = None
+    if low:
+        lons = sorted(c[0] for c in low)
+        lats = sorted(c[1] for c in low)
+        focus = [round(lons[len(lons) // 2], 7), round(lats[len(lats) // 2], 7)]
+        print(f"focus_wgs84: {focus}  （標高 5 m 以下の建物 {len(low)} 棟の中央値）")
+    op = WEB_DATA / asset_name("objects.geojson")
     op.write_text(json.dumps(objects, separators=(",", ":")))
     # immutable で配るので URL に内容ハッシュを入れる（versioned_urls と同じ理由）
     semantics_name = publish_file(op)
@@ -215,9 +280,10 @@ def main() -> int:
         p = WEB_DATA / name
         return json.loads(p.read_text()) if p.exists() else None
 
-    tiles = load("tiles_report.json")
-    tiles3d = load("3dtiles_report.json")
-    pc = load("pointcloud_report.json")
+    tiles = load(asset_name("tiles_report.json"))
+    tiles3d = load(asset_name("3dtiles_report.json"))
+    # 点群は吉原にしか無い。ほかの範囲では接頭辞付きのレポートが無いので空になる
+    pc = load(asset_name("pointcloud_report.json"))
     # 内容ハッシュを URL に入れる（immutable キャッシュを差し替えられるように）
     versioned_urls(tiles, tiles3d)
     summary = json.loads((OUT / "summary.json").read_text())
@@ -225,8 +291,27 @@ def main() -> int:
     tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
 
     def dir_bytes(rel: str) -> int:
+        """この範囲の配信物だけを数える。`tiles/` には全範囲が並んでいる。"""
         d = WEB_DATA / rel
-        return sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) if d.exists() else 0
+        if not d.exists():
+            return 0
+        pre = "" if AOI.name == DEFAULT_AOI else f"{AOI.name}_"
+        total = 0
+        for sub in d.iterdir():
+            # `data/pointcloud/` は直下に COPC ファイルが並ぶ。**点群は吉原だけ**なので、
+            # 既定範囲のときだけ数える（ほかの範囲で数えると 272 MB を二重に載せる）
+            if sub.is_file():
+                if not pre:
+                    total += sub.stat().st_size
+                continue
+            # 既定範囲は接頭辞が無いので、**ほかの範囲の接頭辞で始まるものを外す**
+            if pre:
+                if not sub.name.startswith(pre):
+                    continue
+            elif any(sub.name.startswith(f"{a}_") for a in AOIS if a != DEFAULT_AOI):
+                continue
+            total += sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
+        return total
 
     catalog = {
         "version": 1,
@@ -236,6 +321,8 @@ def main() -> int:
             "bbox_wgs84": [round(v, 7) for v in bbox],
             "centre_wgs84": [round(centre[0], 7), round(centre[1], 7)],
             "local_origin_wgs84": [round(centre[0], 7), round(centre[1], 7)],
+            # 起動時の注視点。**矩形の中心ではなく低平な市街**（上記）
+            **({"focus_wgs84": focus} if focus else {}),
         },
         "local_frame": local_frame(
             to_wgs, (AOI.xmin + AOI.xmax) / 2, (AOI.ymin + AOI.ymax) / 2, *centre),
@@ -277,14 +364,20 @@ def main() -> int:
             "bytes": (WEB_DATA / semantics_name).stat().st_size,
             "feature_count": len(feats),
             "road_depth_classes_m": list(ROAD_DEPTH_CLASSES),
+            # 床上浸水とみなす浸水深。**地盤面からの水深**の閾値で、
+            # PLATEAU LOD1 は床高を持たないので床面を超えた証明ではない。
+            # 市の要望（2026-08）が 50 cm 基準だった
+            "floor_above_depth_m": FLOOR_ABOVE_DEPTH,
             # 実際に出現したコードだけ載せる。viewer の凡例はこれを引く
             "codelists": codelists,
         },
         # 点群が地表面として効いている範囲。AOI 100 ha に対して 3 ha しか無いので、
         # 明示しないと「点群で高精度に見た結果」が全域に効いているように読める
-        "pointcloud_coverage": pc_coverage(),
-        # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）
-        "default_section": default_section(),
+        **({"pointcloud_coverage": pc_coverage()} if pc_coverage() else {}),
+        # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）。
+        # **空なら鍵ごと落とす。** `{}` を置くと読み側で truthy になり、
+        # `default_section.from[0]` で落ちる（面的表示用の範囲で実際に落ちた）
+        **({"default_section": default_section()} if default_section() else {}),
         "totals_bytes": {
             "tiles": dir_bytes("tiles"),
             "3dtiles": dir_bytes("3dtiles"),
@@ -304,8 +397,9 @@ def main() -> int:
     catalog["totals_bytes"]["all"] = sum(
         v for k, v in catalog["totals_bytes"].items() if k != "all")
 
-    cp = WEB_DATA.parent / "data" / "catalog.json"
+    cp = WEB_DATA / catalog_name()
     cp.write_text(json.dumps(catalog, indent=2, ensure_ascii=False))
+    write_areas_index()
     print(json.dumps({"geoid_m": catalog["vertical"]["geoid_undulation_m"],
                       "totals_MB": {k: round(v / 1e6, 2)
                                     for k, v in catalog["totals_bytes"].items()}},

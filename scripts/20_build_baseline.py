@@ -16,11 +16,13 @@ from pyproj import Transformer
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from iwagaki.citygml import iter_tin_vertices
-from iwagaki.config import (AOI, CRS_ANALYSIS, CRS_LONLAT, INTERIM, OUT,
+from iwagaki.config import (AOI, CRS_ANALYSIS, CRS_LONLAT, interim_name, INTERIM, OUT,
                             PLATEAU_MEMBERS, RAW, RES_COARSE)
 from iwagaki.raster import Grid, write
 
-CACHE = INTERIM / "plateau_tin_vertices.npy"
+# **範囲ごとに別のキャッシュにする。** 共有すると、範囲を替えたときに
+# 別の範囲で切り出した TIN 頂点をそのまま使ってしまう
+CACHE = INTERIM / interim_name("plateau_tin_vertices.npy")
 
 
 def load_vertices() -> np.ndarray:

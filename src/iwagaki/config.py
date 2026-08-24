@@ -1,13 +1,26 @@
-"""AOI・データソース・解析パラメータの一元定義。"""
+"""AOI・データソース・解析パラメータの一元定義。
+
+**対象範囲は 3 つある**（`AOIS`）。どれを処理するかは環境変数 `IWAGAKI_AOI` で選ぶ。
+
+    IWAGAKI_AOI=higashi_maizuru scripts/run_all.sh
+
+既定は `yoshiwara`（100 ha・4 条件・地上点群あり）で、`README.md` と
+`docs/results.md` の数字はすべてこの範囲のものである。あとの 2 つは
+市の要望（2026-08、`高潮表示範囲.pdf` の 2 つの〇）で足した**面的表示用**の
+範囲で、**点群が無いので焼くのは `highres` と `baseline` とその差分だけ**。
+"""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RAW = ROOT / "data" / "raw"
+#: 中間物は範囲で共有する（`data/raw` と同じ）。**範囲に依存するものは
+#: ファイル名に範囲名を入れる**（`interim_name()`）。点群の成果（COPC・被覆）は
+#: 吉原にしか無く、ここを範囲ごとに割るとその参照が全部切れる
 INTERIM = ROOT / "data" / "interim"
-OUT = ROOT / "data" / "out"
 
 # --- 座標系 -------------------------------------------------------------
 CRS_ANALYSIS = "EPSG:6674"   # JGD2011 / 平面直角座標系 第VI系（京都府DEMのネイティブ）
@@ -33,7 +46,72 @@ class Aoi:
 
 
 # 吉原（東吉原・西吉原・吉原入江）。東吉原の基準点 E=-60838.6, N=-60164.7 を含む。
-AOI = Aoi("yoshiwara", xmin=-61500.0, ymin=-60500.0, xmax=-60500.0, ymax=-59500.0)
+AOI_YOSHIWARA = Aoi("yoshiwara", xmin=-61500.0, ymin=-60500.0, xmax=-60500.0, ymax=-59500.0)
+
+# --- 面的表示用の 2 範囲（市の要望、2026-08）------------------------------
+#
+# `高潮表示範囲.pdf`（舞鶴都市計画総括図に 2 つの〇）で示された範囲。
+# **どちらも 2.5 km 角 = 625 ha** で、吉原 100 ha の 6.25 倍。
+# 端は 250 m の倍数に揃えてある（0.5 m / 5 m の格子がちょうど割り切れる）。
+#
+# 矩形は〇より余裕を持たせ、**開放水面（湾）を必ず含む**ようにした。
+# `h_conn` の seed は「配列の外周に接する低い連結成分」なので、
+# 海を切り落とすと浸水がどこからも始まらない（`iwagaki/flood.py`）。
+#
+# | 範囲 | 含む主なもの |
+# |---|---|
+# | `nishi_maizuru` | 吉原・伊佐津川河口・舞鶴西港・大手/浜の市街・西舞鶴駅 |
+# | `higashi_maizuru` | 東舞鶴の市街（三条通〜大門通）・東舞鶴駅・舞鶴東港（前島） |
+#
+# **`nishi_maizuru` は吉原 AOI を完全に含む。** 重複は承知の上で、
+# 吉原側（4 条件・点群あり・公表済みの数字）をそのまま残すために別範囲にしてある。
+AOI_NISHI = Aoi("nishi_maizuru", xmin=-62000.0, ymin=-61250.0, xmax=-59500.0, ymax=-58750.0)
+AOI_HIGASHI = Aoi("higashi_maizuru", xmin=-57000.0, ymin=-58750.0, xmax=-54500.0, ymax=-56250.0)
+
+AOIS: dict[str, Aoi] = {a.name: a for a in (AOI_YOSHIWARA, AOI_NISHI, AOI_HIGASHI)}
+DEFAULT_AOI = "yoshiwara"
+
+#: 画面に出す範囲の名前と、その範囲を足した理由
+AOI_LABELS = {
+    "yoshiwara": "吉原",
+    "nishi_maizuru": "西舞鶴",
+    "higashi_maizuru": "東舞鶴",
+}
+
+
+def aoi_name() -> str:
+    name = os.environ.get("IWAGAKI_AOI", DEFAULT_AOI)
+    if name not in AOIS:
+        raise SystemExit(f"IWAGAKI_AOI={name!r} は未定義。選べるのは {sorted(AOIS)}")
+    return name
+
+
+AOI = AOIS[aoi_name()]
+
+#: 解析結果は範囲ごとに分ける。**吉原の既存成果は `data/out/yoshiwara/` に移した**
+OUT = ROOT / "data" / "out" / AOI.name
+
+#: 配信物の置き場。**ディレクトリは分けない。**
+#: `web/deploy/_headers` が `/data/tiles/*` と `/data/3dtiles/*` を immutable で配り、
+#: `deploy.sh` と `worker.js` がその形を前提にしている。範囲は名前の接頭辞で分ける
+#: （`asset_name()`）ので、配信設定を触らずに範囲を増やせる。
+WEB_DATA = ROOT / "web" / "public" / "data"
+
+
+def asset_name(base: str) -> str:
+    """配信物の名前。既定範囲だけは接頭辞を付けない（既存の URL を変えないため）。"""
+    return base if AOI.name == DEFAULT_AOI else f"{AOI.name}_{base}"
+
+
+def interim_name(base: str) -> str:
+    """範囲に依存する中間物のファイル名。共有の `data/interim` に並べる。"""
+    stem, _, ext = base.rpartition(".")
+    return base if AOI.name == DEFAULT_AOI else f"{stem}_{AOI.name}.{ext}"
+
+
+def catalog_name() -> str:
+    """`web/public/data/` に置く catalog のファイル名。既定範囲は従来どおり。"""
+    return "catalog.json" if AOI.name == DEFAULT_AOI else f"catalog-{AOI.name}.json"
 
 # 参照点（検証用, lon/lat EPSG:6668）
 REF_POINTS = {
@@ -100,6 +178,12 @@ REPRESENTATIVE_H = (1.0, 1.5, 2.0)   # 代表水位 [m T.P.]
 # 道路の通行支障クラス閾値 [m]（暫定・要出典固定）
 ROAD_DEPTH_CLASSES = (0.1, 0.3, 0.5)
 
+#: 床上浸水とみなす浸水深 [m]。**地盤面からの水深**の閾値。
+#: 市の要望（2026-08）が「浸水深 50cm を基準に床下・床上を分ける」だった。
+#: **PLATEAU LOD1 は床高を持たない**ので、床面を超えたことの証明ではない。
+#: 「浸水位」の定義そのものも未確認で照会中（`docs/todo.md` 中 4）。
+FLOOR_ABOVE_DEPTH = 0.5
+
 NODATA = -9999.0
 
 # --- データソース -------------------------------------------------------
@@ -110,19 +194,92 @@ PLATEAU_CITYGML_URL = (
 # AOI を含む CityGML メンバー（docs/data.md §1）。
 # dem は 2次メッシュを 3次メッシュ 5x5 の 4 象限に割ったファイル構成のため複数枚必要になる。
 # AOI が象限境界（lat 35.45833）をまたぐので "05"(3次メッシュ行0-4) と "55"(行5-9) の両方を使う。
-PLATEAU_MEMBERS = {
-    "dem": [
-        "udx/dem/533512_dem_6697_05_op.gml",
-        "udx/dem/533512_dem_6697_55_op.gml",
+#: 属性コードの表示名はコードリスト（同じ zip 内）が正。手で対応表を書かない
+_CODELISTS = [
+    "codelists/Building_class.xml",
+    "codelists/Building_usage.xml",
+]
+
+#: 範囲ごとに必要な 3 次メッシュ。**zip の namelist と突き合わせて確認済み**
+#: （2026-08。`bldg` 81 メンバー / `tran` 83 メンバー / 全 691 メンバー）。
+#: 地物が 1 件も無いメッシュは配布に入っていないので、無いものは挙げていない
+#: （`53351257` の bldg、`53351265` の bldg と tran、`53351380` の tran）。
+_MESH3: dict[str, list[str]] = {
+    # 吉原。**AOI は 4 枚に掛かる。**
+    #
+    # 長らく 46 の 1 枚だけを挙げていて、`README.md` の 911 地物（建物 694 /
+    # 道路 217）はその数字だった。範囲を増やしたときに調べたら
+    # **34 % 取りこぼしていた**（建物 +238 / 道路 +76）。
+    # 「掛かるのは入江と山手だから影響は小さい」と書いていたが誤りで、
+    # 取りこぼしの地盤高は中央値 2.30 m（道路 1.60 m）、
+    # **既往最高潮位 0.93 m で浸水する建物が +9 %** 増える
+    # （`docs/results.md`「3 次メッシュの取りこぼし」）。
+    #
+    # 3D Tiles 側（`scripts/82`）は AOI の矩形で切っていて最初から入っていたので、
+    # viewer では**解析範囲の中なのに「解析範囲外」の灰色**で出ていた。
+    "yoshiwara": ["53351245", "53351246", "53351255", "53351256"],
+    "nishi_maizuru": [
+        "53351235", "53351236", "53351237",
+        "53351245", "53351246", "53351247",
+        "53351255", "53351256", "53351257",
+        "53351265", "53351266", "53351267",
     ],
-    "bldg": ["udx/bldg/53351246_bldg_6697_op.gml"],
-    "tran": ["udx/tran/53351246_tran_6697_op.gml"],
-    # 属性コードの表示名はコードリスト（同じ zip 内）が正。手で対応表を書かない
-    "codelists": [
-        "codelists/Building_class.xml",
-        "codelists/Building_usage.xml",
+    "higashi_maizuru": [
+        "53351269", "53351279", "53351289",
+        "53351360", "53351361",
+        "53351370", "53351371",
+        "53351380", "53351381",
     ],
 }
+
+#: 地形 TIN。2 次メッシュを 3 次メッシュ 5x5 の 4 象限に割った構成で、
+#: 象限名は `{行グループ}{列グループ}`（グループは 0 か 5）。
+_DEM_QUADRANTS: dict[str, list[str]] = {
+    "yoshiwara": ["533512_05", "533512_55"],
+    "nishi_maizuru": ["533512_05", "533512_55"],
+    "higashi_maizuru": ["533512_55", "533513_50"],
+}
+
+#: zip に無いメンバー（そのメッシュに地物が 1 件も無い）。挙げても取りに行かない
+_ABSENT = {
+    "udx/bldg/53351257_bldg_6697_op.gml",
+    "udx/bldg/53351265_bldg_6697_op.gml",
+    "udx/tran/53351265_tran_6697_op.gml",
+    "udx/tran/53351380_tran_6697_op.gml",
+}
+
+
+def _members(aoi: str) -> dict[str, list[str]]:
+    out = {
+        "dem": [f"udx/dem/{q[:6]}_dem_6697_{q[7:]}_op.gml" for q in _DEM_QUADRANTS[aoi]],
+        "bldg": [f"udx/bldg/{m}_bldg_6697_op.gml" for m in _MESH3[aoi]],
+        "tran": [f"udx/tran/{m}_tran_6697_op.gml" for m in _MESH3[aoi]],
+        "codelists": list(_CODELISTS),
+    }
+    for k in ("bldg", "tran"):
+        out[k] = [m for m in out[k] if m not in _ABSENT]
+    return out
+
+
+PLATEAU_MEMBERS_BY_AOI = {a: _members(a) for a in AOIS}
+PLATEAU_MEMBERS = PLATEAU_MEMBERS_BY_AOI[AOI.name]
+
+#: 配信する地形条件。**点群は吉原にしか無い。** 面的表示用の 2 範囲は
+#: 市の要望どおり 0.5m を主役にし、比較用に PLATEAU 5m だけ足す
+#: （`control` = 5m 集約は解析では作るが、タイルは焼かない）
+CONDITIONS_BY_AOI: dict[str, tuple[str, ...]] = {
+    "yoshiwara": ("baseline", "control", "highres", "pointcloud"),
+    "nishi_maizuru": ("baseline", "highres"),
+    "higashi_maizuru": ("baseline", "highres"),
+}
+#: 配信する差分。鎖の辺のうち、両端の条件を配信しているものだけ
+DIFFS_BY_AOI: dict[str, tuple[str, ...]] = {
+    "yoshiwara": ("diff", "diff_src", "diff_res", "diff_pc"),
+    "nishi_maizuru": ("diff",),
+    "higashi_maizuru": ("diff",),
+}
+WEB_CONDITIONS = CONDITIONS_BY_AOI[AOI.name]
+WEB_DIFFS = DIFFS_BY_AOI[AOI.name]
 
 # 京都府 数値標高モデル(DEM) 0.5m。図郭 zip ごとの入手先。
 # 06LC は CKAN の署名付きリダイレクト、06MC は S3 直リンク。

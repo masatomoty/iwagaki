@@ -24,12 +24,17 @@ import { ViewCube } from './viewCube'
  * 座標は埋め込まない。`catalog.pointcloud.bounds`（EPSG:6674）を
  * `local_frame` の行列でローカル ENU に直す。**`pointcloud/decode.worker.ts` が
  * 点そのものに使っているのと同じ変換**なので、必ず点群の上に来る。
- * 点群を持たない配信物では AOI の中心に落ちる。
+ * 点群が無い範囲では **catalog の `aoi.focus_wgs84`**（標高 5 m 以下の建物の
+ * 位置の中央値。`scripts/83` が入れる）を見る。625 ha の矩形の中心だと
+ * 港と山に落ちて、起動直後の画面に市街が入らない [実測]。
+ * それも無い配信物では AOI の中心に落ちる。
  */
 function defaultTarget(catalog: Catalog, frame: LocalFrame): [number, number] {
-  const [lon, lat] = catalog.aoi.centre_wgs84
   const b = catalog.pointcloud?.bounds
-  if (!b) return lngLatToWorld(frame, lon, lat)
+  if (!b) {
+    const [lon, lat] = catalog.aoi.focus_wgs84 ?? catalog.aoi.centre_wgs84
+    return lngLatToWorld(frame, lon, lat)
+  }
   const [ox, oy] = catalog.local_frame.origin_epsg6674
   const [m0, m1, m2, m3] = catalog.local_frame.matrix_2x2_row_major
   const dx = (b.minx + b.maxx) / 2 - ox
@@ -81,6 +86,36 @@ export function createViewer(container: HTMLElement, catalog: Catalog): Viewer {
  * そのまま比較できる。変わるのは時刻だけ。
  */
 export const INITIAL_ZOOM = 17.2
+
+/**
+ * その範囲での起動倍率。
+ *
+ * **吉原（100 ha）は 17.2 のまま**にしてある。`docs/web_results.md` の実測値
+ * （要求 64 本 / 転送 4.84 MB / FMR 733 ms など）はこの倍率で取ったもので、
+ * ここを変えると過去の数字と比べられなくなる。
+ *
+ * 面的表示用の 2 範囲は 2.5 km 角あり、17.2（画面幅 843 m）では
+ * **6 分の 1 しか見えない**。範囲の幅が画面に収まる倍率を計算して使う。
+ *
+ * **合わせるのは幅だけ。** 高さにも合わせると、操作パネルと断面パネルで
+ * 実際に見えているのは横長の帯なので 15.4 まで引く必要が出て、
+ * 起動直後が z15（粗メッシュ）になる。幅合わせなら 15.8 で細メッシュに乗る。
+ * 縦は切れるが、そこはパンとズームで足りる。
+ */
+const AOI_FIT = 1.02
+export function initialZoom(catalog: Catalog): number {
+  const [w, s, e, n] = catalog.aoi.bbox_wgs84
+  const lat = (s + n) / 2
+  const widthM = (e - w) * 111_320 * Math.cos((lat * Math.PI) / 180)
+  const heightM = (n - s) * 110_950
+  const px = { w: window.innerWidth || 1400, h: window.innerHeight || 900 }
+  const need = (widthM * AOI_FIT) / px.w
+  // 1 km 四方までは従来の倍率をそのまま使う（吉原）
+  if (Math.max(widthM, heightM) <= 1200) return INITIAL_ZOOM
+  // metresPerPixel(lat, z) = 156543.034 * cos(lat) / 2^z（256 px 基準）
+  const z = Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180)) / need)
+  return Math.round(z * 10) / 10
+}
 
 /**
  * CAD のように軸方向から見るためのプリセット。bearing はカメラが向く方位。

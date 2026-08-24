@@ -28,9 +28,8 @@ from rasterio.warp import reproject
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import AOI, CRS_ANALYSIS, H_STEP, OUT, ROOT
-
-WEB_DATA = ROOT / "web" / "public" / "data"
+from iwagaki.config import (AOI, asset_name, CRS_ANALYSIS, H_STEP, OUT, WEB_DATA,
+                            WEB_CONDITIONS, WEB_DIFFS)
 TILE = 256
 R_EARTH = 6378137.0
 ORIGIN = math.pi * R_EARTH        # 20037508.342789244
@@ -184,9 +183,12 @@ def main() -> int:
     lats = [c[1] for c in corners]
     b3857 = (*lonlat_to_3857(min(lons), min(lats)), *lonlat_to_3857(max(lons), max(lats)))
 
-    report: dict = {"h_step": H_STEP, "tile_size": TILE, "conditions": {}}
-    for cond, (dtm, hconn_f) in CONDITIONS.items():
-        outdir = WEB_DATA / "tiles" / cond
+    report: dict = {"aoi": AOI.name, "h_step": H_STEP, "tile_size": TILE, "conditions": {}}
+    # **範囲によって焼く条件が違う。** 点群は吉原にしか無く、面的表示用の 2 範囲は
+    # 0.5m と PLATEAU 5m だけを配信する（`config.CONDITIONS_BY_AOI`）
+    for cond in WEB_CONDITIONS:
+        dtm, hconn_f = CONDITIONS[cond]
+        outdir = WEB_DATA / "tiles" / asset_name(cond)
         n_tiles = 0
         total = 0
         per_zoom = {}
@@ -212,13 +214,14 @@ def main() -> int:
             "tiles": n_tiles, "bytes": total,
             "min_zoom": args.min_zoom, "max_zoom": args.max_zoom,
             "per_zoom": per_zoom,
-            "url": f"data/tiles/{cond}/{{z}}/{{x}}/{{y}}.png",
+            "url": f"data/tiles/{asset_name(cond)}/{{z}}/{{x}}/{{y}}.png",
         }
         print(f"{cond}: {n_tiles} tiles, {total/1e6:.2f} MB")
 
     # --- 差分ピラミッド ---------------------------------------------------
-    for name, (left, right) in DIFFS.items():
-        outdir = WEB_DATA / "tiles" / name
+    for name in WEB_DIFFS:
+        left, right = DIFFS[name]
+        outdir = WEB_DATA / "tiles" / asset_name(name)
         n_tiles = total = 0
         per_zoom = {}
         for z in range(args.min_zoom, args.max_zoom + 1):
@@ -249,13 +252,14 @@ def main() -> int:
             "tiles": n_tiles, "bytes": total,
             "min_zoom": args.min_zoom, "max_zoom": args.max_zoom,
             "per_zoom": per_zoom,
-            "url": f"data/tiles/{name}/{{z}}/{{x}}/{{y}}.png",
+            "url": f"data/tiles/{asset_name(name)}/{{z}}/{{x}}/{{y}}.png",
             "packing": f"R=hconn({left[7:-4]}) code, G=hconn({right[7:-4]}) code, A=255",
         }
         print(f"{name}: {n_tiles} tiles, {total/1e6:.2f} MB")
 
-    (WEB_DATA / "tiles_report.json").parent.mkdir(parents=True, exist_ok=True)
-    (WEB_DATA / "tiles_report.json").write_text(json.dumps(report, indent=2))
+    rep = WEB_DATA / asset_name("tiles_report.json")
+    rep.parent.mkdir(parents=True, exist_ok=True)
+    rep.write_text(json.dumps(report, indent=2))
     print(json.dumps({k: {"tiles": v["tiles"], "MB": round(v["bytes"]/1e6, 2)}
                       for k, v in report["conditions"].items()}, indent=2))
     return 0

@@ -17,7 +17,7 @@ from rasterio.enums import Resampling
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from iwagaki.config import H_STEP, OUT, ROOT
+from iwagaki.config import asset_name, H_STEP, OUT, ROOT, WEB_CONDITIONS
 
 mod = __import__("80_build_web_tiles")
 CONDITIONS, WEB_DATA, sample, decode = mod.CONDITIONS, mod.WEB_DATA, mod.sample, mod.decode
@@ -26,11 +26,35 @@ ELEV_TOL = 1.0 / 256.0 + 1e-9
 MAX_TILES = 12
 
 
+def tile_dir(cond: str):
+    """
+    その条件のタイルの置き場。**名前は 2 通りある。**
+
+    `scripts/80` は素の名前（範囲の接頭辞つき）で書き、`scripts/83` が
+    内容ハッシュを足して改名する。ここは両方を受ける。
+    見ていなかったので、**83 を通したあとに回すと 0 枚で「0 failures」を
+    返していた**（範囲を増やして実際に踏んだ）。
+    """
+    base = asset_name(cond)
+    d = WEB_DATA / "tiles" / base
+    if d.is_dir():
+        return d
+    hashed = sorted(x for x in (WEB_DATA / "tiles").glob(f"{base}-*") if x.is_dir())
+    return hashed[-1] if hashed else None
+
+
 def main() -> int:
     fails = 0
     checked = 0
-    for cond, (dtm, hconn_f) in CONDITIONS.items():
-        tiles = sorted((WEB_DATA / "tiles" / cond).rglob("*.png"))
+    # 範囲によって焼く条件が違う（config.CONDITIONS_BY_AOI）
+    for cond in WEB_CONDITIONS:
+        dtm, hconn_f = CONDITIONS[cond]
+        d = tile_dir(cond)
+        if d is None:
+            print(f"FAIL {cond}: タイルのディレクトリが無い（scripts/80 を先に回す）")
+            fails += 1
+            continue
+        tiles = sorted(d.rglob("*.png"))
         step = max(1, len(tiles) // MAX_TILES)
         for p in tiles[::step][:MAX_TILES]:
             y = int(p.stem)
@@ -64,6 +88,11 @@ def main() -> int:
 
     print(f"checked {checked} tiles, {fails} failures "
           f"(elev tol {ELEV_TOL:.6f} m, hconn tol {H_STEP/2} m)")
+    # **1 枚も見ていないのに成功を返してはいけない。** 検証していないことと
+    # 検証して通ったことは別物である
+    if checked == 0:
+        print("FAIL: 検証できたタイルが 0 枚。名前の解決か焼き直しの順序を確かめる")
+        return 1
     return 1 if fails else 0
 
 

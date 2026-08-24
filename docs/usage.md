@@ -16,6 +16,34 @@ python3 -m venv .venv
 
 ---
 
+## 対象範囲を選ぶ
+
+**範囲は 3 つある**（`src/iwagaki/config.py` の `AOIS`）。環境変数で切り替える。
+
+| `IWAGAKI_AOI` | 範囲 | 広さ | 焼く条件 |
+|---|---|---:|---|
+| `yoshiwara`（既定） | 吉原 | 100 ha | 4 条件（地上点群あり） |
+| `nishi_maizuru` | 西舞鶴（吉原を含む） | 625 ha | `baseline` / `highres` / `diff` |
+| `higashi_maizuru` | 東舞鶴市街 | 625 ha | 同左 |
+
+```bash
+IWAGAKI_AOI=higashi_maizuru scripts/run_all.sh
+IWAGAKI_AOI=higashi_maizuru scripts/build_web.sh
+```
+
+- 解析結果は `data/out/<範囲>/` に分かれる
+- 配信物は `web/public/data/` に**混ざって**並ぶ。範囲は名前の接頭辞で分かれる
+  （`tiles/higashi_maizuru_highres-<hash>/`。`config.asset_name()`）。
+  ディレクトリを割らないのは `web/deploy/_headers` が `/data/tiles/*` を
+  immutable で配り、`deploy.sh` と `worker.js` がその形を前提にしているため
+- **既定範囲だけは接頭辞が付かない。** 吉原の配信物の URL を変えないためで、
+  既にデプロイ済みのアセットがそのまま使える
+- 入口は `data/areas.json`（範囲の索引）。viewer は `?area=<id>` で選ぶ
+- **点群は吉原にしか無い。** `IWAGAKI_AOI` を変えて 15〜25 番台（点群系）を
+  流してはいけない
+- 潮位（`scripts/86`）は舞鶴験潮場の 1 点なので範囲に依らない。
+  `data/out/<範囲>/tide_levels.json` は既定範囲からコピーしてよい
+
 ## 解析を通す
 
 ```bash
@@ -37,7 +65,7 @@ scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・
 | 50 / 60 | 地物との結合、レポート |
 | 80 番台 | Web 配信アセット（タイル・3D Tiles・catalog） |
 
-### 主な成果物（`data/out/`）
+### 主な成果物（`data/out/<範囲>/`）
 
 | ファイル | 内容 |
 |---|---|

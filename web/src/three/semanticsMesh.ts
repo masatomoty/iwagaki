@@ -12,7 +12,7 @@ import {
   Mesh, Raycaster, ShaderMaterial, ShapeUtils, Vector2,
 } from 'three'
 
-import { decisionChanged, featureDepth } from '../domain/flood'
+import { decisionChanged, featureDepth, roadClass } from '../domain/flood'
 import type { ComparisonPair, FeatureAssertion, TerrainCondition } from '../domain/types'
 import type { RawFeature } from '../view/semantics'
 import { lngLatToWorld, type LocalFrame } from './mercator'
@@ -24,7 +24,48 @@ export interface SemanticsStyle {
   changedOnly: boolean
   /** 判定を比べる 2 条件。`domain/terrain.ts` の comparisonPair() から来る */
   pair: ComparisonPair
+  /** 道路（`tran:Road`）を描くか。建物と別に切れる */
+  roads: boolean
 }
+
+/**
+ * **道路は建物と別の配色にする。**
+ *
+ * 道路 293 本は前から読み込んで描いていたのに、建物とまったく同じ
+ * 「乾 = 灰 / 浸水 = 青 / 判定変化 = 赤」で塗っていたので、
+ * **画面上で道路がどれなのか区別できなかった**（外部から「道路がどこなのか
+ * 分かるように表示してほしい」と要望が来た。2026-08）。
+ *
+ * 乾いているときは暖色の淡色（建物の冷たい灰と分かれる）、浸かったら
+ * **通行支障クラス**で塗る。閾値は解析側が持っている
+ * `config.py` の `ROAD_DEPTH_CLASSES = (0.1, 0.3, 0.5)` がそのまま
+ * catalog 経由で来るので、ここに数字は書かない。
+ *
+ * 判定が変わる地物の赤は道路でも赤のまま残す（`docs/results.md` の
+ * 「道路の通行支障クラスのみ変化」の列と読み合わせるため）。
+ * 通行支障クラスの一番上（0.5 m 以上）はその赤と混ざらない暗い煉瓦色にしてある。
+ */
+// 塗りメッシュの不透明度は 0.55 なので、地面（灰）に負けない彩度が要る。
+// 最初 [0.90, 0.85, 0.72] にしたら**平面視で道路が輪郭線しか見えなかった**
+const ROAD_DRY: [number, number, number] = [1.00, 0.90, 0.60]
+/**
+ * 浸かった道路。**水と混ざらない暖色〜赤の一本道**にしてある。
+ * 最初は class0 を水色にしていたが、水面（水色）の下に置くと消えた。
+ */
+const ROAD_WET: [number, number, number][] = [
+  [0.98, 0.95, 0.76],   // 0     〜0.1 m
+  [1.00, 0.78, 0.15],   // 0.1 m 〜0.3 m
+  [0.97, 0.48, 0.08],   // 0.3 m 〜0.5 m
+  [0.85, 0.15, 0.12],   // 0.5 m 以上
+]
+/**
+ * 道路の塗りだけ不透明度を上げる倍率（`uOpacity` 0.55 に掛かる）。
+ * 水面を張ると水深に応じて 0.46〜0.84 の青が上から乗るので、
+ * **0.55 のままでは水の下で道路が消える**（実測）。
+ */
+const ROAD_ALPHA = 1.75
+/** 道路の輪郭。乾いていても道路の形が読めるように建物より濃くする */
+const ROAD_LINE: [number, number, number] = [0.52, 0.38, 0.15]
 
 /** 選択中・ホバー中の地物。強調は色属性だけで表す（ジオメトリは不変） */
 export interface SemanticsHighlight {
@@ -35,6 +76,7 @@ export interface SemanticsHighlight {
 const VS = /* glsl */ `
 in vec3 aColor;
 in float aGround;
+in float aAlpha;
 uniform float uExaggeration;
 uniform float uGeoid;
 uniform float uZBias;
@@ -42,7 +84,7 @@ out vec3 vColor;
 out float vAlpha;
 void main() {
   vColor = aColor;
-  vAlpha = 1.0;
+  vAlpha = aAlpha;
   vec3 p = position;
   p.z = uGeoid + aGround * uExaggeration + uZBias;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
@@ -52,11 +94,16 @@ void main() {
 const FS = /* glsl */ `
 precision highp float;
 in vec3 vColor;
+in float vAlpha;
 out vec4 fragColor;
 uniform float uOpacity;
 void main() {
-  if (uOpacity <= 0.003) discard;
-  fragColor = vec4(vColor, uOpacity);
+  // **地物ごとの不透明度。** 塗りは 0.55 で建物にはそれで足りるが、
+  // 道路は水面（水深に応じて 0.46〜0.84）の下に置くと消えてしまう。
+  // vAlpha は地物ごとの倍率で、1.0 を超えると 1.0 に飽和する
+  float a = min(1.0, uOpacity * vAlpha);
+  if (a <= 0.003) discard;
+  fragColor = vec4(vColor, a);
 }
 `
 
@@ -119,6 +166,8 @@ function buildFill(frame: LocalFrame, features: RawFeature[], grounds: number[])
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
   g.setAttribute('aGround', new BufferAttribute(new Float32Array(ground), 1))
   g.setAttribute('aColor', new BufferAttribute(new Float32Array(pos.length), 3))
+  // 既定は 1.0。recolor() が地物ごとに書き換える（道路だけ上げる）
+  g.setAttribute('aAlpha', new BufferAttribute(new Float32Array(pos.length / 3).fill(1), 1))
   g.setIndex(new BufferAttribute(new Uint32Array(index), 1))
   g.computeBoundingSphere()
   return {
@@ -154,6 +203,7 @@ function buildOutline(frame: LocalFrame, features: RawFeature[], grounds: number
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
   g.setAttribute('aGround', new BufferAttribute(new Float32Array(ground), 1))
   g.setAttribute('aColor', new BufferAttribute(new Float32Array(pos.length), 3))
+  g.setAttribute('aAlpha', new BufferAttribute(new Float32Array(pos.length / 3).fill(1), 1))
   g.computeBoundingSphere()
   return { geometry: g, faceFeature: new Int32Array(0), vertFeature: Int32Array.from(vertFeature) }
 }
@@ -277,6 +327,8 @@ function buildOutlineBand(
   geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
   geo.setAttribute('aGround', new BufferAttribute(new Float32Array(g), 1))
   geo.setAttribute('aColor', new BufferAttribute(new Float32Array(pos.length), 3))
+  // 強調の輪郭は常に不透明側。**属性が無いと WebGL2 は 0 を渡すので必ず持たせる**
+  geo.setAttribute('aAlpha', new BufferAttribute(new Float32Array(pos.length / 3).fill(1), 1))
   geo.computeBoundingSphere()
   return geo
 }
@@ -353,6 +405,13 @@ export class SemanticsMesh {
     this.hovLine.renderOrder = 19
     this.selLine.visible = this.hovLine.visible = false
     this.group.add(this.fillMesh, this.lineMesh, this.hovLine, this.selLine)
+    // **Group の renderOrder は子の renderOrder より先に比較される**
+    // （three の projectObject が Group の renderOrder を groupOrder にして、
+    //  sort が groupOrder -> renderOrder の順で見る）。
+    // 地形タイルのピラミッドは Group の renderOrder が 0（粗）と 1（細）なので、
+    // ここを 0 のままにすると **細タイルとその水面が地物より後に描かれる**。
+    // 水面を張った瞬間に浸水域の道路と建物のポリゴンが消えたのはこれが原因だった [実測]。
+    this.group.renderOrder = 30
   }
 
   setVisible(v: boolean) { this.group.visible = v }
@@ -413,8 +472,10 @@ export class SemanticsMesh {
     if (!s) return
     const fillCol = this.fill.geometry.getAttribute('aColor') as BufferAttribute
     const lineCol = this.outline.geometry.getAttribute('aColor') as BufferAttribute
+    const fillAlpha = this.fill.geometry.getAttribute('aAlpha') as BufferAttribute
     const fa = fillCol.array as Float32Array
     const la = lineCol.array as Float32Array
+    const faa = fillAlpha.array as Float32Array
 
     // **絞り込みが先、強調が後。** changedOnly で残ったものの中で選択を目立たせる
     const sel = this.highlight.selected
@@ -428,15 +489,25 @@ export class SemanticsMesh {
     const rgb = new Float32Array(this.assertions.length * 3)
     const hide = new Uint8Array(this.assertions.length)
     const lrgb = new Float32Array(this.assertions.length * 3)
+    const alpha = new Float32Array(this.assertions.length).fill(1)
     this.assertions.forEach((a, i) => {
       const changed = a ? decisionChanged(a, s.waterLevel, s.roadThresholds, s.pair) : false
+      const isRoad = a?.featureType === 'tran:Road'
+      const depth = a ? featureDepth(a, s.condition, s.waterLevel) : 0
       let c: [number, number, number]
       if (s.changedOnly && !changed) { hide[i] = 1; c = [0, 0, 0] }
+      else if (isRoad && !s.roads) { hide[i] = 1; c = [0, 0, 0] }
       else if (a?.unreliable) c = [0.43, 0.43, 0.47]
+      // **道路の塗りは通行支障だけを表す。** 判定が変わったことは輪郭（黄）が担う。
+      // 塗りに 2 つの意味（判定変化の赤 / 通行支障）を載せると、
+      // どちらを見ているのか画面から決められない
+      else if (isRoad) c = depth > 0 ? ROAD_WET[roadClass(depth, s.roadThresholds)] : ROAD_DRY
       else if (changed) c = [0.95, 0.27, 0.20]
-      else if (a && featureDepth(a, s.condition, s.waterLevel) > 0) c = [0.27, 0.51, 0.78]
+      else if (depth > 0) c = [0.27, 0.51, 0.78]
       else c = [0.75, 0.76, 0.80]
-      let l: [number, number, number] = changed ? [1.0, 0.86, 0.47] : [0.08, 0.09, 0.13]
+      alpha[i] = isRoad ? ROAD_ALPHA : 1
+      let l: [number, number, number] = changed ? [1.0, 0.86, 0.47]
+        : isRoad ? ROAD_LINE : [0.08, 0.09, 0.13]
 
       if (i === sel) {
         // 選択中だけは減光を掛けず、輪郭を白にして最前面に見せる
@@ -460,6 +531,7 @@ export class SemanticsMesh {
       fa[v * 3] = rgb[fi * 3]
       fa[v * 3 + 1] = rgb[fi * 3 + 1]
       fa[v * 3 + 2] = rgb[fi * 3 + 2]
+      faa[v] = alpha[fi]
     }
     for (let v = 0; v < this.outline.vertFeature.length; v++) {
       const fi = this.outline.vertFeature[v]
@@ -469,6 +541,7 @@ export class SemanticsMesh {
     }
     fillCol.needsUpdate = true
     lineCol.needsUpdate = true
+    fillAlpha.needsUpdate = true
     this.hidden = hide
   }
 

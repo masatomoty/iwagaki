@@ -56,8 +56,15 @@ export interface ComparisonPair {
   to: TerrainCondition
 }
 
-/** PLATEAU 建物をどの属性で塗り分けるか。コード -> 色 は view/buildingColor.ts */
-export type BuildingColorMode = 'none' | 'class' | 'usage'
+/**
+ * PLATEAU 建物をどの属性で塗り分けるか。コード -> 色 は view/buildingColor.ts。
+ *
+ * `depth` だけは**属性ではなく水位から決まる**。地物 assertion の
+ * `groundElev` / `hConn` を gml_id で b3dm の batch table に結合し、
+ * `depth = H - 地盤高` を床上閾値（既定 0.50 m）で切る。
+ * 潮位を動かしても再取得も作り直しも起きない（uniform が変わるだけ）。
+ */
+export type BuildingColorMode = 'none' | 'class' | 'usage' | 'depth'
 
 /** 地物ごとの derived assertion（docs/design.md「PLATEAU を書き換えない」） */
 export interface FeatureAssertion {

@@ -79,11 +79,17 @@ def main() -> int:
     # 解析が持っている 4 条件すべてを地物に結合する。
     # 以前は baseline / highres だけで、**点群融合地形での判定が地物単位で
     # 出ていなかった**（docs/todo.md A2）。0.5 m 格子のものは upsample しない。
+    # **無い条件は飛ばす。** 点群は吉原にしか無く、面的表示用の 2 範囲には
+    # `dtm_pointcloud_050.tif` も `h_conn_pointcloud.tif` も作られない
+    # （`config.CONDITIONS_BY_AOI`）。`scripts/30` と `scripts/40` も同じ規則。
     terrains = {}
     for name, fname in (("baseline", "dtm_baseline_500.tif"),
                         ("highres", "dtm_highres_050.tif"),
                         ("control", "dtm_control_500.tif"),
                         ("pointcloud", "dtm_pointcloud_050.tif")):
+        if not (OUT / fname).exists() or not (OUT / f"h_conn_{name}.tif").exists():
+            print(f"  {name}: skip（{fname} または h_conn が無い）")
+            continue
         e, _, nd = read(OUT / fname)
         e[e == nd] = np.nan
         hc, _, nd2 = read(OUT / f"h_conn_{name}.tif")

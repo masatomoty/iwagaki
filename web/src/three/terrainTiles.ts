@@ -12,7 +12,7 @@ import { decodeTileImage } from '../assets/packing'
 import type { Scheduler } from '../net/scheduler'
 import type { RequestClass } from '../net/types'
 import {
-  applyFloodUniforms, createFloodMaterial, floodGeometry, makeTileTexture,
+  applyFloodUniforms, createFloodMaterial, FLOOD_PASS, floodGeometry, makeTileTexture,
   type FloodUniformValues,
 } from './floodMaterial'
 import { lngLatToWorld, tileBoundsLngLat, tilesInBounds, type LocalFrame, type TileId } from './mercator'
@@ -41,6 +41,12 @@ interface TileEntry {
   id: TileId
   mesh?: Mesh
   material?: ShaderMaterial
+  /**
+   * 水面。**同じジオメトリ・同じテクスチャを 2 枚目のメッシュで描く**
+   * （`floodMaterial.ts` の FLOOD_PASS）。ネットワークは一切増えない
+   */
+  water?: Mesh
+  waterMaterial?: ShaderMaterial
   elev?: Texture
   diff?: Texture
   state: 'loading' | 'ready' | 'failed'
@@ -159,13 +165,17 @@ export class TerrainTiles {
     const [xw, ys] = lngLatToWorld(this.o.frame, w, s)
     const [xe, yn] = lngLatToWorld(this.o.frame, e, n)
 
-    const material = createFloodMaterial()
+    const material = createFloodMaterial(FLOOD_PASS.ground)
+    const waterMaterial = createFloodMaterial(FLOOD_PASS.water)
     entry.elev = makeTileTexture(image)
     entry.diff = diffImage ? makeTileTexture(diffImage) : undefined
-    material.uniforms.elevTexture.value = entry.elev
-    material.uniforms.diffTexture.value = entry.diff ?? entry.elev
-    material.uniforms.uHasDiff.value = entry.diff ? 1 : 0
+    for (const m of [material, waterMaterial]) {
+      m.uniforms.elevTexture.value = entry.elev
+      m.uniforms.diffTexture.value = entry.diff ?? entry.elev
+      m.uniforms.uHasDiff.value = entry.diff ? 1 : 0
+    }
     entry.material = material
+    entry.waterMaterial = waterMaterial
     entry.worldBounds = [xw, ys, xe, yn]
     // タイル 1 テクセルの実距離。法線計算に使う
     entry.metersPerTexel = Math.abs(yn - ys) / 256
@@ -176,16 +186,30 @@ export class TerrainTiles {
     mesh.visible = false
     entry.mesh = mesh
     this.group.add(mesh)
+
+    // 水面は地形の後・地物の前に描く（地物 = renderOrder 10）。
+    // 深度は書かないので、後から描かれる地物ポリゴンと PLATEAU 建物は水面に隠れない
+    const water = new Mesh(floodGeometry(), waterMaterial)
+    water.frustumCulled = false
+    water.renderOrder = this.o.renderOrder + 5
+    water.visible = false
+    entry.water = water
+    this.group.add(water)
+
     this.applyTo(entry)
   }
 
   private applyTo(t: TileEntry) {
-    if (!t.material || !t.worldBounds) return
-    applyFloodUniforms(t.material, {
+    if (!t.worldBounds) return
+    const v = {
       ...this.uniforms,
       worldBounds: t.worldBounds,
       metersPerTexel: t.metersPerTexel ?? 1,
-    })
+    }
+    if (t.material) applyFloodUniforms(t.material, v)
+    if (t.waterMaterial) applyFloodUniforms(t.waterMaterial, v)
+    // 水面は地形メッシュが見えているタイルにだけ張る（best-available の祖先も含む）
+    if (t.water) t.water.visible = this.uniforms.waterSurface && !!t.mesh?.visible
   }
 
   /**
@@ -214,6 +238,7 @@ export class TerrainTiles {
     }
     for (const [k, t] of this.tiles) {
       if (t.mesh) t.mesh.visible = show.has(k)
+      if (t.water) t.water.visible = show.has(k) && this.uniforms.waterSurface
     }
     // deck.gl の TileLayer は viewport が変わるたびに「満たされた」を報告する。
     // 「欠けてから揃った」を条件にすると発火しない: AOI は z16 で 2x2 しかなく、
@@ -242,7 +267,9 @@ export class TerrainTiles {
     const t = this.tiles.get(k)
     if (!t) return
     if (t.mesh) this.group.remove(t.mesh)
+    if (t.water) this.group.remove(t.water)
     t.material?.dispose()
+    t.waterMaterial?.dispose()
     t.elev?.dispose()
     t.diff?.dispose()
     this.tiles.delete(k)

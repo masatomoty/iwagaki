@@ -17,7 +17,8 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from iwagaki.config import H_STEP, OUT, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES, ROOT
+from iwagaki.config import (asset_name, H_STEP, OUT, REPRESENTATIVE_H,
+                            ROAD_DEPTH_CLASSES, ROOT)
 
 mod = __import__("80_build_web_tiles")
 decode, WEB_DATA = mod.decode, mod.WEB_DATA
@@ -27,7 +28,18 @@ DEST = ROOT / "web" / "test" / "fixtures"
 
 def main() -> int:
     rng = random.Random(7)
-    tiles = sorted((WEB_DATA / "tiles" / "highres").rglob("*.png"))
+    # **`scripts/83` を通したあとは名前に内容ハッシュが付いている**
+    # （`highres-a0daede5`）。素の名前しか見ていなかったので、80 -> 83 -> 85 の
+    # 順で回すと 0 枚になって空のフィクスチャを書いていた
+    base = asset_name("highres")
+    src = WEB_DATA / "tiles" / base
+    if not src.is_dir():
+        hashed = sorted(d for d in (WEB_DATA / "tiles").glob(f"{base}-*") if d.is_dir())
+        if not hashed:
+            raise SystemExit(f"tiles/{base} が無い。scripts/80 を先に実行する")
+        src = hashed[-1]
+    tiles = sorted(src.rglob("*.png"))
+    print(f"sampling from {src.name}: {len(tiles)} tiles")
     samples = []
     for p in tiles[:: max(1, len(tiles) // 6)][:6]:
         rgba = np.asarray(Image.open(p).convert("RGBA"))

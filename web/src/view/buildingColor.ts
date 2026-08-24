@@ -6,12 +6,13 @@
 //
 // 属性値は b3dm の batchTableJson から取る（objects.geojson ではない）。
 // batch table は `bldg:class` / `bldg:usage` を **表示名で** 持っているうえ、
-// 解析対象 694 棟の外にある建物にも付いている（3D Tiles の全 2,005 棟に付く）。
+// 解析対象 930 棟の外にある建物にも付いている（3D Tiles の全 2,005 棟に付く）。
 // 表示名 -> コード は catalog.semantics.codelists（CityGML 配布 zip 同梱の
 // コードリスト由来）で引き、色はコードに対して固定する = 表示名の揺れに依存しない。
 
+import { featureDepth } from '../domain/flood'
 import type { Catalog } from '../domain/catalog'
-import type { BuildingColorMode } from '../domain/types'
+import type { BuildingColorMode, FeatureAssertion, TerrainCondition } from '../domain/types'
 
 export type Rgb = [number, number, number]
 
@@ -19,7 +20,74 @@ export const BUILDING_COLOR_MODES: { id: BuildingColorMode; label: string }[] = 
   { id: 'none', label: 'なし' },
   { id: 'usage', label: '用途' },
   { id: 'class', label: '分類' },
+  { id: 'depth', label: '浸水深（床下・床上）' },
 ]
+
+/**
+ * 床上浸水とみなす浸水深 [m]。**閾値は地盤面からの水深**である。
+ *
+ * 外部からの要望（2026-08）が「浸水深 50cm を基準に床下浸水・床上浸水で
+ * 建物の色を区別できないか」だったので 0.50 m を既定にしている。
+ * catalog に `semantics.floor_above_depth_m` があればそちらを使う。
+ *
+ * **PLATEAU LOD1 は床高を持たない。** したがってこれは「地盤から 50 cm 浸かった」の
+ * 意味であって、その建物の床面を超えたことの証明ではない。土間高は建物ごとに違う。
+ * さらに `docs/results.md`「実際の被害記録との突き合わせ」の 2 点が効く:
+ *   - 実測の被害記録は **床上 0 戸 / 床下 39・19 戸**、浸水位 1〜20 cm だった
+ *     （潮位 0.68 / 0.67 m T.P.）。**要望の「そこまで上がる場所は少ない」は記録と一致する**
+ *   - **「浸水位」の定義そのものが未確認**（地盤面からの水深か床面からの高さか）で、
+ *     市に照会中（`docs/todo.md` 中 4）。定義が後者なら閾値の意味が変わる
+ */
+export const FLOOR_ABOVE_DEPTH_M = 0.5
+
+/** 浸水深の区分。順序は凡例の並び */
+export const DEPTH_CLASSES: { id: 'dry' | 'under' | 'above'; label: string; hex: string }[] = [
+  { id: 'dry', label: '非浸水', hex: '#c9cbd0' },
+  { id: 'under', label: '床下浸水', hex: '#f4c542' },
+  { id: 'above', label: '床上浸水', hex: '#c62828' },
+]
+
+export const DEPTH_HEX: Record<'dry' | 'under' | 'above', string> =
+  Object.fromEntries(DEPTH_CLASSES.map((c) => [c.id, c.hex])) as never
+
+/** 浸水深 [m] -> 区分。閾値は「以上」で床上（0.50 m ちょうどは床上） */
+export function depthClass(depth: number, floor: number): 'dry' | 'under' | 'above' {
+  if (depth <= 0) return 'dry'
+  return depth >= floor ? 'above' : 'under'
+}
+
+/**
+ * 浸水深の凡例。**属性ではなく水位から決まる**ので、
+ * 用途の凡例（batch table の値を数える legendOf）とは別に作る。
+ *
+ * **数えるのは解析対象の全建物**（`objects.geojson` の assertion）で、
+ * 画面に読み込めた b3dm タイルではない。3D Tiles は視野の外を取りに行かないので、
+ * タイルを数えると **625 ha の範囲では数がパンするたびに変わる**（吉原 100 ha は
+ * 22 枚が必ず全部届くので気づけなかった）。「この範囲で床上が何棟」は
+ * 視野に依らない事実として出すべき値である。
+ */
+export function depthLegend(
+  assertions: Iterable<FeatureAssertion>,
+  condition: TerrainCondition, waterLevel: number, floor: number,
+): LegendEntry[] {
+  const counts = { dry: 0, under: 0, above: 0 }
+  let unreliable = 0
+  let n = 0
+  for (const a of assertions) {
+    if (a.featureType !== 'bldg:Building') continue
+    n++
+    // 橋梁・高架などは地盤高が意味を持たない。塗りでも別色にしてあるので分けて出す
+    if (a.unreliable) { unreliable++; continue }
+    counts[depthClass(featureDepth(a, condition, waterLevel), floor)]++
+  }
+  if (n === 0) return []
+  const rows: LegendEntry[] = DEPTH_CLASSES
+    .map((c) => ({ label: c.label, hex: c.hex, count: counts[c.id] }))
+    // 非浸水は常に出す（0 件でも「0 棟」に意味がある）。ほかは出たときだけ
+    .filter((r, i) => i === 0 || r.count > 0)
+  if (unreliable > 0) rows.push({ label: '地盤高が不定', hex: UNKNOWN_HEX, count: unreliable })
+  return rows
+}
 
 /** 属性値が空の建物。塗ったものと区別できる中間グレー */
 export const UNKNOWN_HEX = '#9aa0a6'
