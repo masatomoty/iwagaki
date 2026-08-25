@@ -48,7 +48,7 @@ IWAGAKI_AOI=higashi_maizuru scripts/build_web.sh
 
 ```bash
 scripts/run_all.sh        # 取得 → 地形 → 浸水 → 比較 → 地物結合 → 図
-scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・catalog）
+scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・線路・catalog）
 ```
 
 初回は京都府 DEM タイル 4 枚（各 12 MB）と PLATEAU CityGML 4 メンバー（計 1.25 GB）を取得する。

@@ -102,9 +102,14 @@ function conditionsOf(catalog: Catalog) {
   return have.length ? have : CONDITIONS
 }
 
-/** 点群が無い範囲では「点群」のチェックを出さない（押しても何も出ない） */
+/**
+ * その範囲に無いレイヤのチェックは出さない（押しても何も出ないので）。
+ * 点群は吉原だけ、線路は逆に**吉原だけ無い**（100 ha に線路が掛からない）。
+ */
 function layersOf(catalog: Catalog) {
-  return LAYERS.filter((l) => l.key !== 'pointcloud' || !!catalog.pointcloud?.url)
+  return LAYERS.filter((l) =>
+    (l.key !== 'pointcloud' || !!catalog.pointcloud?.url)
+    && (l.key !== 'railway' || !!catalog.railway?.url))
 }
 
 const surfaceCondition = (s: SurfaceMode): TerrainCondition => comparisonPair(s).to
@@ -118,7 +123,7 @@ const isDiff = (s: SurfaceMode) =>
  * どちらも**配信物が増えないので既定 ON にできる**（水面は同じタイルを 2 回描くだけ、
  * 道路は前から objects.geojson に入っていて描いてもいた）。
  */
-type LayerKey = 'waterSurface' | 'ponded' | 'roads' | 'plateau' | 'pointcloud'
+type LayerKey = 'waterSurface' | 'ponded' | 'roads' | 'railway' | 'plateau' | 'pointcloud'
 const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'waterSurface', label: '水面',
     hint: '潮位の高さに水平な水面を張る。切ると浸水域を地面の色だけで見る' },
@@ -128,6 +133,9 @@ const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
       + '逆流はモデルに含まないので、印だけを重ねている' },
   { key: 'roads', label: '道路（PLATEAU）',
     hint: '浸かると通行支障クラスで塗る。閾値は解析側の 0.1 / 0.3 / 0.5 m' },
+  { key: 'railway', label: 'JR 線路',
+    hint: 'PLATEAU に鉄道は入っていないので国土数値情報（鉄道データ）から取った。'
+      + '市が「表示範囲の東側をここまで」と指した基準線そのもの' },
   { key: 'plateau', label: 'PLATEAU 建物' },
   { key: 'pointcloud', label: '点群' },
 ]
@@ -183,6 +191,12 @@ function legendHtml(
           .map((h) => `<i style="background:${h}"></i>`).join('')
         + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
       : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
+  }
+  // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
+  if (s.layers.railway && s.catalog.railway) {
+    rows.push('<div><i style="background:'
+      + 'repeating-linear-gradient(90deg,#171a1f 0 4px,#f2f4f8 4px 8px)"></i>'
+      + `JR 線路<span class="sub"> ${s.catalog.railway.lines.join(' / ')}</span></div>`)
   }
   return `<div class="legend">${rows.join('')}</div>`
 }

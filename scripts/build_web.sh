@@ -18,6 +18,10 @@ if [ "$AOI" = "yoshiwara" ] \
   $PY scripts/81_build_pointcloud_sample.py
 fi
 $PY scripts/82_build_plateau_subset.py   # PLATEAU 3D Tiles の AOI サブセット
+# JR 線路（国土数値情報 N02）。**PLATEAU 舞鶴市に鉄道は入っていない。**
+# 取得系（10・11）ではなくここで回すのは、頂点に 0.5m DEM の標高を焼き込むので
+# scripts/21 の出力が要るため。線路が掛からない範囲では何も置かない
+$PY scripts/12_fetch_railway.py
 if [ "$AOI" = "yoshiwara" ]; then
   $PY scripts/86_tide_levels.py          # 潮位の基準線（験潮場 1 点なので範囲に依らない）
 else

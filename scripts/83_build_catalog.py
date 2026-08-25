@@ -16,7 +16,7 @@ import pyproj
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, AOI_LABELS, AOIS, asset_name, catalog_name,
+from iwagaki.config import (AOI, AOI_LABELS, AOIS, ATTRIBUTION_RAILWAY, asset_name, catalog_name,
                             CRS_ANALYSIS, DEFAULT_AOI, H_MAX, H_MIN, H_STEP, OUT, RAW,
                             FLOOR_ABOVE_DEPTH, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
                             TP_OF_MSL,
@@ -130,6 +130,25 @@ def pc_coverage() -> dict:
     q = WEB_DATA / name
     props = json.loads(q.read_text())["features"][0]["properties"]
     return {"url": f"data/{name}", "bytes": q.stat().st_size, **props}
+
+
+def railway() -> dict:
+    """`scripts/12` が切り出した線路。無ければ空で返す。
+
+    **PLATEAU 舞鶴市に鉄道は無い**ので、これだけ国土数値情報 (N02) 由来である
+    （`scripts/12_fetch_railway.py`）。AOI に線路が無い範囲（吉原 100 ha）では
+    ファイルごと置いていないので、ここも空になる。
+    """
+    p = WEB_DATA / asset_name("railway.geojson")
+    stem = p.stem
+    if not p.exists() and not list(WEB_DATA.glob(f"{stem}-*.geojson")):
+        return {}
+    name = publish_file(p)
+    q = WEB_DATA / name
+    props = json.loads(q.read_text(encoding="utf-8"))["properties"]
+    return {"url": f"data/{name}", "bytes": q.stat().st_size,
+            "length_m": props["length_m"], "lines": props["lines"],
+            "source": props["source"]}
 
 
 def versioned_urls(tiles: dict | None, tiles3d: dict | None) -> None:
@@ -374,6 +393,9 @@ def main() -> int:
         # 点群が地表面として効いている範囲。AOI 100 ha に対して 3 ha しか無いので、
         # 明示しないと「点群で高精度に見た結果」が全域に効いているように読める
         **({"pointcloud_coverage": pc_coverage()} if pc_coverage() else {}),
+        # 市が「東側をここまで」と指した基準線そのもの（`docs/todo.md`）。
+        # 線路が AOI に掛からない範囲では鍵ごと落とす
+        **({"railway": railway()} if railway() else {}),
         # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）。
         # **空なら鍵ごと落とす。** `{}` を置くと読み側で truthy になり、
         # `default_section.from[0]` で落ちる（面的表示用の範囲で実際に落ちた）
@@ -392,7 +414,8 @@ def main() -> int:
             },
             "go_no_go": summary["go_no_go"]["result"],
         },
-        "attribution": ATTRIBUTION,
+        # **使ったデータの出典だけを並べる。** 線路が掛からない範囲では N02 を足さない
+        "attribution": ATTRIBUTION + ([ATTRIBUTION_RAILWAY] if railway() else []),
     }
     catalog["totals_bytes"]["all"] = sum(
         v for k, v in catalog["totals_bytes"].items() if k != "all")

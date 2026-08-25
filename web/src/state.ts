@@ -27,6 +27,14 @@ export interface LayerToggles {
    * 「浸水しない」と同じ灰で潰さずに出す。切れるようにはしてある
    */
   ponded: boolean
+  /**
+   * JR 線路（国土数値情報 N02）を出すか。既定 ON。
+   *
+   * 市の要望（2026-08）が **JR 線路を赤破線で示して「表示範囲の東側をここまで」**
+   * だったので、**その基準線が画面に無いと「どこまで広げたのか」が読めない**。
+   * catalog に `railway` が無い範囲（吉原 100 ha）では選択肢ごと出さない。
+   */
+  railway: boolean
   plateau: boolean
   pointcloud: boolean
   semantics: boolean
@@ -85,7 +93,8 @@ export function initialState(catalog: Catalog): AppState {
     waterLevel: catalog.water_level.reference_levels_m_tp?.['MSL']
       ?? catalog.water_level.representative[0] ?? 1.0,
     layers: {
-      flood: true, ground: true, waterSurface: true, ponded: true, plateau: true,
+      flood: true, ground: true, waterSurface: true, ponded: true,
+      railway: true, plateau: true,
       // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
       // GPU 44 MB / 転送 14 MB を使う（docs/web_results.md「点群の配信」）
       pointcloud: false, semantics: true, roads: true, changedOnly: false,

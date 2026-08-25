@@ -113,6 +113,33 @@ zip の namelist と突き合わせて確認した（全 691 メンバー / `bld
 `382` / `383`）は **bldg / tran とも全部ある**ことを namelist で確認した [実測]。
 dem の象限は増えない（6 枚とも 2 次メッシュ `533513` の行 6〜8・列 2〜3 = 象限 `50`）。
 
+### 鉄道は入っていない **[実測]**（2026-08-25）
+
+**PLATEAU 舞鶴市（2025年度）に鉄道データは無い。** zip の namelist を数えると
+`udx/` 配下は `bldg` 81 / `tran` 83 / `dem` 24 / `fld` 155 / `urf` 21 /
+`lsld` 10 / `luse` 8 / `tnm` 7 で、**`rwy` が無い**（あるのは
+`codelists/Railway_*.xml` だけ）。`tran` の中身も `tran:Road` のみで、
+`tran:Railway` / `tran:Track` は 0 件だった（`53351371` で 203 件、
+`53351372` で 465 件、いずれも全部 Road）。
+
+市の要望（2026-08）が **JR 線路を赤破線で示して「表示範囲の東側をここまで」**
+だったので、**基準線そのものが画面に無い**と広げた範囲の意味が読めない。
+そこで線路だけ**国土数値情報「鉄道」(N02)** から取る（`scripts/12_fetch_railway.py`）。
+
+| | |
+|---|---|
+| 取得元 | `https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-25/N02-25_GML.zip`（**全国版で 14.9 MB**） |
+| 使うメンバー | `N02-25_GML/UTF-8/N02-25_RailroadSection.geojson`（全国 21,933 区間） |
+| 配布 CRS | `urn:ogc:def:crs:EPSG::6668`（JGD2011 経緯度）。本解析と同じ系 |
+| 頂点間隔 | 舞鶴周辺で中央 42〜66 m / **最大 332 m** [実測]。**AOI で切る前に 5 m へ割る**（素のまま頂点で切ると矩形の縁が最大 332 m ずれる） |
+| AOI 内の延長 | 東舞鶴 **2.77 km**（小浜線・舞鶴線）／ 西舞鶴 **1.27 km**（舞鶴線）／ 吉原 **0**（100 ha に線路が掛からない） |
+
+**Z は 0.5m DEM から焼き込む。** viewer 側で地形を引き直さずに描け、
+鉛直強調を掛けても地面から浮かない。東舞鶴の線路は標高 0.3〜15.8 m を通る。
+
+出典表記は**線路を出す範囲にだけ足す**（`config.ATTRIBUTION_RAILWAY`）。
+吉原には線路が無いので、使っていないデータの出典を並べない。
+
 ### 建物・道路の属性 **[実測: metadata/udx_26202_2025_resource.csv]**
 
 - `bldg:Building`: `bldg:class`/`usage`/`yearOfConstruction`/`measuredHeight`/`storeysAboveGround`/`lod0RoofEdge`/`lod1Solid`

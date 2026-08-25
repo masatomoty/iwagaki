@@ -28,6 +28,7 @@ import type { PlateauTiles } from './three/plateauTiles'
 // 高 RTT では往復のほうが 2 桁高い（fatpipe-highrtt 405 ms / slow-highrtt 568 ms、
 // 対して JSON 解釈は 3〜7 ms・三角形化は 7〜9 ms。docs/web_results.md
 // 「objects.geojson のパースコストは 3 ms、遅延ロードの往復が 568 ms」）
+import { createRailwayLine, type RailwayLine } from './three/railwayLine'
 import { createCoverageOutline, SemanticsMesh } from './three/semanticsMesh'
 import { TerrainTiles } from './three/terrainTiles'
 import { FOV_Y_DEG, type Viewer } from './three/viewer'
@@ -296,6 +297,7 @@ async function boot() {
     viewer.world.add(semantics.group)
     refresh()
     void loadPcCoverage()
+    void loadRailway()
   })()
 
   // ---- PLATEAU ----------------------------------------------------------
@@ -384,6 +386,26 @@ async function boot() {
       const data = JSON.parse(new TextDecoder().decode(b))
       coverage = createCoverageOutline(frame, data, geoid)
       viewer.world.add(coverage)
+      refresh()
+    } catch {
+      // 表示の補助なので、取れなくても地図は動かす
+    }
+  }
+
+  // ---- JR 線路 ------------------------------------------------------------
+  /**
+   * 市が「表示範囲の東側をここまで」と赤破線で指した基準線そのもの（19 kB）。
+   * **クラスは prefetch。** 無くても地図は成立する種類の情報なので、何も待たせない。
+   * 標高は `scripts/12` が 0.5m DEM から焼き込んであるので、地形タイルを待たない。
+   */
+  let railway: RailwayLine | undefined
+  async function loadRailway() {
+    const a = catalog.railway
+    if (!a?.url || railway) return
+    try {
+      const b = await scheduler.submit({ key: 'railway', url: a.url, cls: 'prefetch' })
+      railway = createRailwayLine(frame, JSON.parse(new TextDecoder().decode(b)), geoid)
+      viewer.world.add(railway.object)
       refresh()
     } catch {
       // 表示の補助なので、取れなくても地図は動かす
@@ -652,6 +674,11 @@ async function boot() {
     }
     // 3D Tiles は実高のままなので、地形を鉛直強調すると噛み合わない
     if (coverage) coverage.visible = s.layers.pcCoverage
+    if (railway) {
+      railway.object.visible = s.layers.railway
+      // 標高は頂点に焼いてあるので、鉛直強調は uniform 1 個で済む
+      railway.setExaggeration(s.exaggeration)
+    }
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない
     plateau?.setWaterLevel(s.waterLevel)

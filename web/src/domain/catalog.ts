@@ -60,6 +60,13 @@ export interface Catalog {
    */
   default_section?: { from: [number, number]; to: [number, number]
                       length_m: number; why: string }
+  /**
+   * JR 線路（国土数値情報 N02）。**PLATEAU 舞鶴市に鉄道は無い**ので別データ由来
+   * （`scripts/12_fetch_railway.py`）。市が「東側をここまで」と指した基準線そのもの。
+   * **線路が AOI に掛からない範囲（吉原 100 ha）では鍵ごと無い。**
+   */
+  railway?: { url: string; bytes: number; length_m: number
+              lines: string[]; source: string }
   /** 点群が地表面として効いている範囲の輪郭。無い配信物もあるので optional */
   pointcloud_coverage?: { url: string; bytes: number
                           area_ha_cells: number; area_ha_outline: number
