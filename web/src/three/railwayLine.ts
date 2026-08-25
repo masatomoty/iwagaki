@@ -19,27 +19,33 @@
 // 4. ワールド 16 m のリボン ＋ マゼンタ → **描画順を直したら読めた。**
 //    ただし「ピンクは微妙」と再指摘。原因が色でなかった以上、
 //    色は素直に地図の慣例へ戻してよい
-// 5. いま: **黒の縁 ＋ 黒白の刻み**（地形図・Google マップの鉄道記号）
+// 5. 幅 16 m・黒の縁・黒白の刻み・`depthTest` なし → **「浮いている」「紙の地図や
+//    Google マップはこんなにはっきりさせない」と指摘。** そのとおりで、
+//    見えなかった時期の埋め合わせで太く・強くしすぎていた
+// 6. いま: **幅 7 m・低コントラスト・道路と同じ深度の扱い**
 //
 // ## 決めごと
 //
 // - **幅は 16 m。** 複線の路盤（9 m）より広いが、これは軌道の実寸ではなく
 //   **参照線の太さ**である。4 km 幅の起動画面で 4 px あり、そこで消えないことを
 //   実寸より優先した（鉄道用地としては法面・保安用地を含めた幅に近い）
-// - **色は無彩色に戻した。** 一度マゼンタにしたが「ピンクは微妙」と指摘を受けた。
+// - **色は無彩色。** 一度マゼンタにしたが「ピンクは微妙」と指摘を受けた。
 //   **色相を消費しない**のはむしろ望ましい（画面の色は 1 つの予算で、
 //   地面＝灰 / 建物＝灰・黄・赤 / 水＝青 / 道路＝ほぼ白 / 窪地＝薄い水色 が
-//   埋まっている。`docs/web_design.md`「画面の色は 1 つの予算である」）。
-//   最初に無彩色で読めなかったのは色のせいではなく描画順のせいだったので、
-//   そこを直した今は**地図の慣例（地形図・Google マップの鉄道記号）**で成立する
-// - **縁は黒、中は黒白の刻み。** 縁を黒で締めるのが要点で、これが無いと
-//   一律ほぼ白の道路と白の刻みが融ける。刻みは 14 m 周期
+//   埋まっている。`docs/web_design.md`「画面の色は 1 つの予算である」）
+// - **主張は弱くする。** 線路は主題（浸水）ではなく**基準線**である。
+//   幅は実寸どおりの 7 m、色は純黒・純白ではなく濃灰と生成り。
+//   **紙の地図と同じで、探せば読めるが目を引かない**強さに置く。
+//   不透明度 0.92 は「引いたときに点が消えない」下限として決めた
+//   （0.85 まで落とすと 4 km 幅の起動画面で見失う）
+// - **道路と同じ深度の扱いにする。** `depthTest` を切って最前面に出していたので、
+//   地形と建物の上を素通しで走って**浮いて見えた**。道路（`semanticsMesh` の
+//   `material()`）と同じく `depthTest: true` / `depthWrite: false` にして、
+//   z を +0.12 m だけ持ち上げる（道路の輪郭が +0.10 m。その少し上）
 // - **刻みはフラグメントで作る。** 累積距離を varying で渡す。頂点属性で持つと
 //   頂点間で補間されて縞の境目がぼける
 // - **標高はここで引かない。** 各頂点の Z は `scripts/12` が 0.5m DEM から
 //   焼き込んである。地形タイルを待たずに描け、鉛直強調は uniform 1 個で済む
-// - **`depthTest` は切る。** 参照線なので、山や建物の裏に隠れると用を成さない
-//   （点群の被覆輪郭と同じ扱い。`semanticsMesh.ts` の `createCoverageOutline`）
 // - **Group に入れて Group 側の `renderOrder` を上げる。** これを知らずに
 //   Mesh の `renderOrder` だけ 40 にしていたので、**道路と建物に上塗りされて
 //   ほとんど見えていなかった**（1.3 km の線が画面に 100 px しか残らなかった [実測]）。
@@ -53,14 +59,16 @@ import {
 
 import { lngLatToWorld, type LocalFrame } from './mercator'
 
-/** リボンの幅 [m]。軌道の実寸ではなく**参照線の太さ**（上の決めごと） */
-const WIDTH_M = 16
+/** リボンの幅 [m]。複線の路盤の実寸。**太くしない**（上の決めごと） */
+const WIDTH_M = 7
 /** 枕木の刻みの周期 [m] */
-const TICK_M = 14
-/** 1 周期のうち黒が占める割合 */
-const TICK_DUTY = 0.5
-/** 黒で締める縁の厚み（半幅に対する割合）。**道路の白と融けないための要** */
-const EDGE = 0.34
+const TICK_M = 11
+/** 1 周期のうち濃い側が占める割合 */
+const TICK_DUTY = 0.38
+/** 濃い側で締める縁の厚み（半幅に対する割合） */
+const EDGE = 0.24
+/** 地形メッシュ・道路と z-fight させないための持ち上げ [m]（道路の輪郭が 0.10） */
+const Z_BIAS = 0.12
 
 export interface RailwayFeature {
   properties?: { line?: string; operator?: string }
@@ -78,7 +86,8 @@ out float vSide;
 void main() {
   vDist = aDist;
   vSide = aSide;
-  vec3 p = vec3(position.xy, uGeoid + aElev * uExaggeration);
+  // 道路（semanticsMesh）と同じ形。地形と z-fight させないぶんだけ持ち上げる
+  vec3 p = vec3(position.xy, uGeoid + aElev * uExaggeration + ${Z_BIAS.toFixed(2)});
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
 `
@@ -89,9 +98,11 @@ in float vDist;
 in float vSide;
 out vec4 c;
 void main() {
-  const vec4 INK  = vec4(0.05, 0.06, 0.08, 0.98);   // 黒
-  const vec4 PAPER = vec4(0.98, 0.98, 1.00, 0.98);  // 白
-  // 縁は黒で締める。これが無いと白の刻みが一律ほぼ白の道路と融ける
+  // **純黒・純白にしない。** 紙の地図の鉄道記号と同じで、探せば読めるが
+  // 目を引かない濃さに置く（不透明度も道路の輪郭と同じ 0.85）
+  const vec4 INK   = vec4(0.11, 0.13, 0.16, 0.92);
+  const vec4 PAPER = vec4(0.90, 0.91, 0.94, 0.92);
+  // 縁を締める。これが無いと明るい刻みが一律ほぼ白の道路と融ける
   if (abs(vSide) > ${(1.0 - EDGE).toFixed(2)}) { c = INK; return; }
   c = fract(vDist / ${TICK_M}.0) < ${TICK_DUTY.toFixed(2)} ? INK : PAPER;
 }
@@ -163,7 +174,9 @@ export function createRailwayLine(
     vertexShader: VS,
     fragmentShader: FS,
     transparent: true,
-    depthTest: false,
+    // **道路と同じ扱い。** 切って最前面に出すと地形と建物の上を素通しで走り、
+    // 「浮いている」と読まれる（`semanticsMesh.ts` の `material()` と同じ）
+    depthTest: true,
     depthWrite: false,
     side: DoubleSide,
     uniforms: { uGeoid: { value: geoid }, uExaggeration: { value: 1 } },

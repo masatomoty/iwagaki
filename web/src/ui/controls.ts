@@ -194,10 +194,10 @@ function legendHtml(
   }
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
   if (s.layers.railway && s.catalog.railway) {
-    // 黒の縁 ＋ 黒白の刻み（`three/railwayLine.ts` と同じ）
+    // 濃灰の縁 ＋ 濃灰/生成りの刻み（`three/railwayLine.ts` と同じ濃さ）
     rows.push('<div><i style="background:'
-      + 'repeating-linear-gradient(90deg,#0d0f14 0 2px,#fafaff 2px 4px);'
-      + 'box-shadow:inset 0 0 0 1.5px #0d0f14"></i>'
+      + 'repeating-linear-gradient(90deg,#242830 0 2px,#e0e3e9 2px 5px);'
+      + 'box-shadow:inset 0 0 0 1px #242830"></i>'
       + `JR 線路<span class="sub"> ${s.catalog.railway.lines.join(' / ')}</span></div>`)
   }
   return `<div class="legend">${rows.join('')}</div>`
