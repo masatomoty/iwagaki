@@ -10,7 +10,7 @@
 // 表示名 -> コード は catalog.semantics.codelists（CityGML 配布 zip 同梱の
 // コードリスト由来）で引き、色はコードに対して固定する = 表示名の揺れに依存しない。
 
-import { featureDepth } from '../domain/flood'
+import { featureDepth, featurePonded } from '../domain/flood'
 import type { Catalog } from '../domain/catalog'
 import type { BuildingColorMode, FeatureAssertion, TerrainCondition } from '../domain/types'
 
@@ -47,19 +47,33 @@ export const FLOOR_ABOVE_DEPTH_M = 0.5
  *
  * 無彩色は明度で 3 段に分ける。**地面（暗）< 建物（中間）< 道路（明）**。
  * 有彩色は 床下＝黄 / 床上＝赤 / 水＝青 で、無彩色とは当たらない。
+ * **窪地は水の色相を薄めて借りる**（新しい色相を足さない）。
  */
-export const DEPTH_CLASSES: { id: 'dry' | 'under' | 'above'; label: string; hex: string }[] = [
+export type DepthClass = 'dry' | 'ponded' | 'under' | 'above'
+
+export const DEPTH_CLASSES: { id: DepthClass; label: string; hex: string }[] = [
   { id: 'dry', label: '非浸水', hex: '#9aa1a8' },
+  // **窪地は床下・床上の手前に置く。** 「浸水しない」より弱い主張ではなく
+  // 「この model では浸水しないが、標高は潮位以下」という別の状態である。
+  // 色は地形側の窪地（`three/floodMaterial.ts` の PONDED = 0.44,0.75,0.80）と
+  // 同じ水色にして、面と棟が同じものを指していることを見せる
+  { id: 'ponded', label: '窪地', hex: '#70bfcc' },
   { id: 'under', label: '床下浸水', hex: '#f4c542' },
   { id: 'above', label: '床上浸水', hex: '#c62828' },
 ]
 
-export const DEPTH_HEX: Record<'dry' | 'under' | 'above', string> =
+export const DEPTH_HEX: Record<DepthClass, string> =
   Object.fromEntries(DEPTH_CLASSES.map((c) => [c.id, c.hex])) as never
 
-/** 浸水深 [m] -> 区分。閾値は「以上」で床上（0.50 m ちょうどは床上） */
-export function depthClass(depth: number, floor: number): 'dry' | 'under' | 'above' {
-  if (depth <= 0) return 'dry'
+/**
+ * 浸水深 [m] -> 区分。閾値は「以上」で床上（0.50 m ちょうどは床上）。
+ *
+ * `ponded` は**浸水深では決まらない**（浸水深は 0 である）。
+ * 地盤高が潮位以下なのに `h_conn` が届いていない状態で、呼び側が
+ * `featurePonded()` で判定して渡す。
+ */
+export function depthClass(depth: number, floor: number, ponded = false): DepthClass {
+  if (depth <= 0) return ponded ? 'ponded' : 'dry'
   return depth >= floor ? 'above' : 'under'
 }
 
@@ -76,8 +90,9 @@ export function depthClass(depth: number, floor: number): 'dry' | 'under' | 'abo
 export function depthLegend(
   assertions: Iterable<FeatureAssertion>,
   condition: TerrainCondition, waterLevel: number, floor: number,
+  showPonded = true,
 ): LegendEntry[] {
-  const counts = { dry: 0, under: 0, above: 0 }
+  const counts: Record<DepthClass, number> = { dry: 0, ponded: 0, under: 0, above: 0 }
   let unreliable = 0
   let n = 0
   for (const a of assertions) {
@@ -85,7 +100,8 @@ export function depthLegend(
     n++
     // 橋梁・高架などは地盤高が意味を持たない。塗りでも別色にしてあるので分けて出す
     if (a.unreliable) { unreliable++; continue }
-    counts[depthClass(featureDepth(a, condition, waterLevel), floor)]++
+    counts[depthClass(featureDepth(a, condition, waterLevel), floor,
+                      showPonded && featurePonded(a, condition, waterLevel))]++
   }
   if (n === 0) return []
   const rows: LegendEntry[] = DEPTH_CLASSES

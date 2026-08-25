@@ -74,6 +74,14 @@ export interface FloodUniformValues {
    * 乾いた地面として描き、**水は水面メッシュだけが持つ**。
    */
   waterSurface: boolean
+  /**
+   * **窪地**（標高 ≤ 潮位 だが `h_conn > 潮位`）を出すか。判定式は
+   * `domain/flood.ts` の `ponded()` と同一で、test/parity が一致を見ている。
+   *
+   * タイルは 1 バイトも増えない。標高（RGB）と `h_conn`（A）はもともと
+   * **同じ画素に入っている**ので、両方を引けばこの画素で判定できる。
+   */
+  ponded: boolean
 }
 
 const DECODE = /* glsl */ `
@@ -192,6 +200,7 @@ uniform float uWaterBase;
 uniform float uHasDiff;
 uniform float uPass;
 uniform float uWaterSurface;
+uniform float uPonded;
 
 in vec2 vUv;
 in float vElev;
@@ -200,6 +209,34 @@ in vec3 vNormal;
 out vec4 fragColor;
 
 ${DECODE}
+
+/** 地面の色。窪地の下地にも使うので関数にしてある */
+vec3 groundColor(float shade) {
+  return vec3(clamp(0.30 + vElev * 0.010, 0.22, 0.72)) * vec3(1.00, 0.99, 0.95) * shade;
+}
+
+/**
+ * **窪地**（標高 ≤ 潮位 だが海と地表面ではつながっていない）の印。
+ *
+ * 浸水域と同じ「面の色」にはしない。**根拠が違うものを同じ強さで塗らない**ためで、
+ * 地面の上に**画面座標の斜線**を重ねる。画面座標で振るのはズームしても縞の太さが
+ * 変わらないようにするためで、そうすると「地形の属性」ではなく
+ * 「こちらが重ねた印」として読める。
+ *
+ * 色は浸水の青（0.45,0.79,0.95 → 0.03,0.18,0.55）より彩度を落とした水色にする。
+ * 画面の色の枠は 地面＝暗い灰 / 建物＝灰・黄・赤 / 水＝青 / 道路＝ほぼ白 で
+ * 埋まっているので、**新しい色相は足さず、水の色相を薄めて借りる**
+ * （docs/web_design.md「画面の色は 1 つの予算である」。**この文字列はテンプレート
+ * リテラルの中なので backtick は書けない**）。
+ */
+vec4 pondedFill(float shade) {
+  const vec3 PONDED = vec3(0.44, 0.75, 0.80);
+  float s = fract((gl_FragCoord.x + gl_FragCoord.y) / 11.0);
+  float stripe = smoothstep(0.40, 0.50, s) * (1.0 - smoothstep(0.90, 1.0, s));
+  vec3 base = uShowGround > 0.5 ? groundColor(shade) : PONDED * 0.34;
+  return vec4(mix(base, PONDED, 0.28 + 0.52 * stripe),
+              max(uGroundOpacity, 0.70));
+}
 
 vec3 depthRamp(float d) {
   vec3 c0 = vec3(0.42, 0.80, 0.95);
@@ -264,8 +301,7 @@ void main() {
     // 差分モードだが差分タイルが無い区画。判定差が「無い」のではなく
     // 「分からない」ので、浸水色は出さず地面だけ描く
     if (uShowGround < 0.5) discard;
-    float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
-    fragColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
+    fragColor = vec4(groundColor(shade), uGroundOpacity);
     return;
   }
   if (uMode > 0.5 && uHasDiff > 0.5) {
@@ -279,8 +315,7 @@ void main() {
       outColor = vec4(vec3(0.20, 0.31, 0.40) * shade, uGroundOpacity);
     } else if (!wb && !wh) {
       if (uShowGround < 0.5) discard;
-      float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
-      outColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
+      outColor = vec4(groundColor(shade), uGroundOpacity);
     } else if (wb && wh) outColor = vec4(vec3(0.16, 0.34, 0.58) * shade, uFloodOpacity);
     else if (wh)         outColor = vec4(vec3(0.93, 0.22, 0.18) * shade, 0.95);
     else                 outColor = vec4(vec3(0.97, 0.82, 0.16) * shade, 0.95);
@@ -290,13 +325,22 @@ void main() {
     bool isWet = hConn <= uWaterLevel;
     bool baseWater = a > 0.0 && hConn <= uWaterBase;
     float depth = isWet ? max(0.0, uWaterLevel - vElev) : 0.0;
+
+    // **窪地。** 標高は潮位以下だが h_conn > 潮位 = 地表面では海とつながらない。
+    // 水面パスはここを捨てる（つながっていないので水位面まで水があるとは言えない）
+    // ので、**地面の上に**印を重ねる。水面 ON / OFF のどちらでも同じ絵になる。
+    // 判定式は domain/flood.ts の ponded() と同一
+    if (uPonded > 0.5 && !isWet && !baseWater && vElev < uWaterLevel) {
+      fragColor = pondedFill(shade);
+      return;
+    }
+
     // **水面メッシュを出しているときは、地形に水の色を塗らない。**
     // 水面パスの青とランプの青がほぼ同色なので、両方塗ると
     // 「水面が潮位の高さに張られている」ことが絵から消える
     if (uWaterSurface > 0.5) {
       if (uShowGround < 0.5) discard;
-      float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
-      fragColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
+      fragColor = vec4(groundColor(shade), uGroundOpacity);
       return;
     }
     if (isWet && depth > 0.0) {
@@ -307,8 +351,7 @@ void main() {
       // 暗くしすぎると地面に見えるので、水面として読める明るさに置く
       outColor = vec4(vec3(0.20, 0.31, 0.40) * shade, uGroundOpacity);
     } else if (uShowGround > 0.5) {
-      float g = clamp(0.30 + vElev * 0.010, 0.22, 0.72) * shade;
-      outColor = vec4(vec3(g) * vec3(1.00, 0.99, 0.95), uGroundOpacity);
+      outColor = vec4(groundColor(shade), uGroundOpacity);
     } else {
       discard;
     }
@@ -406,6 +449,7 @@ export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMat
       uHasDiff: { value: 0 },
       uPass: { value: pass },
       uWaterSurface: { value: 0 },
+      uPonded: { value: 1 },
     },
   })
 }
@@ -424,4 +468,5 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uShowGround.value = v.showGround
   u.uWaterBase.value = v.waterBase
   u.uWaterSurface.value = v.waterSurface ? 1 : 0
+  u.uPonded.value = v.ponded ? 1 : 0
 }

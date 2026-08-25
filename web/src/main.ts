@@ -205,6 +205,8 @@ async function boot() {
       waterBase: catalog.water_level.reference_levels_m_tp?.['MSL'] ?? 0,
       // 水面メッシュの可視。uniform ではなく TerrainTiles が visible に使う
       waterSurface: s.layers.waterSurface,
+      // 窪地（標高 ≤ 潮位 だが海と地表面ではつながっていない）。タイルは増えない
+      ponded: s.layers.ponded,
     }
   }
 
@@ -653,6 +655,7 @@ async function boot() {
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない
     plateau?.setWaterLevel(s.waterLevel)
+    plateau?.setPonded(s.layers.ponded)
     pcb?.renderer.setVisible(s.layers.pointcloud)
     pcb?.renderer.setExaggeration(s.exaggeration, geoid)
 
@@ -661,7 +664,7 @@ async function boot() {
     const bldgLegend = s.buildingColor === 'depth'
       ? depthLegend(assertions.values(),
           resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
-          s.waterLevel, floorDepth)
+          s.waterLevel, floorDepth, s.layers.ponded)
       : sch ? legendOf(plateauValues, sch) : []
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
       { index: areaIndex, current: area })

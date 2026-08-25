@@ -21,6 +21,8 @@ const decodeHConn = (a, hStep) => (a === 0 ? Infinity : (a - 1) * hStep)
 const wet = (h, H) => h !== undefined && Number.isFinite(h) && h <= H
 const depth = (e, h, H) => (!wet(h, H) || e === undefined || !Number.isFinite(e) ? 0 : Math.max(0, H - e))
 const roadClass = (d, th) => { let c = 0; for (let i = 0; i < th.length; i++) if (d >= th[i]) c = i + 1; return c }
+// 窪地: 標高 <= 潮位 だが海と地表面ではつながっていない
+const ponded = (e, h, H) => (e === undefined || !Number.isFinite(e) ? false : wet(h, H) ? false : e < H)
 
 let checked = 0
 let failed = 0
@@ -63,9 +65,37 @@ for (const f of fx.features) {
 // three.js 化で UBO (fmesh.*) をやめて個別 uniform (u*) にしたので、名前だけ追従させた。
 // 見ているものは変えていない: 標高のバイアス・パッキングの基数・h_conn の刻み・水位。
 const glsl = readFileSync(path.join(HERE, '../src/three/floodMaterial.ts'), 'utf8')
-for (const token of ['32768', '256.0', 'uHStep', 'uWaterLevel']) {
+for (const token of ['32768', '256.0', 'uHStep', 'uWaterLevel', 'uPonded']) {
   checked++
   if (!glsl.includes(token)) { failed++; console.error(`FAIL glsl missing ${token}`) }
+}
+
+// 4) 窪地の判定が「浸水」と重ならず、両者で低地を漏れなく覆うか。
+//
+// 画面の 3 状態（浸水 / 窪地 / 非浸水）が排他かつ網羅であることを、
+// フィクスチャの全地物 × 全水位で確かめる。ここが崩れると
+// **窪地を足したせいで浸水域が減った / 二重に塗られた**が起きる。
+// GLSL 側は `!isWet && vElev <= uWaterLevel` という同じ形をしている。
+for (const f of fx.features) {
+  for (const H of Object.keys(f.at).map(Number)) {
+    for (const c of ['baseline', 'highres']) {
+      const e = f[`ground_elev_${c}`]
+      const h = f[`h_conn_${c}`]
+      const isWet = depth(e, h, H) > 0
+      const isPonded = ponded(e, h, H)
+      checked++
+      if (isWet && isPonded) { failed++; console.error(`FAIL ${f.gml_id} ${c}@${H}: wet かつ 窪地`) }
+      // 標高が潮位以下なら、必ずどちらかで拾えていること（取りこぼしが無い）
+      // 標高 == 潮位ちょうどは水深 0 なので、どちらでもないのが正しい
+      if (e !== undefined && Number.isFinite(e) && e < H) {
+        checked++
+        if (!isWet && !isPonded) {
+          failed++
+          console.error(`FAIL ${f.gml_id} ${c}@${H}: 標高 ${e} <= ${H} なのにどちらでもない`)
+        }
+      }
+    }
+  }
 }
 
 console.log(`parity: ${checked} checks, ${failed} failures`)

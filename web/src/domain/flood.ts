@@ -64,3 +64,36 @@ export function changeBand(
   if (f === undefined || t === undefined || f === t) return undefined
   return f < t ? [f, t] : [t, f]
 }
+
+/**
+ * **標高は潮位以下だが、地表面では海とつながっていない窪地。**
+ *
+ * `wet` は「海から連結して到達できるか」（`h_conn <= H`）で判定するので、
+ * 周囲より低い土地が護岸や堤内の天端に囲まれていると、標高が潮位を下回っていても
+ * 浸水しないことになる。**それが本モデルの想定どおりの答えである。**
+ *
+ * ただし `docs/todo.md` 中 3 のとおり、排水路の吐口には**フラップゲートが無く**、
+ * 潮位が上がれば管路を逆流しうる（市への照会、2026-08）。地表面の連結性しか
+ * 見ていない本モデルは、この窪地のぶんだけ**内陸側を過小評価している**。
+ *
+ * 東舞鶴で実際に効いている [実測]:
+ *   市街は海側の護岸天端 1.0〜1.3 m に囲まれた 0.8〜1.0 m の窪地で、潮位を
+ *   0.45 → 0.95 m と 0.5 m ぶん上げても市街で新たに浸かるのは 1.37 ha だけ、
+ *   次の 0.3 m（1.00 → 1.25）で 14.23 ha 増える。既往最高潮位 0.93 m では
+ *   連結 15.75 ha に対し、この窪地が 10.57 ha（321 地物・建物 201 棟）ある。
+ *
+ * なので「浸水しない」と同じ色で潰さず、**別の色で出して数えられるようにする**。
+ * 判定を混ぜないこと（`wet` はこれを含めない）。両者は根拠が違う。
+ */
+export function ponded(elev: MTP | undefined, hConn: MTP | undefined, H: MTP): boolean {
+  if (elev === undefined || !Number.isFinite(elev)) return false
+  if (wet(hConn, H)) return false          // 連結して浸水しているなら窪地ではない
+  // **厳密不等号。** `depth()` が `max(0, H - 標高) > 0` を要求するのと揃える。
+  // 標高 = 潮位ちょうどのセルは水深 0 なので、浸水でも窪地でもない。
+  // 東舞鶴の DEM は 0.1 m 刻み [実測] なので、この一致は頻繁に起きる
+  return elev < H
+}
+
+export function featurePonded(a: FeatureAssertion, c: TerrainCondition, H: MTP): boolean {
+  return ponded(a.groundElev[c], a.hConn[c], H)
+}

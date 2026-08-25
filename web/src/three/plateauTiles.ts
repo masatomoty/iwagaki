@@ -91,9 +91,11 @@ uniform float uDepthMode;
 uniform float uWaterLevel;
 uniform float uFloorDepth;
 uniform vec3 uDry;
+uniform vec3 uPondedC;
 uniform vec3 uUnder;
 uniform vec3 uAbove;
 uniform vec3 uUnknown;
+uniform float uPonded;
 
 /**
  * 床下 / 床上。**判定式は src/domain/flood.ts と同一**
@@ -102,7 +104,12 @@ uniform vec3 uUnknown;
  */
 vec3 depthColor() {
   if (vHas < 0.5) return uUnknown;               // 解析範囲外の棟（assertion が無い）
-  if (vHConn > uWaterLevel) return uDry;         // 海と連結して到達しない
+  if (vHConn > uWaterLevel) {
+    // **窪地。** 海と連結して到達しないが、地盤高は潮位以下。
+    // 判定式は domain/flood.ts の ponded() と同一で、
+    // 地形の面（three/floodMaterial.ts の pondedFill）と同じ色を持つ
+    return (uPonded > 0.5 && vGround < uWaterLevel) ? uPondedC : uDry;
+  }
   float d = max(0.0, uWaterLevel - vGround);
   if (d <= 0.0) return uDry;
   return d >= uFloorDepth ? uAbove : uUnder;
@@ -211,6 +218,8 @@ export class PlateauTiles {
         uWaterLevel: { value: 0 },
         uFloorDepth: { value: o.floorDepth ?? 0.5 },
         uDry: { value: rgb(DEPTH_HEX.dry) },
+        uPondedC: { value: rgb(DEPTH_HEX.ponded) },
+        uPonded: { value: 1 },
         uUnder: { value: rgb(DEPTH_HEX.under) },
         uAbove: { value: rgb(DEPTH_HEX.above) },
         uUnknown: { value: rgb(UNKNOWN_HEX) },
@@ -230,6 +239,14 @@ export class PlateauTiles {
 
   setVisible(v: boolean) {
     this.group.visible = v
+    this.o.viewer.invalidate()
+  }
+
+  /** 窪地を別色で出すか（`state.layers.ponded`）。これも uniform 1 個 */
+  setPonded(v: boolean) {
+    const next = v ? 1 : 0
+    if (this.material.uniforms.uPonded.value === next) return
+    this.material.uniforms.uPonded.value = next
     this.o.viewer.invalidate()
   }
 

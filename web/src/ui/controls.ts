@@ -118,10 +118,14 @@ const isDiff = (s: SurfaceMode) =>
  * どちらも**配信物が増えないので既定 ON にできる**（水面は同じタイルを 2 回描くだけ、
  * 道路は前から objects.geojson に入っていて描いてもいた）。
  */
-type LayerKey = 'waterSurface' | 'roads' | 'plateau' | 'pointcloud'
+type LayerKey = 'waterSurface' | 'ponded' | 'roads' | 'plateau' | 'pointcloud'
 const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'waterSurface', label: '水面',
     hint: '潮位の高さに水平な水面を張る。切ると浸水域を地面の色だけで見る' },
+  { key: 'ponded', label: '窪地（逆流で浸水しうる）',
+    hint: '標高は潮位より低いが、地表面をたどると海に出ない土地。'
+      + '排水路の吐口にフラップゲートが無いので、管路を逆流して浸水しうる。'
+      + '逆流はモデルに含まないので、印だけを重ねている' },
   { key: 'roads', label: '道路（PLATEAU）',
     hint: '浸かると通行支障クラスで塗る。閾値は解析側の 0.1 / 0.3 / 0.5 m' },
   { key: 'plateau', label: 'PLATEAU 建物' },
@@ -155,6 +159,15 @@ function legendHtml(
   if (s.layers.waterSurface) {
     rows.push('<div><i style="background:#174c8c"></i>水深不明の水域'
       + '<span class="sub"> 航空レーザが水面を計測しない</span></div>')
+  }
+  // **窪地は浸水域と並べない。** 根拠が違う（浸水 = 海から連結して到達する /
+  // 窪地 = 標高が潮位以下なだけ）ので、色も斜線にして 1 段弱く出している。
+  // 差分モードでは出さない（2 条件の h_conn を比べる画面で、
+  // どちらの条件の窪地なのかを色 1 つで表せない）
+  if (s.layers.ponded && !isDiff(s.surface)) {
+    rows.push('<div><i style="background:'
+      + 'repeating-linear-gradient(135deg,#70bfcc 0 2px,#4c6068 2px 5px)"></i>'
+      + '窪地<span class="sub"> 標高は潮位より低いが海とつながらない</span></div>')
   }
   // 判定が変わる地物は、比較のペアが決まっているときだけ出る
   if (pair.from !== pair.to) {

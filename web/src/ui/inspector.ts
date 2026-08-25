@@ -8,7 +8,7 @@
 // `__iwagaki.store.state.selected` から引ける（画面には出さない）。
 
 import type { Catalog } from '../domain/catalog'
-import { changeBand, decisionChanged, featureDepth, roadClass } from '../domain/flood'
+import { changeBand, decisionChanged, featureDepth, featurePonded, roadClass } from '../domain/flood'
 import { comparisonPair } from '../domain/terrain'
 import type { ComparisonPair, TerrainCondition } from '../domain/types'
 import type { Store } from '../state'
@@ -43,14 +43,27 @@ function currentTable(
     ? a.groundElev[to]! - a.groundElev[from]! : undefined
   const dd = dTo !== undefined && dFrom !== undefined ? dTo - dFrom : undefined
   const same = from === to
+  // **窪地のときは「浸水深 0」で終わらせない。**
+  // 「地盤高 0.8 m のところで潮位 0.9 m にしても浸水深が 0 のまま」という
+  // 指摘（2026-08、東舞鶴）に、パネルが何も答えていなかった。
+  // 0 なのは標高が足りているからではなく、**地表面で海とつながらない**からで、
+  // その差（潮位 − 地盤高）と h_conn を並べれば理由がその場で読める
+  const pond = featurePonded(a, to, H)
+  const below = pond ? H - a.groundElev[to]! : undefined
   return `
     <table>
       <tr><td>地盤高</td><td class="num">${fmt(a.groundElev[to])}</td></tr>
       <tr><td>h_conn</td><td class="num">${fmt(a.hConn[to])}</td></tr>
       <tr><td>浸水深</td><td class="num">${fmt(dTo)}</td></tr>
+      ${pond ? `<tr><td>潮位より低い</td><td class="num">${fmt(below)}</td></tr>` : ''}
       ${isRoad ? `<tr><td>通行</td><td class="num">${
         dTo === undefined ? '—' : ROAD_CLASS_LABEL[roadClass(dTo, th)]}</td></tr>` : ''}
     </table>
+    ${pond ? `<div class="note"><b>窪地。</b>標高は潮位より
+      ${below!.toFixed(2)} m 低いが、地表面をたどると海に出ないので
+      本モデルでは浸水深 0 になる（海側からつながるのは潮位
+      ${fmt(a.hConn[to])} から）。<b>排水路の吐口にフラップゲートが無い</b>ので、
+      実際には管路を逆流して浸水しうる。逆流は本モデルに含まない</div>` : ''}
     ${same ? '' : `
       <p class="grouplabel">${CONDITION_LABEL[from]} との差</p>
       <table>

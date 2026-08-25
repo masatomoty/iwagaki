@@ -12,6 +12,21 @@ export interface LayerToggles {
    * タイルは増えないので既定 ON にしてよい
    */
   waterSurface: boolean
+  /**
+   * **窪地**（標高は潮位以下だが `h_conn > 潮位` = 地表面では海とつながっていない）
+   * を印で出すか。`domain/flood.ts` の `ponded()`。
+   *
+   * 既定 ON。外部からの指摘（2026-08、東舞鶴）が
+   * **「0.8 m の潮位でも浸水する範囲があるはずなのに着色されない」**
+   * 「地盤高 0.8 m のところで潮位 0.9 m にしても浸水深が 0 のまま」だった。
+   * 調べると東舞鶴の市街は海側の護岸天端 1.0〜1.3 m に囲まれた 0.8〜1.0 m の
+   * 窪地で、**潮位を 0.45 → 0.95 m と 0.5 m ぶん上げても市街で新たに浸かるのは
+   * 1.37 ha だけ**（次の 0.3 m で 14.23 ha）だった [実測]。
+   * モデルとしては正しいが、吐口にフラップゲートが無い以上
+   * （`docs/todo.md` 中 3）**内陸側を過小評価している**ので、
+   * 「浸水しない」と同じ灰で潰さずに出す。切れるようにはしてある
+   */
+  ponded: boolean
   plateau: boolean
   pointcloud: boolean
   semantics: boolean
@@ -70,7 +85,7 @@ export function initialState(catalog: Catalog): AppState {
     waterLevel: catalog.water_level.reference_levels_m_tp?.['MSL']
       ?? catalog.water_level.representative[0] ?? 1.0,
     layers: {
-      flood: true, ground: true, waterSurface: true, plateau: true,
+      flood: true, ground: true, waterSurface: true, ponded: true, plateau: true,
       // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
       // GPU 44 MB / 転送 14 MB を使う（docs/web_results.md「点群の配信」）
       pointcloud: false, semantics: true, roads: true, changedOnly: false,
