@@ -16,20 +16,24 @@
 //    中心線を 2 回置いてシェーダで左右に開く形にしたら、**ジオメトリがほぼ潰れて
 //    1.3 km の線が画面に 80 px しか出なかった** [実測]。原因を追う価値より、
 //    確実に描ける形で太さと色を決める方が早いと判断した
-// 4. いま: **ワールド 16 m のリボン ＋ マゼンタ**
+// 4. ワールド 16 m のリボン ＋ マゼンタ → **描画順を直したら読めた。**
+//    ただし「ピンクは微妙」と再指摘。原因が色でなかった以上、
+//    色は素直に地図の慣例へ戻してよい
+// 5. いま: **黒の縁 ＋ 黒白の刻み**（地形図・Google マップの鉄道記号）
 //
 // ## 決めごと
 //
 // - **幅は 16 m。** 複線の路盤（9 m）より広いが、これは軌道の実寸ではなく
 //   **参照線の太さ**である。4 km 幅の起動画面で 4 px あり、そこで消えないことを
 //   実寸より優先した（鉄道用地としては法面・保安用地を含めた幅に近い）
-// - **色はマゼンタ。** 画面の色は 1 つの予算で、地面＝灰 / 建物＝灰・黄・赤 /
-//   水＝青 / 道路＝ほぼ白 / 窪地＝薄い水色 が埋まっている
-//   （`docs/web_design.md`「画面の色は 1 つの予算である」）。**空いている色相は
-//   緑とマゼンタしかない。** 市の地図と同じ赤は「判定が変わる地物」と衝突する。
-//   マゼンタは自然物にも判定にも使っていないので「こちらが重ねた参照線」と読める
-// - **刻みは黒。** マゼンタ地に黒の枕木を 18 m ごとに入れる。引くと 1 本の
-//   マゼンタの線に見え、寄ると地図記号として読める
+// - **色は無彩色に戻した。** 一度マゼンタにしたが「ピンクは微妙」と指摘を受けた。
+//   **色相を消費しない**のはむしろ望ましい（画面の色は 1 つの予算で、
+//   地面＝灰 / 建物＝灰・黄・赤 / 水＝青 / 道路＝ほぼ白 / 窪地＝薄い水色 が
+//   埋まっている。`docs/web_design.md`「画面の色は 1 つの予算である」）。
+//   最初に無彩色で読めなかったのは色のせいではなく描画順のせいだったので、
+//   そこを直した今は**地図の慣例（地形図・Google マップの鉄道記号）**で成立する
+// - **縁は黒、中は黒白の刻み。** 縁を黒で締めるのが要点で、これが無いと
+//   一律ほぼ白の道路と白の刻みが融ける。刻みは 14 m 周期
 // - **刻みはフラグメントで作る。** 累積距離を varying で渡す。頂点属性で持つと
 //   頂点間で補間されて縞の境目がぼける
 // - **標高はここで引かない。** 各頂点の Z は `scripts/12` が 0.5m DEM から
@@ -51,10 +55,12 @@ import { lngLatToWorld, type LocalFrame } from './mercator'
 
 /** リボンの幅 [m]。軌道の実寸ではなく**参照線の太さ**（上の決めごと） */
 const WIDTH_M = 16
-/** 枕木（黒の刻み）の周期 [m] */
-const TICK_M = 18
+/** 枕木の刻みの周期 [m] */
+const TICK_M = 14
 /** 1 周期のうち黒が占める割合 */
-const TICK_DUTY = 0.34
+const TICK_DUTY = 0.5
+/** 黒で締める縁の厚み（半幅に対する割合）。**道路の白と融けないための要** */
+const EDGE = 0.34
 
 export interface RailwayFeature {
   properties?: { line?: string; operator?: string }
@@ -64,11 +70,14 @@ export interface RailwayFeature {
 const VS = /* glsl */ `
 in float aDist;
 in float aElev;
+in float aSide;
 uniform float uGeoid;
 uniform float uExaggeration;
 out float vDist;
+out float vSide;
 void main() {
   vDist = aDist;
+  vSide = aSide;
   vec3 p = vec3(position.xy, uGeoid + aElev * uExaggeration);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
@@ -77,12 +86,14 @@ void main() {
 const FS = /* glsl */ `
 precision highp float;
 in float vDist;
+in float vSide;
 out vec4 c;
 void main() {
-  float t = fract(vDist / ${TICK_M}.0);
-  c = t < ${TICK_DUTY.toFixed(2)}
-      ? vec4(0.08, 0.06, 0.10, 0.96)
-      : vec4(0.93, 0.24, 0.90, 0.96);
+  const vec4 INK  = vec4(0.05, 0.06, 0.08, 0.98);   // 黒
+  const vec4 PAPER = vec4(0.98, 0.98, 1.00, 0.98);  // 白
+  // 縁は黒で締める。これが無いと白の刻みが一律ほぼ白の道路と融ける
+  if (abs(vSide) > ${(1.0 - EDGE).toFixed(2)}) { c = INK; return; }
+  c = fract(vDist / ${TICK_M}.0) < ${TICK_DUTY.toFixed(2)} ? INK : PAPER;
 }
 `
 
@@ -102,6 +113,7 @@ export function createRailwayLine(
   const pos: number[] = []
   const dist: number[] = []
   const elev: number[] = []
+  const side: number[] = []
   const idx: number[] = []
 
   for (const f of data.features ?? []) {
@@ -130,6 +142,7 @@ export function createRailwayLine(
       pos.push(w[i][0] - nx, w[i][1] - ny, 0, w[i][0] + nx, w[i][1] + ny, 0)
       elev.push(c[i][2] ?? 0, c[i][2] ?? 0)
       dist.push(d[i], d[i])
+      side.push(-1, 1)
     }
     for (let i = 0; i + 1 < w.length; i++) {
       const k = base + i * 2
@@ -141,6 +154,7 @@ export function createRailwayLine(
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
   g.setAttribute('aDist', new BufferAttribute(new Float32Array(dist), 1))
   g.setAttribute('aElev', new BufferAttribute(new Float32Array(elev), 1))
+  g.setAttribute('aSide', new BufferAttribute(new Float32Array(side), 1))
   g.setIndex(new BufferAttribute(new Uint32Array(idx), 1))
   g.computeBoundingSphere()
 
