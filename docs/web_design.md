@@ -58,7 +58,7 @@ domain/      AOI・CRS・水位・地形条件・地物 assertion、wet(H) / dep
 |---|---:|---|---:|
 | `yoshiwara` | 100 ha | 4 条件 ＋ 差分 4 本（点群あり） | 1,223 |
 | `nishi_maizuru` | 625 ha | `baseline` / `highres` / `diff` | 6,118 |
-| `higashi_maizuru` | 625 ha | 同左 | 3,708 |
+| `higashi_maizuru` | **1,000 ha** | 同左 | 8,368 |
 
 **範囲を替えるとページごと読み直す**（`?area=` を付けて `location.href`）。
 範囲が変わると `local_frame`（ローカル ENU の原点と回転）・タイルの URL・

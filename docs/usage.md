@@ -24,7 +24,7 @@ python3 -m venv .venv
 |---|---|---:|---|
 | `yoshiwara`（既定） | 吉原 | 100 ha | 4 条件（地上点群あり） |
 | `nishi_maizuru` | 西舞鶴（吉原を含む） | 625 ha | `baseline` / `highres` / `diff` |
-| `higashi_maizuru` | 東舞鶴市街 | 625 ha | 同左 |
+| `higashi_maizuru` | 東舞鶴市街・溝尻・愛宕・泉源寺 | **1,000 ha** | 同左 |
 
 ```bash
 IWAGAKI_AOI=higashi_maizuru scripts/run_all.sh
