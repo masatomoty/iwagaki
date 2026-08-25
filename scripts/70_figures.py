@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""結果図を作る（docs/images/）。Web実装前の確認用。"""
+"""結果図を作る（docs/images/）。Web実装前の確認用。
+
+**ファイル名に範囲を入れる。** 入れていなかったので
+`IWAGAKI_AOI=higashi_maizuru scripts/run_all.sh` を回すと
+**README が貼っている吉原の図を黙って上書きしていた**（2026-08-25）。
+既定範囲だけ従来の名前を保つのは配信物と同じ規則（`config.asset_name`）。
+"""
 from __future__ import annotations
 
 import sys
@@ -10,7 +16,7 @@ import rasterio
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from iwagaki.config import OUT, RES_COARSE, RES_HIGHRES, ROOT
+from iwagaki.config import asset_name, OUT, RES_COARSE, RES_HIGHRES, ROOT
 
 IMG = ROOT / "docs" / "images"
 FACTOR = int(round(RES_COARSE / RES_HIGHRES))
@@ -55,9 +61,12 @@ def main() -> int:
         img[wb & ~wh] = [0.98, 0.85, 0.20]
         panels.append((img * 255).astype(np.uint8))
 
+        # **縦横比を保つ。** 正方形に潰していたので、東舞鶴を 4.0 x 2.5 km に
+        # 広げた時点で地形が横に伸びた絵になっていた（2026-08-25）
         W = 430
-        ims = [Image.fromarray(p).resize((W, W), Image.NEAREST) for p in panels]
-        canvas = Image.new("RGB", (W * 3 + 24, W + 30), (18, 18, 20))
+        H = max(1, int(round(W * panels[0].shape[0] / panels[0].shape[1])))
+        ims = [Image.fromarray(p).resize((W, H), Image.NEAREST) for p in panels]
+        canvas = Image.new("RGB", (W * 3 + 24, H + 30), (18, 18, 20))
         d = ImageDraw.Draw(canvas)
         titles = [f"A: PLATEAU 5m terrain   wet @ H={h:.1f} m T.P.",
                   f"B: 0.5m LiDAR terrain   wet @ H={h:.1f} m T.P.",
@@ -65,7 +74,7 @@ def main() -> int:
         for i, (im, t) in enumerate(zip(ims, titles)):
             canvas.paste(im, (i * (W + 12), 26))
             d.text((i * (W + 12) + 4, 8), t, fill=(230, 230, 230))
-        out = IMG / f"flood_compare_H{h:.1f}.png"
+        out = IMG / asset_name(f"flood_compare_H{h:.1f}.png")
         canvas.save(out)
         print("wrote", out.relative_to(ROOT))
     return 0

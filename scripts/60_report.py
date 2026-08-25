@@ -14,7 +14,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import ATTRIBUTION, OUT, REPRESENTATIVE_H, TP_OF_MSL
+from iwagaki.config import AOI, ATTRIBUTION, OUT, REPRESENTATIVE_H, TP_OF_MSL
 
 DEM_ACCURACY_M = 0.25   # [未確認] 京都府DEMの公称精度不明。国土地理院の類似成果の目安
 
@@ -66,7 +66,9 @@ def main() -> int:
     signal = bh["delta_h_conn"]["frac_abs_gt_0_25m"]
 
     report = {
-        "aoi": {"name": "yoshiwara", "bounds_epsg6674": compare["aoi"],
+        # **範囲名はハードコードしない。** どの範囲で回しても "yoshiwara" と
+        # 書き出していたので、`summary.json` だけを見た人が範囲を取り違える
+        "aoi": {"name": AOI.name, "bounds_epsg6674": compare["aoi"],
                 "land_area_m2": compare["land_area_m2"],
                 "open_water_area_m2": compare["seed_area_m2"]},
         "settings": {k: flood[k] for k in
