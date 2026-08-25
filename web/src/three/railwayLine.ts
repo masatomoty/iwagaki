@@ -5,34 +5,56 @@
 // 「表示範囲の東側をここまで」** というものだった。範囲をそこまで広げたのに
 // **基準線そのものが画面に無い**と、「どこまで広げたのか」が絵から読めない。
 //
+// ## 見え方は 3 回作り直した **[実測]**
+//
+// 1. `LineSegments`（1 px の線・黒白の交互）→ **読めない。** WebGL の線幅は
+//    1 px 固定で、道路が一律のほぼ白なので無彩色の 1 px は紛れる
+// 2. ワールド座標のリボン 9 m・黒白の交互 → **まだ読めない。** 起動時の広域
+//    （4 km 幅）では 9 m = 2.4 px しかなく、灰色の地形・白い道路・灰色の建物の
+//    中で無彩色は沈む。破線にすると実質 1 px になってさらに悪化した
+// 3. 頂点シェーダで画面座標の最小太さを持たせる案 → **やめた。**
+//    中心線を 2 回置いてシェーダで左右に開く形にしたら、**ジオメトリがほぼ潰れて
+//    1.3 km の線が画面に 80 px しか出なかった** [実測]。原因を追う価値より、
+//    確実に描ける形で太さと色を決める方が早いと判断した
+// 4. いま: **ワールド 16 m のリボン ＋ マゼンタ**
+//
 // ## 決めごと
 //
+// - **幅は 16 m。** 複線の路盤（9 m）より広いが、これは軌道の実寸ではなく
+//   **参照線の太さ**である。4 km 幅の起動画面で 4 px あり、そこで消えないことを
+//   実寸より優先した（鉄道用地としては法面・保安用地を含めた幅に近い）
+// - **色はマゼンタ。** 画面の色は 1 つの予算で、地面＝灰 / 建物＝灰・黄・赤 /
+//   水＝青 / 道路＝ほぼ白 / 窪地＝薄い水色 が埋まっている
+//   （`docs/web_design.md`「画面の色は 1 つの予算である」）。**空いている色相は
+//   緑とマゼンタしかない。** 市の地図と同じ赤は「判定が変わる地物」と衝突する。
+//   マゼンタは自然物にも判定にも使っていないので「こちらが重ねた参照線」と読める
+// - **刻みは黒。** マゼンタ地に黒の枕木を 18 m ごとに入れる。引くと 1 本の
+//   マゼンタの線に見え、寄ると地図記号として読める
+// - **刻みはフラグメントで作る。** 累積距離を varying で渡す。頂点属性で持つと
+//   頂点間で補間されて縞の境目がぼける
 // - **標高はここで引かない。** 各頂点の Z は `scripts/12` が 0.5m DEM から
-//   焼き込んである。地形タイルを待たずに描け、鉛直強調を掛けても地面から浮かない
-// - **1 px の線ではなくワールド座標のリボンにする。** 最初 `LineSegments` で
-//   出したら、**一律ほぼ白の道路に紛れて読めなかった** [実測]。GL の線幅は
-//   WebGL では 1 px 固定なので、道路（ポリゴン）と同じくジオメトリに幅を持たせる。
-//   幅は複線の路盤におおよそ相当する 9 m
-// - **色は地図記号の慣例（黒白の交互）にする。** 画面の色は 1 つの予算で、
-//   地面＝灰 / 建物＝灰・黄・赤 / 水＝青 / 道路＝ほぼ白 / 窪地＝薄い水色 が
-//   埋まっている（`docs/web_design.md`「画面の色は 1 つの予算である」）。
-//   線路に新しい色相を割ると必ずどこかとぶつかるので、**無彩色の交互**にする。
-//   道路との区別は色ではなく**刻みがあること**が担う
-// - **刻みはフラグメントで作る。** 距離を varying で渡して縞を計算する。
-//   頂点属性で持つと、頂点間で補間されて縞の境目がぼける
+//   焼き込んである。地形タイルを待たずに描け、鉛直強調は uniform 1 個で済む
 // - **`depthTest` は切る。** 参照線なので、山や建物の裏に隠れると用を成さない
 //   （点群の被覆輪郭と同じ扱い。`semanticsMesh.ts` の `createCoverageOutline`）
+// - **Group に入れて Group 側の `renderOrder` を上げる。** これを知らずに
+//   Mesh の `renderOrder` だけ 40 にしていたので、**道路と建物に上塗りされて
+//   ほとんど見えていなかった**（1.3 km の線が画面に 100 px しか残らなかった [実測]）。
+//   three は Group の `renderOrder` を `groupOrder` にして
+//   `groupOrder -> renderOrder` の順で並べるので、**Group の値が先に効く**
+//   （`semanticsMesh.ts` の同じ注記）。地物の Group が 30 なので、こちらは 45
 
 import {
-  BufferAttribute, BufferGeometry, DoubleSide, GLSL3, Mesh, ShaderMaterial,
+  BufferAttribute, BufferGeometry, DoubleSide, GLSL3, Group, Mesh, ShaderMaterial,
 } from 'three'
 
 import { lngLatToWorld, type LocalFrame } from './mercator'
 
-/** 路盤の幅 [m]。複線のおおよその幅 */
-const WIDTH_M = 9
-/** 交互に色を変える刻みの長さ [m]。地図記号の枕木にあたる */
+/** リボンの幅 [m]。軌道の実寸ではなく**参照線の太さ**（上の決めごと） */
+const WIDTH_M = 16
+/** 枕木（黒の刻み）の周期 [m] */
 const TICK_M = 18
+/** 1 周期のうち黒が占める割合 */
+const TICK_DUTY = 0.34
 
 export interface RailwayFeature {
   properties?: { line?: string; operator?: string }
@@ -57,14 +79,15 @@ precision highp float;
 in float vDist;
 out vec4 c;
 void main() {
-  // 黒白の交互。**縁は付けない**（幅 9 m を縁で食うと刻みが読めなくなる）
-  float t = mod(vDist / ${TICK_M}.0, 2.0);
-  c = t < 1.0 ? vec4(0.07, 0.08, 0.10, 0.95) : vec4(0.96, 0.97, 0.99, 0.95);
+  float t = fract(vDist / ${TICK_M}.0);
+  c = t < ${TICK_DUTY.toFixed(2)}
+      ? vec4(0.08, 0.06, 0.10, 0.96)
+      : vec4(0.93, 0.24, 0.90, 0.96);
 }
 `
 
 export interface RailwayLine {
-  object: Mesh
+  object: Group
   setExaggeration(k: number): void
   dispose(): void
 }
@@ -98,13 +121,12 @@ export function createRailwayLine(
       // 接線は前後の線分の平均。端は片側だけ
       const a = w[Math.max(0, i - 1)]
       const b = w[Math.min(w.length - 1, i + 1)]
-      let tx = b[0] - a[0]
-      let ty = b[1] - a[1]
+      const tx = b[0] - a[0]
+      const ty = b[1] - a[1]
       const len = Math.hypot(tx, ty) || 1
-      tx /= len; ty /= len
-      // 法線は接線を 90° 回したもの
-      const nx = -ty * (WIDTH_M / 2)
-      const ny = tx * (WIDTH_M / 2)
+      // 法線は接線を 90° 回して半幅を掛けたもの
+      const nx = (-ty / len) * (WIDTH_M / 2)
+      const ny = (tx / len) * (WIDTH_M / 2)
       pos.push(w[i][0] - nx, w[i][1] - ny, 0, w[i][0] + nx, w[i][1] + ny, 0)
       elev.push(c[i][2] ?? 0, c[i][2] ?? 0)
       dist.push(d[i], d[i])
@@ -134,12 +156,15 @@ export function createRailwayLine(
   })
 
   const mesh = new Mesh(g, m)
-  // 地物（`semanticsMesh` の Group が 30）より後。参照線なので一番上に置く
-  mesh.renderOrder = 40
   mesh.frustumCulled = false
+  // **Group の renderOrder が先に効く**（上の決めごと）。Mesh 側に値を置いても
+  // 地物（Group = 30）に上塗りされる
+  const group = new Group()
+  group.renderOrder = 45
+  group.add(mesh)
 
   return {
-    object: mesh,
+    object: group,
     setExaggeration(k: number) { m.uniforms.uExaggeration.value = k },
     dispose() { g.dispose(); m.dispose() },
   }

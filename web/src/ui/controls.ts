@@ -194,8 +194,9 @@ function legendHtml(
   }
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
   if (s.layers.railway && s.catalog.railway) {
+    // マゼンタ地に黒の刻み（`three/railwayLine.ts` と同じ色）
     rows.push('<div><i style="background:'
-      + 'repeating-linear-gradient(90deg,#171a1f 0 4px,#f2f4f8 4px 8px)"></i>'
+      + 'repeating-linear-gradient(90deg,#14101a 0 2px,#ed3de6 2px 6px)"></i>'
       + `JR 線路<span class="sub"> ${s.catalog.railway.lines.join(' / ')}</span></div>`)
   }
   return `<div class="legend">${rows.join('')}</div>`
