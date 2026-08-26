@@ -206,8 +206,15 @@ async function boot() {
       waterBase: catalog.water_level.reference_levels_m_tp?.['MSL'] ?? 0,
       // 水面メッシュの可視。uniform ではなく TerrainTiles が visible に使う
       waterSurface: s.layers.waterSurface,
-      // 窪地（標高 ≤ 潮位 だが海と地表面ではつながっていない）。タイルは増えない
-      ponded: s.layers.ponded,
+      // 窪地（標高 ≤ 潮位 だが海と地表面ではつながっていない）。タイルは増えない。
+      // **単純モデルでは窪地という状態が無い**ので出さない（domain/flood.ts の ponded()）
+      ponded: s.layers.ponded && s.floodModel === 'connected',
+      // 潮位 − 地盤高だけで浸水を決めるか（domain/types.ts の FloodModel）
+      // 排水差分は h_conn(highres) と h_conn(drainage) の比較なので、
+      // 既定の simple モデル設定に関係なくシェーダへ連結判定を渡す。
+      simple: s.floodModel === 'simple' && s.surface !== 'diff_drainage',
+      // 地形の面を地盤高のグラデーションで塗るか（同 TerrainPaint）
+      elevPaint: s.terrainPaint === 'elevation',
     }
   }
 
@@ -439,7 +446,7 @@ async function boot() {
     const cur = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
     const ordered = [...secSeries].sort((a, b) =>
       (a.condition === cur ? -1 : 0) - (b.condition === cur ? -1 : 0))
-    drawSection(secCanvas, ordered, store.state.waterLevel, secFit)
+    drawSection(secCanvas, ordered, store.state.waterLevel, secFit, store.state.floodModel)
   }
 
   async function buildSection(from: LonLat, to: LonLat) {
@@ -669,6 +676,7 @@ async function boot() {
         pair: comparisonPair(s.surface),
         roads: s.layers.roads,
         roadColor: s.roadColor,
+        model: s.floodModel,
       })
       semantics.setHighlight({ selected: s.selected?.gmlId, hovered })
     }
@@ -682,7 +690,8 @@ async function boot() {
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない
     plateau?.setWaterLevel(s.waterLevel)
-    plateau?.setPonded(s.layers.ponded)
+    plateau?.setPonded(s.layers.ponded && s.floodModel === 'connected')
+    plateau?.setSimple(s.floodModel === 'simple')
     pcb?.renderer.setVisible(s.layers.pointcloud)
     pcb?.renderer.setExaggeration(s.exaggeration, geoid)
 
@@ -691,7 +700,7 @@ async function boot() {
     const bldgLegend = s.buildingColor === 'depth'
       ? depthLegend(assertions.values(),
           resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
-          s.waterLevel, floorDepth, s.layers.ponded)
+          s.waterLevel, floorDepth, s.layers.ponded, s.floodModel)
       : sch ? legendOf(plateauValues, sch) : []
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
       { index: areaIndex, current: area })

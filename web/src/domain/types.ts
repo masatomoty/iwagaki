@@ -28,19 +28,21 @@ export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud'
  * - `diff_res` control -> highres（**解像度だけ**。どちらも航空レーザ源）
  * - `diff_pc`  highres -> pointcloud（地上観測が足した分）
  * - `diff`     baseline -> highres（上 2 段をまとめたもの。README の見出しの図）
+ * - `diff_drainage` highres -> S2仮想排水モデル
  */
-export type SurfaceMode = TerrainCondition | 'diff' | 'diff_src' | 'diff_res' | 'diff_pc'
+export type SurfaceMode = TerrainCondition | 'diff' | 'diff_src' | 'diff_res' | 'diff_pc' | 'diff_drainage'
 
 export const TERRAIN_CONDITIONS: TerrainCondition[] =
   ['baseline', 'highres', 'control', 'pointcloud']
 
 /** 差分モードごとに、幾何をどの条件から取るか。差分タイルは色だけを与える */
 export const DIFF_GEOMETRY:
-  Record<'diff' | 'diff_src' | 'diff_res' | 'diff_pc', TerrainCondition> = {
+  Record<'diff' | 'diff_src' | 'diff_res' | 'diff_pc' | 'diff_drainage', TerrainCondition> = {
   diff: 'highres',
   diff_src: 'control',
   diff_res: 'highres',
   diff_pc: 'pointcloud',
+  diff_drainage: 'highres',
 }
 
 /**
@@ -99,3 +101,39 @@ export interface Aoi {
   bboxWgs84: [number, number, number, number]
   centre: LonLat
 }
+
+/**
+ * **浸水をどう決めるか。** 2 つある。
+ *
+ * - `connected` … `h_conn <= H`。**海から地表面をたどって到達できるか**を解く
+ *   （docs/design.md）。護岸天端に囲まれた低地は「浸水しない」になる
+ * - `simple`    … **潮位 − 地盤高**。連結性を問わない。標高が潮位を下回れば
+ *   その差だけ浸かっているものとして塗る
+ *
+ * **既定は `simple`。** `connected` はモデルとしては正しいが、地表面の連結しか
+ * 見ておらず、側溝・暗渠・排水管を通る逆流を含まない。舞鶴市からは
+ *
+ * > 現場にいる経験則として、市内全域的に、排水路などを通じて、潮位よりも
+ * > 地盤高が低い箇所は、その差だけ浸水している状況です。
+ * > 現時点では、単純に「潮位ー地盤高＝浸水深」として可視化することで問題ない
+ *
+ * との回答があった（2026-08、東舞鶴。排水区・側溝底高・フラップゲートの有無は
+ * **市も整理できていない**ので、連結性を補正するデータが無い）。
+ * 現場の観測に合う方を既定にし、`connected` は切り替えで残す。
+ * 排水路の吐口高やフラップゲートが入手できたら `connected` 側を精緻化する。
+ */
+export type FloodModel = 'simple' | 'connected'
+
+/**
+ * 地形の面を何で塗るか。
+ *
+ * - `flood`     … 浸水深（従来）。差分モードでは 2 条件の判定差
+ * - `elevation` … **地盤高そのもの**をグラデーションで塗る
+ *
+ * `elevation` は市の
+ * > 浸水深を見せる前に、どの場所の地盤が低いのか、地盤高を色のグラデーションで
+ * > 見せていくのもあり
+ * という提案（2026-08）。**配信物は 1 バイトも増えない**（標高はもともと
+ * タイルの RGB に入っている。`assets/packing.ts`）。
+ */
+export type TerrainPaint = 'flood' | 'elevation'

@@ -82,6 +82,19 @@ export interface FloodUniformValues {
    * **同じ画素に入っている**ので、両方を引けばこの画素で判定できる。
    */
   ponded: boolean
+  /**
+   * **単純モデル**（潮位 − 地盤高）で塗るか。`domain/types.ts` の `FloodModel`。
+   *
+   * 立てると `h_conn` を見ずに `標高 < 潮位` だけで浸水を決める。
+   * **タイルは 1 バイトも変わらない**（`h_conn` を引かなくなるだけ）。
+   * 既定はこちら（市の回答、2026-08）。
+   */
+  simple: boolean
+  /**
+   * **地盤高そのもの**をグラデーションで塗るか（`domain/types.ts` の `TerrainPaint`）。
+   * 標高はもともとタイルの RGB に入っているので、これも配信物は増えない。
+   */
+  elevPaint: boolean
 }
 
 const DECODE = /* glsl */ `
@@ -120,6 +133,8 @@ uniform float uGeoid;
 uniform float uMetersPerTexel;
 uniform float uPass;
 uniform float uWaterLevel;
+uniform float uWaterBase;
+uniform float uElevPaint;
 
 out vec2 vUv;
 out float vElev;
@@ -176,7 +191,10 @@ void main() {
   // **水面は水平面。** 標高ではなく潮位そのものを高さにする。
   // スカートも下げない（隣のタイルの水面と同じ z なので継ぎ目が開かない）。
   // 鉛直強調は地形と同じ係数を掛ける。掛けないと ×5 で地面が水面を突き抜ける
-  if (uPass > 0.5) z = uGeoid + uWaterLevel * uExaggeration;
+  // **地盤高モードでは水面を平常時の海面に置く。** 潮位まで張ると、
+  // いちばん見せたい低地がすべて青に隠れて「どこが低いか」が読めない。
+  // 水面そのものを消すと、航空レーザが値を返さない港と湾が穴になる
+  if (uPass > 0.5) z = uGeoid + (uElevPaint > 0.5 ? uWaterBase : uWaterLevel) * uExaggeration;
 
   // XYZ タイルは Web メルカトル上で正方なので、ワールド（= メルカトルの線形変換）で
   // 線形補間してよい。経緯度で補間すると緯度方向が非線形になる
@@ -201,6 +219,8 @@ uniform float uHasDiff;
 uniform float uPass;
 uniform float uWaterSurface;
 uniform float uPonded;
+uniform float uSimple;
+uniform float uElevPaint;
 
 in vec2 vUv;
 in float vElev;
@@ -238,6 +258,40 @@ vec4 pondedFill(float shade) {
               max(uGroundOpacity, 0.70));
 }
 
+/**
+ * **地盤高のグラデーション。**
+ *
+ * 市の提案（2026-08）「浸水深を見せる前に、どの場所の地盤が低いのかを
+ * 色のグラデーションで」。標高はタイルの RGB にあるので配信物は増えない。
+ *
+ * 色は **紫の単色ランプ**にする。画面の色の枠（地面＝灰 / 建物＝灰・黄・赤 /
+ * 水＝青 / 道路＝ほぼ白 / 判定差＝赤・黄）が既に埋まっていて、
+ * **空いている色相が紫しか無い**（docs/web_design.md「画面の色は 1 つの予算」）。
+ * 単色で明度だけを動かすので、色覚の型に依らず低い順に読める。
+ *
+ * 振れ幅は **0〜3 m**。潮位スライダの帯（0.00〜3.00 m T.P.）と揃えてある。
+ * 3 m を超えると地面の灰へ抜ける。ここを 0〜150 m（AOI の実レンジ）で振ると、
+ * 市街の 0.5〜3 m がランプの最下端に固まって一様な紫になる。
+ */
+vec3 elevRamp(float e) {
+  // **低い側を暗くしすぎない。** 0 m を黒紫に置いたら、暗い画面の地の色や
+  // nodata の穴と見分けがつかず、**いちばん見せたい土地がいちばん沈んだ**。
+  // 明度ではなく彩度で高さを送る（低い＝鮮やか、高い＝地面の灰へ抜ける）
+  const vec3 C0 = vec3(0.42, 0.09, 0.66);   // 0 m
+  const vec3 C1 = vec3(0.61, 0.25, 0.82);   // 1 m
+  const vec3 C2 = vec3(0.77, 0.54, 0.87);   // 2 m
+  const vec3 C3 = vec3(0.90, 0.86, 0.93);   // 3 m
+  const vec3 HI = vec3(0.60, 0.61, 0.59);   // 5 m 以上は地面の灰
+  vec3 c = e < 1.0 ? mix(C0, C1, clamp(e, 0.0, 1.0))
+         : e < 2.0 ? mix(C1, C2, e - 1.0)
+         : e < 3.0 ? mix(C2, C3, e - 2.0)
+                   : mix(C3, HI, clamp((e - 3.0) / 2.0, 0.0, 1.0));
+  // **いまの潮位の等高線を白く重ねる。** 地盤高の絵と潮位スライダを
+  // 1 枚でつなぐのはこの線だけなので、面の色より 1 段強く出してよい
+  float line = 1.0 - smoothstep(0.0, 0.05, abs(e - uWaterLevel));
+  return mix(c, vec3(1.0), line * 0.85);
+}
+
 vec3 depthRamp(float d) {
   vec3 c0 = vec3(0.42, 0.80, 0.95);
   vec3 c1 = vec3(0.15, 0.50, 0.90);
@@ -260,12 +314,20 @@ void main() {
   // 水面は張れる（domain/terrain.ts の resolveSurface が返す condition と一致する）。
   if (uPass > 0.5) {
     float hConn = decodeHConn(texture(elevTexture, cu).a);
-    if (hConn > uWaterLevel) discard;          // 海と連結して到達しない
-    float depth = uWaterLevel - vElev;
+    // 地盤高モードの水面は平常時の海面（VS の z と揃えること）
+    float wl = uElevPaint > 0.5 ? uWaterBase : uWaterLevel;
+    // **単純モデルは連結性を問わない**（標高が潮位を下回れば水面を張る）。
+    // ただし **nodata のセルは標高が無いので判定できない**。港と湾は
+    // 航空レーザが水面から反射を返さず nodata になるので、そこだけは
+    // 従来どおり h_conn に任せる。任せないと湾が穴になる
+    bool conn = hConn <= wl;
+    if (!(uSimple > 0.5 && uElevPaint < 0.5 && vValid > 0.999) && !conn) discard;
+    float depth = wl - vElev;
     if (depth <= 0.0) discard;                 // 潮位より高い地面
     // **汀線を白く出す。** 潮位を動かしたときに動くものは面の色ではなく
     // 水際の位置なので、そこが読めないと「高さが変わった」ことが伝わらない
     float shore = 1.0 - smoothstep(0.0, 0.10, depth);
+    // 以降は wl を基準にした depth だけで決まるので、モードで分岐しない
     // **ランプは 0〜2 m で振る**（0〜3 m だと吉原の浸水深がほぼ最浅端に固まって
     // 一様な水色になる。市街の標高が 0.5〜3 m しかないため）
     vec3 col = mix(vec3(0.45, 0.79, 0.95), vec3(0.03, 0.18, 0.55),
@@ -282,6 +344,17 @@ void main() {
   vec3 n = normalize(vNormal);
   vec3 sun = normalize(vec3(-0.6, 0.7, 0.75));
   float shade = clamp(0.45 + 0.75 * dot(n, sun), 0.25, 1.35);
+
+  // ---- 地盤高で塗る --------------------------------------------------
+  //
+  // **浸水の色を一切出さない。** 「どこが低いか」を見る画面なので、
+  // 浸水域・窪地・判定差をここで重ねると、結局どちらを読む絵なのか決まらない。
+  // 潮位との関係は elevRamp() が引く白い等高線 1 本だけが担う。
+  if (uElevPaint > 0.5) {
+    if (uShowGround < 0.5) discard;
+    fragColor = vec4(elevRamp(vElev) * mix(1.0, shade, 0.55), uGroundOpacity);
+    return;
+  }
 
   vec4 outColor;
 
@@ -306,8 +379,16 @@ void main() {
   }
   if (uMode > 0.5 && uHasDiff > 0.5) {
     vec4 d = texture(diffTexture, cu);
-    bool wb = decodeHConn(d.r) <= uWaterLevel;
-    bool wh = decodeHConn(d.g) <= uWaterLevel;
+    // **単純モデルの判定差には 2 条件の地盤高が要る。**
+    // 到達する側（右）の地盤高は elevTexture の RGB にある。出発する側（左）は
+    // 差分タイルの **B** に入れてある（scripts/80 の elev_code。h_conn と同じ刻み）。
+    // **B が 0 のタイルは B を焼く前の配信物**なので、その画素だけ連結モデルに
+    // 落とす。落とさないと古いタイルで全画素が「浸水しない」になる
+    float ebCode = floor(d.b * 255.0 + 0.5);
+    bool simpleDiff = uSimple > 0.5 && ebCode > 0.5;
+    float elevFrom = (ebCode - 1.0) * uHStep;
+    bool wb = simpleDiff ? elevFrom < uWaterLevel : decodeHConn(d.r) <= uWaterLevel;
+    bool wh = simpleDiff ? vElev < uWaterLevel : decodeHConn(d.g) <= uWaterLevel;
     // 平常時の水域で、まだ水深が付かない潮位のときは下地を出す。
     // ここを先に見ないと、潮位 0 で海が「どちらも浸水」の青になる
     bool permWater = min(decodeHConn(d.r), decodeHConn(d.g)) <= uWaterBase;
@@ -322,7 +403,9 @@ void main() {
   } else {
     float a = texture(elevTexture, cu).a;
     float hConn = decodeHConn(a);
-    bool isWet = hConn <= uWaterLevel;
+    // **単純モデルは h_conn を見ない**（潮位 − 地盤高がそのまま浸水深）。
+    // 判定式は domain/flood.ts の depth() と同一
+    bool isWet = uSimple > 0.5 ? vElev < uWaterLevel : hConn <= uWaterLevel;
     bool baseWater = a > 0.0 && hConn <= uWaterBase;
     float depth = isWet ? max(0.0, uWaterLevel - vElev) : 0.0;
 
@@ -450,6 +533,8 @@ export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMat
       uPass: { value: pass },
       uWaterSurface: { value: 0 },
       uPonded: { value: 1 },
+      uSimple: { value: 1 },
+      uElevPaint: { value: 0 },
     },
   })
 }
@@ -469,4 +554,6 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uWaterBase.value = v.waterBase
   u.uWaterSurface.value = v.waterSurface ? 1 : 0
   u.uPonded.value = v.ponded ? 1 : 0
+  u.uSimple.value = v.simple ? 1 : 0
+  u.uElevPaint.value = v.elevPaint ? 1 : 0
 }

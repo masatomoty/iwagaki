@@ -21,8 +21,8 @@
 import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
 import { comparisonPair } from '../domain/terrain'
-import type { BuildingColorMode, RoadColorMode, SurfaceMode,
-              TerrainCondition } from '../domain/types'
+import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
+              TerrainCondition, TerrainPaint } from '../domain/types'
 import type { Store } from '../state'
 import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
@@ -103,6 +103,33 @@ function conditionsOf(catalog: Catalog) {
 }
 
 /**
+ * **浸水の決め方。** 既定は「潮位 − 地盤高」。
+ *
+ * 舞鶴市の回答（2026-08）は
+ * > 現場にいる経験則として、市内全域的に、排水路などを通じて、潮位よりも
+ * > 地盤高が低い箇所は、その差だけ浸水している状況です。
+ * > 現時点では、単純に「潮位ー地盤高＝浸水深」として可視化することで問題ない
+ * だった。連結モデル（`h_conn`）は消さずに残す。**排水路の吐口高・
+ * フラップゲートの有無が手に入ったら、精緻化するのはそちら側**である。
+ */
+const FLOOD_MODELS: { id: FloodModel; label: string; hint: string }[] = [
+  { id: 'simple', label: '潮位 − 地盤高',
+    hint: '地盤高が潮位より低ければ、その差だけ浸水しているとして塗る。'
+      + '排水路を通じた逆流が現に起きているという現場の経験則に合わせた既定' },
+  { id: 'connected', label: '海からつながる',
+    hint: '海から地表面をたどって到達できるセルだけを浸水とする（h_conn ≤ 潮位）。'
+      + '側溝・暗渠・排水管を通る逆流は含まないので、内陸側を過小評価する' },
+]
+
+/** 地形の面を何で塗るか。地盤高は「浸水深を見せる前に」という市の提案（2026-08） */
+const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
+  { id: 'flood', label: '浸水深', hint: '潮位に対する浸水の深さ（と、判定差）' },
+  { id: 'elevation', label: '地盤高',
+    hint: 'どこの地盤が低いかを 0〜3 m のグラデーションで塗る。'
+      + '浸水の色は出さず、いまの潮位の等高線だけを白い線で重ねる' },
+]
+
+/**
  * その範囲に無いレイヤのチェックは出さない（押しても何も出ないので）。
  * 点群は吉原だけ、線路は逆に**吉原だけ無い**（100 ha に線路が掛からない）。
  */
@@ -115,6 +142,7 @@ function layersOf(catalog: Catalog) {
 const surfaceCondition = (s: SurfaceMode): TerrainCondition => comparisonPair(s).to
 const isDiff = (s: SurfaceMode) =>
   s === 'diff' || s === 'diff_src' || s === 'diff_res' || s === 'diff_pc'
+  || s === 'diff_drainage'
 
 /**
  * メニューに出すレイヤ。`flood` / `ground` / `semantics` / `pcCoverage` は出さない。
@@ -152,11 +180,36 @@ function legendHtml(
     Object.fromEntries(CONDITIONS.map((c) => [c.id, c.label])) as never
   const rows: string[] = []
 
+  // **地盤高で塗っているときは浸水の凡例を出さない。** 画面に浸水の色が
+  // 1 つも無いのに凡例だけ残ると、出ていない色を探すことになる
+  if (s.terrainPaint === 'elevation') {
+    rows.push('<div><i style="width:36px;background:'
+      + 'linear-gradient(90deg,#6b18a8,#9b3fd0 33%,#c489dd 66%,#e6dbec)'
+      + '"></i>地盤高<span class="sub"> 0 m 〜 3 m ／ それ以上は灰</span></div>',
+      '<div><i style="background:#ffffff"></i>いまの潮位の等高線'
+      + `<span class="sub"> ${s.waterLevel.toFixed(2)} m T.P.</span></div>`)
+    // 浸水を読む画面ではないので、以降の浸水系の行は足さずに返す
+    if (s.layers.roads) {
+      rows.push(s.roadColor === 'trafficability'
+        ? '<div><i style="background:#ffe699"></i>道路<span class="sub"> 通行支障</span></div>'
+        : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
+    }
+    return `<div class="legend">${rows.join('')}</div>`
+  }
+
   if (isDiff(s.surface)) {
-    rows.push(
-      `<div><i style="background:#ed3830"></i>${label[pair.to]} でのみ浸水</div>`,
-      `<div><i style="background:#f7d129"></i>${label[pair.from]} でのみ浸水</div>`,
-      `<div><i style="background:#2a5794"></i>どちらも浸水</div>`)
+    if (s.surface === 'diff_drainage') {
+      rows.push(
+        '<div><i style="background:#ed3830"></i>仮想排水モデルでのみ到達</div>',
+        '<div><i style="background:#f7d129"></i>地表連結モデルでのみ到達</div>',
+        '<div><i style="background:#2a5794"></i>両モデルで到達</div>',
+        '<div class="sub">地形タイルの差分のみ。建物・道路の判定差は未配信</div>')
+    } else {
+      rows.push(
+        `<div><i style="background:#ed3830"></i>${label[pair.to]} でのみ浸水</div>`,
+        `<div><i style="background:#f7d129"></i>${label[pair.from]} でのみ浸水</div>`,
+        `<div><i style="background:#2a5794"></i>どちらも浸水</div>`)
+    }
   } else {
     rows.push('<div><i style="background:#6bccf2"></i>浅い &nbsp;'
       + '<i style="background:#0d2985"></i>深い（0〜3 m）</div>')
@@ -172,7 +225,7 @@ function legendHtml(
   // 窪地 = 標高が潮位以下なだけ）ので、色も斜線にして 1 段弱く出している。
   // 差分モードでは出さない（2 条件の h_conn を比べる画面で、
   // どちらの条件の窪地なのかを色 1 つで表せない）
-  if (s.layers.ponded && !isDiff(s.surface)) {
+  if (s.layers.ponded && s.floodModel === 'connected' && !isDiff(s.surface)) {
     rows.push('<div><i style="background:'
       + 'repeating-linear-gradient(135deg,#70bfcc 0 2px,#4c6068 2px 5px)"></i>'
       + '窪地<span class="sub"> 標高は潮位より低いが海とつながらない</span></div>')
@@ -226,6 +279,15 @@ function buildingLegendHtml(s: Store['state'], entries: LegendEntry[]): string {
       + `<i style="background:${UNKNOWN_HEX};margin-left:5px"></i></div>` : ''}</div>`
 }
 
+/** 決め方の一行説明。**どちらを選んでも「何を含んでいないか」を書く** */
+function floodModelNote(m: FloodModel): string {
+  return m === 'simple'
+    ? '排水路を通じた逆流が現に起きているという舞鶴市の経験則に合わせた既定。'
+      + '水の動きと時間・流量は解いていない'
+    : '海から地表面をたどって到達できるセルだけを浸水とする。'
+      + '側溝・暗渠・排水管の逆流を含まないので内陸側を過小評価する'
+}
+
 /**
  * いま何を見ているか。1 行だけ。
  * データの由来（`CONDITIONS[].hint`）は画面に出さない。select の title に残す。
@@ -235,10 +297,23 @@ function nowLine(s: Store['state']): string {
   const c = CONDITIONS.find((x) => x.id === cond)!
   const pair = comparisonPair(s.surface)
   const label = (id: TerrainCondition) => CONDITIONS.find((x) => x.id === id)!.label
+  if (s.terrainPaint === 'elevation') {
+    return `<b>${c.label} の地盤高</b> <span class="sub">白線 = 潮位</span>`
+      + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
+  }
+  if (s.surface === 'diff_drainage') {
+    return '<b>地表連結モデルと仮想排水モデルの判定差</b>'
+      + '<span class="sub">地形タイルのみ。地物判定は未配信</span>'
+      + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
+  }
   const head = isDiff(s.surface)
     ? `${label(pair.from)} と ${label(pair.to)} の判定差`
     : `${c.label} の浸水`
-  return `<b>${head}</b> @ H = ${s.waterLevel.toFixed(2)} m T.P.`
+  // **単純モデルであることを常に画面に出す。** 何を計算しているのかは
+  // 凡例の色では分からず、ここでしか読めない
+  const how = s.floodModel === 'simple' ? '潮位 − 地盤高' : '海から連結'
+  return `<b>${head}</b> <span class="sub">${how}</span>`
+    + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
 }
 
 /**
@@ -331,10 +406,28 @@ export function renderControls(
     if (diffBtn) {
       const target = DIFF_OF[cond]
       diffBtn.disabled = !target
-      diffBtn.setAttribute('aria-pressed', String(isDiff(s.surface)))
+      diffBtn.setAttribute('aria-pressed', String(isDiff(s.surface) && s.surface !== 'diff_drainage'))
       diffBtn.title = target ? '2 条件の判定差で塗る'
         : 'この条件の差分タイルは配信していないので出せない'
     }
+    const drainageBtn = el.querySelector<HTMLButtonElement>('#drainagebtn')
+    if (drainageBtn) {
+      drainageBtn.hidden = !catalog.terrain.diff_drainage
+      drainageBtn.setAttribute('aria-pressed', String(s.surface === 'diff_drainage'))
+    }
+    for (const b of el.querySelectorAll<HTMLButtonElement>('#tpaint button')) {
+      b.setAttribute('aria-pressed', String(b.dataset.p === s.terrainPaint))
+    }
+    for (const b of el.querySelectorAll<HTMLButtonElement>('#fmodel button')) {
+      b.setAttribute('aria-pressed', String(b.dataset.f === s.floodModel))
+    }
+    const fn = el.querySelector<HTMLElement>('#fmodel-note')
+    if (fn) fn.innerHTML = floodModelNote(s.floodModel)
+    // **窪地は連結モデルのときだけの状態。** 単純モデルでは窪地も浸水域なので、
+    // チェックが残っていると押しても何も変わらない項目になる
+    const pond = el.querySelector<HTMLInputElement>('input[data-l="ponded"]')
+    const pondRow = pond?.closest('label') as HTMLElement | null
+    if (pondRow) pondRow.hidden = s.floodModel !== 'connected'
     const nl = el.querySelector<HTMLElement>('#nowline')
     if (nl) nl.innerHTML = nowLine(s)
     const lg = el.querySelector<HTMLElement>('#legend')
@@ -387,8 +480,21 @@ export function renderControls(
                    ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
         <button id="diffbtn" type="button"
                 aria-pressed="${isDiff(s.surface)}"
-                ${DIFF_OF[cond] ? '' : 'disabled'}>判定差</button>
+        ${DIFF_OF[cond] ? '' : 'disabled'}>判定差</button>
+        <button id="drainagebtn" type="button"
+                aria-pressed="${s.surface === 'diff_drainage'}"
+                ${catalog.terrain.diff_drainage ? '' : 'hidden'}
+                title="地表連結モデルと仮想排水モデルの差分">排水差</button>
       </div>
+
+      <!-- **地形の色は頭に置く。** 「浸水深を見せる前に、どの場所の地盤が
+           低いのかを見せる」という市の提案（2026-08）そのものなので、
+           スクロールの下に埋めると開いた画面から見つからない
+           （建物の色で一度それが起きている。state.ts の buildingColor） -->
+      <p class="grouplabel" style="margin-top:11px">地形の色</p>
+      <div class="seg" id="tpaint">${TERRAIN_PAINTS.map((m) =>
+        `<button data-p="${m.id}" type="button" title="${m.hint}"
+                 aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
 
       <p class="grouplabel" style="margin-top:11px">潮位</p>
       <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
@@ -412,6 +518,15 @@ export function renderControls(
     </div>
 
     <div class="body">
+      <!-- **浸水の決め方は本体側。** 既定（潮位 − 地盤高）が市の求めるもの
+           なので、普段は触らせない。切り替えは我々と、排水データが揃った
+           あとのために残してある -->
+      <p class="subhead">浸水の決め方</p>
+      <div class="seg wrap" id="fmodel">${FLOOD_MODELS.map((m) =>
+        `<button data-f="${m.id}" type="button" title="${m.hint}"
+                 aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
+      <div class="whyoff" id="fmodel-note">${floodModelNote(s.floodModel)}</div>
+
       <p class="subhead">絞り込む</p>
       <label class="row"><input type="checkbox" id="cb-changed"
         ${s.layers.changedOnly ? 'checked' : ''}/>判定が変わる地物のみ</label>
@@ -419,6 +534,7 @@ export function renderControls(
       <p class="subhead">重ねる</p>
       ${layersOf(catalog).map((l) =>
         `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
+          ${l.key === 'ponded' && s.floodModel !== 'connected' ? 'hidden' : ''}
           ><input type="checkbox" data-l="${l.key}"
           ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
       <div class="nested" id="rcolwrap" ${s.layers.roads ? '' : 'hidden'}>
@@ -481,12 +597,23 @@ export function renderControls(
     const c = surfaceCondition(store.state.surface)
     store.set({ surface: isDiff(store.state.surface) ? c : (DIFF_OF[c] ?? c) })
   })
+  el.querySelector('#drainagebtn')?.addEventListener('click', () => {
+    if (catalog.terrain.diff_drainage) store.set({ surface: 'diff_drainage' })
+  })
   for (const id of ['#chips', '#refs']) {
     el.querySelector(id)!.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('button')
       if (b) store.set({ waterLevel: Number(b.dataset.h) })
     })
   }
+  el.querySelector('#tpaint')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) store.set({ terrainPaint: b.dataset.p as TerrainPaint })
+  })
+  el.querySelector('#fmodel')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) store.set({ floodModel: b.dataset.f as FloodModel })
+  })
   el.querySelector('#exag')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ exaggeration: Number(b.dataset.x) })

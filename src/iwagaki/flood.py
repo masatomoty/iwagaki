@@ -124,6 +124,65 @@ def compute_h_conn(
     return h_conn
 
 
+def compute_h_conn_with_inland_outfalls(
+    elev: np.ndarray,
+    seed: np.ndarray,
+    inland_node: np.ndarray,
+    invert_mouth: np.ndarray,
+    h_min: float,
+    h_max: float,
+    h_step: float,
+    connectivity: int = 4,
+    nodata_as_water: bool = False,
+) -> np.ndarray:
+    """陸側端を追加 seed として排水路逆流の到達水位を求める。
+
+    `inland_node` は護岸の陸側にあるセル、`invert_mouth` は対応する海側吐口
+    の敷高 [m T.P.]。潮位 `h` が敷高以上で、かつその吐口にフラップゲートが
+    無いケースを表すセルだけを、その `h` の走査で seed に加える。
+
+    海側の吐口セルを seed にしてはいけない。海側セルは通常の open-water
+    seed から既に到達可能であり、陸側端を追加することでのみ護岸下の管路を
+    通る逆流を表現できる。
+
+    `inland_node` と `invert_mouth` は同じ shape とし、対象外は False / NaN
+    とする。敷高は対応する陸側端のセルに保持するため、複数の吐口ペアを
+    1 枚の raster で扱える。
+    """
+    elev = np.asarray(elev, dtype="float64")
+    seed = np.asarray(seed, dtype=bool)
+    inland_node = np.asarray(inland_node, dtype=bool)
+    invert_mouth = np.asarray(invert_mouth, dtype="float64")
+    if not (elev.shape == seed.shape == inland_node.shape == invert_mouth.shape):
+        raise ValueError("elev, seed, inland_node, invert_mouth must have the same shape")
+    if np.any(inland_node & ~np.isfinite(invert_mouth)):
+        raise ValueError("inland_node cells must have a finite invert_mouth")
+
+    valid = np.isfinite(elev)
+    base_e = np.where(valid, elev, -np.inf if nodata_as_water else np.inf)
+    passable = valid | seed | (nodata_as_water & ~valid)
+    struct = structure(connectivity)
+    h_conn = np.full(elev.shape, np.inf, dtype="float64")
+
+    for h in np.arange(h_min, h_max + h_step / 2, h_step):
+        dynamic_seed = seed | (inland_node & (invert_mouth <= h))
+        e = np.where(dynamic_seed, -np.inf, base_e)
+        cand = passable | dynamic_seed
+        cand &= e <= h
+        if not cand.any():
+            continue
+        lab, n = ndimage.label(cand, structure=struct)
+        if n == 0:
+            continue
+        seed_labels = np.unique(lab[dynamic_seed & cand])
+        seed_labels = seed_labels[seed_labels > 0]
+        if seed_labels.size == 0:
+            continue
+        newly = np.isin(lab, seed_labels) & np.isinf(h_conn)
+        h_conn[newly] = h
+    return h_conn
+
+
 def depth(elev: np.ndarray, h_conn: np.ndarray, h: float) -> np.ndarray:
     """水位 h における浸水深。連結していないセルは 0。"""
     d = np.where(h_conn <= h, h - elev, 0.0)
