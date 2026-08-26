@@ -10,8 +10,11 @@ $PY scripts/20_build_baseline.py
 $PY scripts/21_build_highres.py "$@"
 $PY scripts/30_flood.py
 AOI_NAME="${IWAGAKI_AOI:-yoshiwara}"
-PAIRS="data/out/${AOI_NAME}/synthetic_outfall_pairs.geojson"
-if [ -f "$PAIRS" ]; then
+if [ "$AOI_NAME" = "nishi_maizuru" ] || [ "$AOI_NAME" = "higashi_maizuru" ]; then
+  PAIRS="data/out/${AOI_NAME}/synthetic_outfall_pairs.geojson"
+  if [ ! -f "$PAIRS" ]; then
+    $PY scripts/32_generate_synthetic_outfall_pairs.py --output "$PAIRS"
+  fi
   $PY scripts/31_drainage_flood.py --pairs "$PAIRS"
 fi
 $PY scripts/40_compare.py > /dev/null

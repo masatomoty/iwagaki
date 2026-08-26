@@ -10,7 +10,7 @@
 import type { Catalog } from '../domain/catalog'
 import { changeBand, decisionChanged, featureDepth, featurePonded, roadClass } from '../domain/flood'
 import { comparisonPair } from '../domain/terrain'
-import type { ComparisonPair, TerrainCondition } from '../domain/types'
+import type { ComparisonPair, FloodModel, TerrainCondition } from '../domain/types'
 import type { Store } from '../state'
 
 const ROAD_CLASS_LABEL = ['支障なし', '≥0.1 m', '≥0.3 m 通行困難', '≥0.5 m']
@@ -33,12 +33,12 @@ const signed = (v: number | undefined) =>
 /** いま見ている条件の値。ここが主 */
 function currentTable(
   a: NonNullable<Store['state']['selected']>, pair: ComparisonPair,
-  H: number, th: number[], isRoad: boolean,
+  H: number, th: number[], isRoad: boolean, model: FloodModel,
 ): string {
   const to = pair.to
   const from = pair.from
-  const dTo = a.hConn[to] === undefined ? undefined : featureDepth(a, to, H)
-  const dFrom = a.hConn[from] === undefined ? undefined : featureDepth(a, from, H)
+  const dTo = a.hConn[to] === undefined ? undefined : featureDepth(a, to, H, model)
+  const dFrom = a.hConn[from] === undefined ? undefined : featureDepth(a, from, H, model)
   const dg = a.groundElev[to] !== undefined && a.groundElev[from] !== undefined
     ? a.groundElev[to]! - a.groundElev[from]! : undefined
   const dd = dTo !== undefined && dFrom !== undefined ? dTo - dFrom : undefined
@@ -48,17 +48,24 @@ function currentTable(
   // 指摘（2026-08、東舞鶴）に、パネルが何も答えていなかった。
   // 0 なのは標高が足りているからではなく、**地表面で海とつながらない**からで、
   // その差（潮位 − 地盤高）と h_conn を並べれば理由がその場で読める
-  const pond = featurePonded(a, to, H)
+  const pond = featurePonded(a, to, H, model)
   const below = pond ? H - a.groundElev[to]! : undefined
   return `
     <table>
       <tr><td>地盤高</td><td class="num">${fmt(a.groundElev[to])}</td></tr>
-      <tr><td>h_conn</td><td class="num">${fmt(a.hConn[to])}</td></tr>
+      ${model === 'connected'
+        ? `<tr><td>h_conn</td><td class="num">${fmt(a.hConn[to])}</td></tr>` : ''}
       <tr><td>浸水深</td><td class="num">${fmt(dTo)}</td></tr>
       ${pond ? `<tr><td>潮位より低い</td><td class="num">${fmt(below)}</td></tr>` : ''}
       ${isRoad ? `<tr><td>通行</td><td class="num">${
         dTo === undefined ? '—' : ROAD_CLASS_LABEL[roadClass(dTo, th)]}</td></tr>` : ''}
     </table>
+    ${model === 'simple' && dTo !== undefined && dTo > 0
+      ? `<div class="note">浸水深 = 潮位 ${H.toFixed(2)} − 地盤高
+          ${a.groundElev[to]!.toFixed(2)} = <b>${dTo.toFixed(2)} m</b>。
+          <b>連結性は問うていない</b>（排水路などを通じて、潮位より地盤高が低い箇所は
+          その差だけ浸水しているという現場の経験則に合わせた。舞鶴市、2026-08）。
+          海側から地表面をたどって到達するのは潮位 ${fmt(a.hConn[to])} から</div>` : ''}
     ${pond ? `<div class="note"><b>窪地。</b>標高は潮位より
       ${below!.toFixed(2)} m 低いが、地表面をたどると海に出ないので
       本モデルでは浸水深 0 になる（海側からつながるのは潮位
@@ -79,8 +86,9 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
   const H = store.state.waterLevel
   const th = catalog.semantics.road_depth_classes_m
   const pair = comparisonPair(store.state.surface)
-  const changed = decisionChanged(a, H, th, pair)
-  const band = changeBand(a, pair)
+  const model = store.state.floodModel
+  const changed = decisionChanged(a, H, th, pair, model)
+  const band = changeBand(a, pair, model)
   const isRoad = a.featureType === 'tran:Road'
   const same = pair.from === pair.to
 
@@ -102,7 +110,7 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
              @ H = ${H.toFixed(2)} m T.P.</span></p>`}
 
     <p class="grouplabel">${CONDITION_LABEL[pair.to]}${same ? '' : '（いま見ている条件）'}</p>
-    ${currentTable(a, pair, H, th, isRoad)}
+    ${currentTable(a, pair, H, th, isRoad, model)}
 
     <table>
       ${band ? `<tr><td>判定が割れる水位帯</td><td class="num">
@@ -113,7 +121,9 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
         ? `<tr><td>区間種別</td><td class="num">${a.sectionTypeLabel}</td></tr>` : ''}
     </table>
 
-    <div class="note">h_conn = 海側と連結して浸水し始める最小水位。
-      水位を動かしてもサーバには問い合わせず、この値から即座に計算している。</div>
+    <div class="note">${model === 'connected'
+      ? `h_conn = 海側と連結して浸水し始める最小水位。`
+      : `浸水深 = 潮位 − 地盤高（単純モデル）。`}
+      水位を動かしてもサーバには問い合わせず、その場で計算している。</div>
   `
 }

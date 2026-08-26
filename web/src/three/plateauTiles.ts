@@ -96,6 +96,7 @@ uniform vec3 uUnder;
 uniform vec3 uAbove;
 uniform vec3 uUnknown;
 uniform float uPonded;
+uniform float uSimple;
 
 /**
  * 床下 / 床上。**判定式は src/domain/flood.ts と同一**
@@ -104,7 +105,9 @@ uniform float uPonded;
  */
 vec3 depthColor() {
   if (vHas < 0.5) return uUnknown;               // 解析範囲外の棟（assertion が無い）
-  if (vHConn > uWaterLevel) {
+  // **単純モデル（既定）は h_conn を見ない。** 地盤高が潮位を下回れば
+  // その差が浸水深（domain/types.ts の FloodModel）
+  if (uSimple < 0.5 && vHConn > uWaterLevel) {
     // **窪地。** 海と連結して到達しないが、地盤高は潮位以下。
     // 判定式は domain/flood.ts の ponded() と同一で、
     // 地形の面（three/floodMaterial.ts の pondedFill）と同じ色を持つ
@@ -220,6 +223,7 @@ export class PlateauTiles {
         uDry: { value: rgb(DEPTH_HEX.dry) },
         uPondedC: { value: rgb(DEPTH_HEX.ponded) },
         uPonded: { value: 1 },
+        uSimple: { value: 1 },
         uUnder: { value: rgb(DEPTH_HEX.under) },
         uAbove: { value: rgb(DEPTH_HEX.above) },
         uUnknown: { value: rgb(UNKNOWN_HEX) },
@@ -247,6 +251,18 @@ export class PlateauTiles {
     const next = v ? 1 : 0
     if (this.material.uniforms.uPonded.value === next) return
     this.material.uniforms.uPonded.value = next
+    this.o.viewer.invalidate()
+  }
+
+  /**
+   * 単純モデル（潮位 − 地盤高）で塗るか（`state.floodModel`）。
+   * **b3dm は作り直さない。** 地盤高と h_conn は頂点属性に焼いてあるので、
+   * どちらのモデルで塗るかは uniform 1 個で切り替わる
+   */
+  setSimple(v: boolean) {
+    const next = v ? 1 : 0
+    if (this.material.uniforms.uSimple.value === next) return
+    this.material.uniforms.uSimple.value = next
     this.o.viewer.invalidate()
   }
 

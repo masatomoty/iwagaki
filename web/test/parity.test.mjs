@@ -18,11 +18,23 @@ const decodeElev = (r, g, b) => (r === 0 && g === 0 && b === 0 ? NaN : r * 256 +
 const decodeHConn = (a, hStep) => (a === 0 ? Infinity : (a - 1) * hStep)
 
 // --- domain/flood.ts と同じ式 ---
+// **モデルが 2 つある**（domain/types.ts の FloodModel）。既定は 'simple'。
+//   simple    浸水深 = max(0, 潮位 - 地盤高)。連結性を問わない
+//   connected h_conn <= 潮位 のときだけ深さを付ける
 const wet = (h, H) => h !== undefined && Number.isFinite(h) && h <= H
-const depth = (e, h, H) => (!wet(h, H) || e === undefined || !Number.isFinite(e) ? 0 : Math.max(0, H - e))
+const depth = (e, h, H, model = 'simple') =>
+  (e === undefined || !Number.isFinite(e) ? 0
+    : model === 'connected' && !wet(h, H) ? 0
+      : Math.max(0, H - e))
 const roadClass = (d, th) => { let c = 0; for (let i = 0; i < th.length; i++) if (d >= th[i]) c = i + 1; return c }
-// 窪地: 標高 <= 潮位 だが海と地表面ではつながっていない
-const ponded = (e, h, H) => (e === undefined || !Number.isFinite(e) ? false : wet(h, H) ? false : e < H)
+// 窪地: 標高 <= 潮位 だが海と地表面ではつながっていない。connected のときだけ在る状態
+const ponded = (e, h, H, model = 'simple') =>
+  (model === 'simple' ? false
+    : e === undefined || !Number.isFinite(e) ? false : wet(h, H) ? false : e < H)
+// scripts/80 の elev_code（差分タイルの B）。単純モデルの判定差に使う
+const elevCode = (e, hStep) =>
+  (e === undefined || !Number.isFinite(e) ? 0 : Math.min(255, Math.max(1, Math.round(e / hStep) + 1)))
+const decodeElevCode = (c, hStep) => (c === 0 ? NaN : (c - 1) * hStep)
 
 let checked = 0
 let failed = 0
@@ -45,8 +57,9 @@ for (const s of fx.packing) {
 for (const f of fx.features) {
   for (const [H, exp] of Object.entries(f.at)) {
     const h = Number(H)
-    const db = depth(f.ground_elev_baseline, f.h_conn_baseline, h)
-    const dh = depth(f.ground_elev_highres, f.h_conn_highres, h)
+    // フィクスチャは scripts/50（連結モデル）の出力なので connected で突き合わせる
+    const db = depth(f.ground_elev_baseline, f.h_conn_baseline, h, 'connected')
+    const dh = depth(f.ground_elev_highres, f.h_conn_highres, h, 'connected')
     near(db, exp.depth_baseline, 1e-6, `${f.gml_id} depth_baseline@${H}`)
     near(dh, exp.depth_highres, 1e-6, `${f.gml_id} depth_highres@${H}`)
     const changed = f.unreliable ? false
@@ -65,7 +78,8 @@ for (const f of fx.features) {
 // three.js 化で UBO (fmesh.*) をやめて個別 uniform (u*) にしたので、名前だけ追従させた。
 // 見ているものは変えていない: 標高のバイアス・パッキングの基数・h_conn の刻み・水位。
 const glsl = readFileSync(path.join(HERE, '../src/three/floodMaterial.ts'), 'utf8')
-for (const token of ['32768', '256.0', 'uHStep', 'uWaterLevel', 'uPonded']) {
+for (const token of ['32768', '256.0', 'uHStep', 'uWaterLevel', 'uPonded',
+                     'uSimple', 'uElevPaint', 'elevRamp']) {
   checked++
   if (!glsl.includes(token)) { failed++; console.error(`FAIL glsl missing ${token}`) }
 }
@@ -81,8 +95,8 @@ for (const f of fx.features) {
     for (const c of ['baseline', 'highres']) {
       const e = f[`ground_elev_${c}`]
       const h = f[`h_conn_${c}`]
-      const isWet = depth(e, h, H) > 0
-      const isPonded = ponded(e, h, H)
+      const isWet = depth(e, h, H, 'connected') > 0
+      const isPonded = ponded(e, h, H, 'connected')
       checked++
       if (isWet && isPonded) { failed++; console.error(`FAIL ${f.gml_id} ${c}@${H}: wet かつ 窪地`) }
       // 標高が潮位以下なら、必ずどちらかで拾えていること（取りこぼしが無い）
@@ -96,6 +110,48 @@ for (const f of fx.features) {
       }
     }
   }
+}
+
+// 5) 単純モデル = 連結モデル ∪ 窪地 であること。
+//
+// 既定を「潮位 − 地盤高」に切り替えた（舞鶴市の回答、2026-08）。**このとき
+// 画面から消えるのは窪地という区分だけで、面積が減ってはいけない。** 両者が
+// ずれると「単純にしたのに浸水域が狭くなった」が起きるので、全地物 × 全水位で押さえる。
+for (const f of fx.features) {
+  for (const H of Object.keys(f.at).map(Number)) {
+    for (const c of ['baseline', 'highres']) {
+      const e = f[`ground_elev_${c}`]
+      const h = f[`h_conn_${c}`]
+      const simple = depth(e, h, H, 'simple') > 0
+      const union = depth(e, h, H, 'connected') > 0 || ponded(e, h, H, 'connected')
+      checked++
+      if (simple !== union) {
+        failed++
+        console.error(`FAIL ${f.gml_id} ${c}@${H}: simple ${simple} != 連結∪窪地 ${union}`)
+      }
+      // 単純モデルの浸水深はそのまま 潮位 − 地盤高
+      if (simple) {
+        near(depth(e, h, H, 'simple'), H - e, 1e-9, `${f.gml_id} ${c}@${H} simple depth`)
+      }
+    }
+  }
+}
+
+// 6) 差分タイルの B（scripts/80 の elev_code）で地盤高が往復すること。
+//
+// 単純モデルの判定差は 2 条件の**地盤高**で決まるが、出発する側の地盤高は
+// 差分タイルの B にしか無い。**刻みは h_conn と同じ 0.05 m で、
+// 1..255 = 0.00..12.70 m。水位スライダの上限 3.00 m を覆っていること**を見る。
+for (const s of fx.packing) {
+  const e = s.elev
+  if (e === null || e === undefined || !Number.isFinite(e) || e > 12.0 || e < 0) continue
+  near(decodeElevCode(elevCode(e, fx.h_step), fx.h_step), e, fx.h_step / 2 + 1e-9,
+    `elev_code(${e})`)
+}
+checked++
+if (decodeElevCode(255, fx.h_step) < 3.0) {
+  failed++
+  console.error('FAIL elev_code の上限が水位スライダの 3.00 m を覆っていない')
 }
 
 console.log(`parity: ${checked} checks, ${failed} failures`)

@@ -13,7 +13,7 @@ import {
 } from 'three'
 
 import { decisionChanged, featureDepth, roadClass } from '../domain/flood'
-import type { ComparisonPair, FeatureAssertion, RoadColorMode,
+import type { ComparisonPair, FeatureAssertion, FloodModel, RoadColorMode,
               TerrainCondition } from '../domain/types'
 import type { RawFeature } from '../view/semantics'
 import { lngLatToWorld, type LocalFrame } from './mercator'
@@ -29,6 +29,8 @@ export interface SemanticsStyle {
   roads: boolean
   /** 道路の塗り分け。既定は一律（`domain/types.ts` の RoadColorMode） */
   roadColor: RoadColorMode
+  /** 浸水の決め方。既定は単純（潮位 − 地盤高）。`domain/types.ts` の FloodModel */
+  model: FloodModel
 }
 
 /**
@@ -509,9 +511,10 @@ export class SemanticsMesh {
     const lrgb = new Float32Array(this.assertions.length * 3)
     const alpha = new Float32Array(this.assertions.length).fill(1)
     this.assertions.forEach((a, i) => {
-      const changed = a ? decisionChanged(a, s.waterLevel, s.roadThresholds, s.pair) : false
+      const changed = a
+        ? decisionChanged(a, s.waterLevel, s.roadThresholds, s.pair, s.model) : false
       const isRoad = a?.featureType === 'tran:Road'
-      const depth = a ? featureDepth(a, s.condition, s.waterLevel) : 0
+      const depth = a ? featureDepth(a, s.condition, s.waterLevel, s.model) : 0
       let c: [number, number, number]
       if (s.changedOnly && !changed) { hide[i] = 1; c = [0, 0, 0] }
       else if (isRoad && !s.roads) { hide[i] = 1; c = [0, 0, 0] }

@@ -83,6 +83,8 @@
                 padding: 7px 5px; font-size: 12.5px; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600; }
   label.row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; }
+  /* display を持つ規則は [hidden] の display:none に勝ってしまうので明示する */
+  label.row[hidden] { display: none; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
   /* ドラッグだけだと 0.05 m 刻みを合わせにくい。−/＋ で 1 段ずつ動かせるようにする */
   .wlrow { display: flex; align-items: center; gap: 6px; }

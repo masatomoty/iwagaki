@@ -46,9 +46,17 @@ CONDITIONS = {
     "pointcloud": ("dtm_pointcloud_050.tif", "h_conn_pointcloud.tif"),
 }
 
-# 差分は 2 条件の h_conn だけあれば任意の水位で判定できる（浸水深は使わない）。
-# 専用ピラミッドを 1 枚作っておけば、ブラウザ側のシェーダは常に単一テクスチャで済む。
-#   R = h_conn(左) コード, G = h_conn(右) コード, B = 0, A = 255
+# 差分ピラミッド。専用に 1 枚作っておけば、ブラウザ側のシェーダは常に単一
+# テクスチャで済む。
+#   R = h_conn(左) コード, G = h_conn(右) コード, B = 地盤高(左) コード, A = 255
+#
+# **B に左条件の地盤高を入れる。** viewer の既定が単純モデル
+# （浸水 = 地盤高 < 潮位。`web/src/domain/types.ts` の FloodModel）になったため、
+# 差分を出すには 2 条件の**地盤高**が要る。右条件の地盤高は地形タイルの RGB に
+# 入っているが、左条件のものはどこにも無く、判定差だけが連結モデルのまま
+# 取り残されていた（地形の面と地物の色が食い違う）。
+# コードは h_conn と同じ刻み（H_STEP=0.05 m、1..255 = 0.00..12.70 m、0 = nodata）。
+# **水位スライダの上限が 3.00 m なので 12.70 m での飽和は判定に影響しない。**
 #
 # 4 組焼く。条件は 1 段ごとに 1 要素だけ変えた鎖（docs/design.md「地形の生成」）
 # なので、鎖の「辺」がそのまま差分になる。
@@ -70,6 +78,7 @@ DIFFS = {
     "diff_src": ("h_conn_baseline.tif", "h_conn_control.tif"),
     "diff_res": ("h_conn_control.tif", "h_conn_highres.tif"),
     "diff_pc": ("h_conn_highres.tif", "h_conn_pointcloud.tif"),
+    "diff_drainage": ("h_conn_highres.tif", "h_conn_drainage_S2.tif"),
 }
 
 # 差分モードで地形メッシュの形を取る条件（viewer の domain/terrain.ts と同じ規則）。
@@ -79,6 +88,17 @@ GEOMETRY_FOR_DIFF = {
     "diff_src": "dtm_control_500.tif",
     "diff_res": "dtm_highres_050.tif",
     "diff_pc": "dtm_pointcloud_050.tif",
+    "diff_drainage": "dtm_highres_050.tif",
+}
+
+# 差分の**出発する側**の地盤高。単純モデルで 2 条件を比べるのに要る（B チャネル）。
+# 到達する側は地形タイルの RGB にあるので、ここには入れない
+GEOMETRY_FROM_DIFF = {
+    "diff": "dtm_baseline_500.tif",
+    "diff_src": "dtm_baseline_500.tif",
+    "diff_res": "dtm_control_500.tif",
+    "diff_pc": "dtm_highres_050.tif",
+    "diff_drainage": "dtm_highres_050.tif",
 }
 
 
@@ -150,10 +170,24 @@ def hconn_code(hconn: np.ndarray) -> np.ndarray:
     return np.where(reached, code, 0).astype(np.uint8)
 
 
-def encode_diff(hb: np.ndarray, hh: np.ndarray) -> np.ndarray:
+def elev_code(elev: np.ndarray) -> np.ndarray:
+    """地盤高を h_conn と同じ刻みのコードに詰める（単純モデルの差分に使う）。
+
+    **単純モデルでは「浸水し始める水位」がそのまま地盤高である**ので、
+    h_conn とまったく同じ符号化でよい。0 = nodata、1..255 = 0.00..12.70 m。
+    負の標高は 0.00 m に飽和する（解析側の DTM は 0 m でクリップ済み [実測]）。
+    """
+    ok = np.isfinite(elev)
+    code = np.clip(
+        np.round(np.nan_to_num(elev, nan=0.0) / H_STEP).astype(np.int32) + 1, 1, 255)
+    return np.where(ok, code, 0).astype(np.uint8)
+
+
+def encode_diff(hb: np.ndarray, hh: np.ndarray, eb: np.ndarray) -> np.ndarray:
     rgba = np.zeros((TILE, TILE, 4), dtype=np.uint8)
     rgba[..., 0] = hconn_code(hb)
     rgba[..., 1] = hconn_code(hh)
+    rgba[..., 2] = elev_code(eb)   # 出発する側の地盤高。単純モデルの差分に要る
     rgba[..., 3] = 255          # 不透明にして premultiply の影響を受けないようにする
     return rgba
 
@@ -221,6 +255,10 @@ def main() -> int:
     # --- 差分ピラミッド ---------------------------------------------------
     for name in WEB_DIFFS:
         left, right = DIFFS[name]
+        missing = [p for p in (OUT / left, OUT / right) if not p.exists()]
+        if missing:
+            print(f"  {name}: skip (missing {', '.join(str(p.name) for p in missing)})")
+            continue
         outdir = WEB_DATA / "tiles" / asset_name(name)
         n_tiles = total = 0
         per_zoom = {}
@@ -239,9 +277,13 @@ def main() -> int:
                 if (not np.isfinite(elev).any()
                         and not np.isfinite(hb).any() and not np.isfinite(hh).any()):
                     continue
+                # 出発する側の地盤高（B チャネル）。単純モデルの判定差に要る
+                elev_from, _ = sample(
+                    OUT / GEOMETRY_FROM_DIFF[name], z, x, y, Resampling.nearest)
                 p = outdir / str(z) / str(x) / f"{y}.png"
                 p.parent.mkdir(parents=True, exist_ok=True)
-                Image.fromarray(encode_diff(hb, hh), "RGBA").save(p, "PNG", optimize=True)
+                Image.fromarray(encode_diff(hb, hh, elev_from), "RGBA").save(
+                    p, "PNG", optimize=True)
                 zn += 1
                 zt += p.stat().st_size
             per_zoom[z] = {"tiles": zn, "bytes": zt}
@@ -253,7 +295,8 @@ def main() -> int:
             "min_zoom": args.min_zoom, "max_zoom": args.max_zoom,
             "per_zoom": per_zoom,
             "url": f"data/tiles/{asset_name(name)}/{{z}}/{{x}}/{{y}}.png",
-            "packing": f"R=hconn({left[7:-4]}) code, G=hconn({right[7:-4]}) code, A=255",
+            "packing": (f"R=hconn({left[7:-4]}) code, G=hconn({right[7:-4]}) code, "
+                        f"B=elev({GEOMETRY_FROM_DIFF[name][4:-4]}) code, A=255"),
         }
         print(f"{name}: {n_tiles} tiles, {total/1e6:.2f} MB")
 

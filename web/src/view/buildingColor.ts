@@ -12,7 +12,8 @@
 
 import { featureDepth, featurePonded } from '../domain/flood'
 import type { Catalog } from '../domain/catalog'
-import type { BuildingColorMode, FeatureAssertion, TerrainCondition } from '../domain/types'
+import type { BuildingColorMode, FeatureAssertion, FloodModel,
+              TerrainCondition } from '../domain/types'
 
 export type Rgb = [number, number, number]
 
@@ -90,7 +91,7 @@ export function depthClass(depth: number, floor: number, ponded = false): DepthC
 export function depthLegend(
   assertions: Iterable<FeatureAssertion>,
   condition: TerrainCondition, waterLevel: number, floor: number,
-  showPonded = true,
+  showPonded = true, model: FloodModel = 'simple',
 ): LegendEntry[] {
   const counts: Record<DepthClass, number> = { dry: 0, ponded: 0, under: 0, above: 0 }
   let unreliable = 0
@@ -100,8 +101,8 @@ export function depthLegend(
     n++
     // 橋梁・高架などは地盤高が意味を持たない。塗りでも別色にしてあるので分けて出す
     if (a.unreliable) { unreliable++; continue }
-    counts[depthClass(featureDepth(a, condition, waterLevel), floor,
-                      showPonded && featurePonded(a, condition, waterLevel))]++
+    counts[depthClass(featureDepth(a, condition, waterLevel, model), floor,
+                      showPonded && featurePonded(a, condition, waterLevel, model))]++
   }
   if (n === 0) return []
   const rows: LegendEntry[] = DEPTH_CLASSES

@@ -41,7 +41,8 @@ export function resolveSurface(
   terrain: Partial<Record<string, TerrainAsset>>, surface: SurfaceMode,
 ): ResolvedSurface | undefined {
   if (surface === 'diff' || surface === 'diff_src'
-      || surface === 'diff_res' || surface === 'diff_pc') {
+      || surface === 'diff_res' || surface === 'diff_pc'
+      || surface === 'diff_drainage') {
     const condition = DIFF_GEOMETRY[surface]
     const geom = terrain[condition]
     const diff = terrain[surface]
@@ -71,5 +72,6 @@ export function comparisonPair(surface: SurfaceMode): ComparisonPair {
   if (surface === 'diff_src') return { from: 'baseline', to: 'control' }
   if (surface === 'diff_res') return { from: 'control', to: 'highres' }
   if (surface === 'diff_pc') return { from: 'highres', to: 'pointcloud' }
+  if (surface === 'diff_drainage') return { from: 'highres', to: 'highres' }
   return { from: 'baseline', to: surface }
 }

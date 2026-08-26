@@ -1,6 +1,6 @@
 import type { Catalog } from './domain/catalog'
-import type { BuildingColorMode, FeatureAssertion, RoadColorMode,
-              SurfaceMode } from './domain/types'
+import type { BuildingColorMode, FeatureAssertion, FloodModel, RoadColorMode,
+              SurfaceMode, TerrainPaint } from './domain/types'
 
 export interface LayerToggles {
   flood: boolean
@@ -16,6 +16,10 @@ export interface LayerToggles {
    * **窪地**（標高は潮位以下だが `h_conn > 潮位` = 地表面では海とつながっていない）
    * を印で出すか。`domain/flood.ts` の `ponded()`。
    *
+   * **`floodModel === 'connected'` のときだけ意味を持つ。** 既定の `simple`
+   * （潮位 − 地盤高）では窪地は浸水域そのものなので、この印は出ない
+   * （メニューにも出さない）。以下は `connected` を選んでいるときの話。
+   *
    * 既定 ON。外部からの指摘（2026-08、東舞鶴）が
    * **「0.8 m の潮位でも浸水する範囲があるはずなのに着色されない」**
    * 「地盤高 0.8 m のところで潮位 0.9 m にしても浸水深が 0 のまま」だった。
@@ -24,7 +28,12 @@ export interface LayerToggles {
    * 1.37 ha だけ**（次の 0.3 m で 14.23 ha）だった [実測]。
    * モデルとしては正しいが、吐口にフラップゲートが無い以上
    * （`docs/todo.md` 中 3）**内陸側を過小評価している**ので、
-   * 「浸水しない」と同じ灰で潰さずに出す。切れるようにはしてある
+   * 「浸水しない」と同じ灰で潰さずに出す。切れるようにはしてある。
+   *
+   * **その後、市の回答（2026-08）で `simple` が既定になった。** 「排水路などを
+   * 通じて、潮位よりも地盤高が低い箇所は、その差だけ浸水している」が現場の
+   * 経験則で、逆流を判定に入れないこと自体が過小評価だったため
+   * （`domain/types.ts` の `FloodModel`）
    */
   ponded: boolean
   /**
@@ -79,6 +88,17 @@ export interface AppState {
   roadColor: RoadColorMode
   /** 鉛直強調。吉原は起伏が 0〜3 m しかないので、真横から見るには必須 */
   exaggeration: number
+  /**
+   * 浸水の決め方。**既定は `simple`（潮位 − 地盤高）。**
+   * 経緯と根拠は `domain/types.ts` の `FloodModel`。
+   */
+  floodModel: FloodModel
+  /**
+   * 地形の面の塗り。**既定は `flood`（浸水深）。**
+   * `elevation` は「浸水深を見せる前に、どの場所の地盤が低いのかを
+   * グラデーションで」という市の提案（2026-08）。`domain/types.ts` の `TerrainPaint`。
+   */
+  terrainPaint: TerrainPaint
 }
 
 export function initialState(catalog: Catalog): AppState {
@@ -119,6 +139,10 @@ export function initialState(catalog: Catalog): AppState {
     buildingColor: 'depth',
     roadColor: 'plain',
     exaggeration: 1,
+    // **既定は単純モデル（潮位 − 地盤高）。** 舞鶴市の回答（2026-08）に合わせた。
+    // 連結モデル（h_conn）は「判定モデル」で切り替えて残してある
+    floodModel: 'simple',
+    terrainPaint: 'flood',
   }
 }
 

@@ -34,7 +34,7 @@ def parse_inland_node(value: object) -> tuple[float, float] | None:
         coords = value.get("coordinates")
     else:
         coords = value
-    if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+    if isinstance(coords, (list, tuple, np.ndarray)) and len(coords) >= 2:
         try:
             return float(coords[0]), float(coords[1])
         except (TypeError, ValueError):
@@ -90,6 +90,10 @@ def main() -> int:
     records: list[dict] = []
 
     for idx, feature in pairs.iterrows():
+        gate_type = str(feature.get("gate_type", "none")).strip().lower()
+        if gate_type == "flap":
+            # フラップゲート付きの吐口はS2（ゲートなし）の追加seedにしない。
+            continue
         node = parse_inland_node(feature.get("inland_node"))
         if node is None:
             # GeoJSON propertiesで表現しにくい場合の別名も許容する。
@@ -111,6 +115,7 @@ def main() -> int:
         invert[r, c] = ground - args.drop_m
         records.append({
             "feature": int(idx),
+            "gate_type": gate_type,
             "rowcol": [int(r), int(c)],
             "inland_ground_m": round(float(ground), 3),
             "invert_mouth_m": round(float(invert[r, c]), 3),

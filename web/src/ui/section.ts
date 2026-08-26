@@ -3,12 +3,13 @@
 // **3D の俯瞰では 0〜3 m の起伏が潰れて読めない。** このリポジトリの問いは
 // 「護岸天端を水位が越えるか」なので、横から見て水平線を引くのが一番直接的である。
 //
-// 浸水の判定は標高だけでは決まらない。海と連結しているかを見る必要があるので、
-// **`h_conn <= H` を満たす区間だけ**を水色で塗る。標高が水位より低くても
-// 連結していなければ塗らない（これが本リポジトリの主張そのもの）。
+// 塗る区間は `state.floodModel` で決まる。**既定は単純モデル**（潮位 − 地盤高）で、
+// 標高が水位より低い区間をそのまま塗る。`connected` を選ぶと `h_conn <= H` を
+// 満たす区間だけになり、護岸天端の内側は塗られない（このリポジトリ本来の主張）。
+// 断面図はその 2 つの違いが**いちばん直接見える場所**でもある。
 
 import type { SamplePoint } from '../assets/terrainSampler'
-import type { TerrainCondition } from '../domain/types'
+import type { FloodModel, TerrainCondition } from '../domain/types'
 
 export interface SectionSeries {
   condition: TerrainCondition
@@ -75,7 +76,7 @@ function niceStep(span: number): number {
 
 export function drawSection(
   canvas: HTMLCanvasElement, series: SectionSeries[], waterLevel: number,
-  fit: 'water' | 'all' = 'water',
+  fit: 'water' | 'all' = 'water', model: FloodModel = 'simple',
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -129,7 +130,7 @@ export function drawSection(
   ctx.textAlign = 'right'
   ctx.fillText('距離 m', w - PAD.right, h - PAD.bottom + 5)
 
-  // 連結して浸水する区間を塗る。**先頭の条件（いま画面に出ているもの）で判定する**
+  // 浸水する区間を塗る。**先頭の条件（いま画面に出ているもの）で判定する**
   const main = withData[0]
   ctx.fillStyle = 'rgba(56,132,222,.30)'
   let run: SamplePoint[] = []
@@ -145,7 +146,9 @@ export function drawSection(
     run = []
   }
   for (const p of main.points) {
-    const wet = Number.isFinite(p.elev) && p.hConn <= waterLevel && p.elev < waterLevel
+    // 単純モデル（既定）は連結性を問わない。domain/flood.ts の depth() と同じ形
+    const wet = Number.isFinite(p.elev) && p.elev < waterLevel
+      && (model === 'simple' || p.hConn <= waterLevel)
     if (wet) run.push(p)
     else flush()
   }
