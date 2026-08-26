@@ -114,9 +114,6 @@ function conditionsOf(catalog: Catalog) {
  * フラップゲートの有無が手に入ったら、精緻化するのはそちら側**である。
  */
 const FLOOD_MODELS: { id: FloodModel; label: string; hint: string }[] = [
-  { id: 'simple', label: '潮位 − 地盤高',
-    hint: '地盤高が潮位より低ければ、その差だけ浸水しているとして塗る。'
-      + '排水路を通じた逆流が現に起きているという現場の経験則に合わせた既定' },
   { id: 'connected', label: '海からつながる',
     hint: '海から地表面をたどって到達できるセルだけを浸水とする（h_conn ≤ 潮位）。'
       + '側溝・暗渠・排水管を通る逆流は含まないので、内陸側を過小評価する' },
@@ -187,7 +184,7 @@ function legendHtml(
   // 1 つも無いのに凡例だけ残ると、出ていない色を探すことになる
   if (s.terrainPaint === 'elevation') {
     rows.push('<div><i style="width:36px;background:'
-      + 'linear-gradient(90deg,#6b18a8,#9b3fd0 33%,#c489dd 66%,#e6dbec)'
+      + 'linear-gradient(90deg,#2f6fa3,#4da66f 33%,#f0d34f 66%,#a86632)'
       + '"></i>地盤高<span class="sub"> 0 m 〜 3 m ／ それ以上は灰</span></div>',
       '<div><i style="background:#ffffff"></i>いまの潮位の等高線'
       + `<span class="sub"> ${s.waterLevel.toFixed(2)} m T.P.</span></div>`)

@@ -89,8 +89,8 @@ export interface AppState {
   /** 鉛直強調。吉原は起伏が 0〜3 m しかないので、真横から見るには必須 */
   exaggeration: number
   /**
-   * 浸水の決め方。**既定は `simple`（潮位 − 地盤高）。**
-   * 経緯と根拠は `domain/types.ts` の `FloodModel`。
+   * 浸水の決め方。**既定は `connected`（海からつながる）。**
+   * `simple` は旧データ・互換用に型と判定関数へ残すが、UIでは選択肢に出さない。
    */
   floodModel: FloodModel
   /**
@@ -139,9 +139,8 @@ export function initialState(catalog: Catalog): AppState {
     buildingColor: 'depth',
     roadColor: 'plain',
     exaggeration: 1,
-    // **既定は単純モデル（潮位 − 地盤高）。** 舞鶴市の回答（2026-08）に合わせた。
-    // 連結モデル（h_conn）は「判定モデル」で切り替えて残してある
-    floodModel: 'simple',
+    // 「地盤高」は表示方法として独立させたため、浸水の既定は地表連結モデルにする。
+    floodModel: 'connected',
     terrainPaint: 'flood',
   }
 }
