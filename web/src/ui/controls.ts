@@ -98,7 +98,8 @@ const DIFF_OF: Partial<Record<TerrainCondition, SurfaceMode>> = {
  * 焼いていない）。出してしまうと選んでもタイルが 404 になる。
  */
 function conditionsOf(catalog: Catalog) {
-  const have = CONDITIONS.filter((c) => catalog.terrain[c.id])
+  // drainage は地形データの選択肢ではなく、浸水判定モデルとして下段に出す。
+  const have = CONDITIONS.filter((c) => c.id !== 'drainage' && catalog.terrain[c.id])
   return have.length ? have : CONDITIONS
 }
 
