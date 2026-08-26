@@ -90,6 +90,8 @@ export interface FloodUniformValues {
    * 既定はこちら（市の回答、2026-08）。
    */
   simple: boolean
+  /** 仮想排水モデル。diff タイルの G チャンネルを h_conn として使う */
+  drainage: boolean
   /**
    * **地盤高そのもの**をグラデーションで塗るか（`domain/types.ts` の `TerrainPaint`）。
    * 標高はもともとタイルの RGB に入っているので、これも配信物は増えない。
@@ -220,6 +222,7 @@ uniform float uPass;
 uniform float uWaterSurface;
 uniform float uPonded;
 uniform float uSimple;
+uniform float uDrainage;
 uniform float uElevPaint;
 
 in vec2 vUv;
@@ -320,6 +323,9 @@ void main() {
     // ただし **nodata のセルは標高が無いので判定できない**。港と湾は
     // 航空レーザが水面から反射を返さず nodata になるので、そこだけは
     // 従来どおり h_conn に任せる。任せないと湾が穴になる
+    if (uDrainage > 0.5 && uHasDiff > 0.5) {
+      hConn = decodeHConn(texture(diffTexture, cu).g);
+    }
     bool conn = hConn <= wl;
     if (!(uSimple > 0.5 && uElevPaint < 0.5 && vValid > 0.999) && !conn) discard;
     float depth = wl - vElev;
@@ -403,6 +409,9 @@ void main() {
   } else {
     float a = texture(elevTexture, cu).a;
     float hConn = decodeHConn(a);
+    if (uDrainage > 0.5 && uHasDiff > 0.5) {
+      hConn = decodeHConn(texture(diffTexture, cu).g);
+    }
     // **単純モデルは h_conn を見ない**（潮位 − 地盤高がそのまま浸水深）。
     // 判定式は domain/flood.ts の depth() と同一
     bool isWet = uSimple > 0.5 ? vElev < uWaterLevel : hConn <= uWaterLevel;
@@ -534,6 +543,7 @@ export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMat
       uWaterSurface: { value: 0 },
       uPonded: { value: 1 },
       uSimple: { value: 1 },
+      uDrainage: { value: 0 },
       uElevPaint: { value: 0 },
     },
   })
@@ -555,5 +565,6 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uWaterSurface.value = v.waterSurface ? 1 : 0
   u.uPonded.value = v.ponded ? 1 : 0
   u.uSimple.value = v.simple ? 1 : 0
+  u.uDrainage.value = v.drainage ? 1 : 0
   u.uElevPaint.value = v.elevPaint ? 1 : 0
 }

@@ -289,8 +289,8 @@ PLATEAU_MEMBERS = PLATEAU_MEMBERS_BY_AOI[AOI.name]
 #: （`control` = 5m 集約は解析では作るが、タイルは焼かない）
 CONDITIONS_BY_AOI: dict[str, tuple[str, ...]] = {
     "yoshiwara": ("baseline", "control", "highres", "pointcloud"),
-    "nishi_maizuru": ("baseline", "highres"),
-    "higashi_maizuru": ("baseline", "highres"),
+    "nishi_maizuru": ("baseline", "highres", "drainage"),
+    "higashi_maizuru": ("baseline", "highres", "drainage"),
 }
 #: 配信する差分。鎖の辺のうち、両端の条件を配信しているものだけ
 DIFFS_BY_AOI: dict[str, tuple[str, ...]] = {

@@ -99,6 +99,14 @@ def main() -> int:
             hc = upsample_nearest(hc, factor)
         terrains[name] = (e, hc)
 
+    # 仮想排水モデルは highres の標高に S2 の h_conn を組み合わせる。
+    if (OUT / "h_conn_drainage_S2.tif").exists():
+        e, _, nd = read(OUT / "dtm_highres_050.tif")
+        e[e == nd] = np.nan
+        hc, _, nd2 = read(OUT / "h_conn_drainage_S2.tif")
+        hc[hc == nd2] = np.inf
+        terrains["drainage"] = (e, hc)
+
     tf = Transformer.from_crs(CRS_LONLAT, CRS_ANALYSIS, always_xy=True)
     back = Transformer.from_crs(CRS_ANALYSIS, CRS_LONLAT, always_xy=True)
     lon0, lat0 = back.transform(AOI.xmin, AOI.ymin)

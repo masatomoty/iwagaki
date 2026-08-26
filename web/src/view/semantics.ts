@@ -23,10 +23,12 @@ export function toAssertion(p: Record<string, unknown>): FeatureAssertion {
     groundElev: {
       baseline: num('ground_elev_baseline'), highres: num('ground_elev_highres'),
       control: num('ground_elev_control'), pointcloud: num('ground_elev_pointcloud'),
+      drainage: num('ground_elev_drainage'),
     },
     hConn: {
       baseline: num('h_conn_baseline'), highres: num('h_conn_highres'),
       control: num('h_conn_control'), pointcloud: num('h_conn_pointcloud'),
+      drainage: num('h_conn_drainage'),
     },
   }
 }

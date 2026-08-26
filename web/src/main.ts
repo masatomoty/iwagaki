@@ -213,6 +213,7 @@ async function boot() {
       // 排水差分は h_conn(highres) と h_conn(drainage) の比較なので、
       // 既定の simple モデル設定に関係なくシェーダへ連結判定を渡す。
       simple: s.floodModel === 'simple' && s.surface !== 'diff_drainage',
+      drainage: s.floodModel === 'drainage',
       // 地形の面を地盤高のグラデーションで塗るか（同 TerrainPaint）
       elevPaint: s.terrainPaint === 'elevation',
     }
@@ -225,8 +226,9 @@ async function boot() {
 
   function buildTerrain() {
     const s = store.state
-    if (builtSurface === s.surface) return
-    builtSurface = s.surface
+    const buildKey = `${s.surface}:${s.floodModel}`
+    if (builtSurface === buildKey) return
+    builtSurface = buildKey
     coarse?.dispose(); fine?.dispose()
     if (coarse) viewer.world.remove(coarse.group)
     if (fine) viewer.world.remove(fine.group)
@@ -238,10 +240,15 @@ async function boot() {
     // どの条件を土台にするかは domain/terrain.ts が決める（描画側に分岐を置かない）
     const resolved = resolveSurface(catalog.terrain, s.surface)
     if (!resolved) return
-    const { geom: geomAsset, diffUrl } = resolved
+    const geomAsset = s.floodModel === 'drainage'
+      ? catalog.terrain.drainage ?? resolved.geom : resolved.geom
+    const { diffUrl } = resolved
+    const drainageDiff = s.floodModel === 'drainage'
+      ? catalog.terrain.diff_drainage?.url : undefined
     const common = {
       viewer, frame, scheduler, extent,
-      urlTemplate: geomAsset.url, diffUrlTemplate: diffUrl,
+      urlTemplate: geomAsset.url,
+      diffUrlTemplate: s.floodModel === 'drainage' ? undefined : diffUrl ?? drainageDiff,
     }
     // 粗の上限は範囲の広さで決まる（coarseMaxZoom）。細はその 1 段上から
     const coarseMax = coarseMaxZoom(catalog)
@@ -335,7 +342,8 @@ async function boot() {
     // 浸水深で塗るときだけ、地盤高と h_conn を**どの条件から取るか**が効く。
     // 属性で塗っているときは条件が変わっても色は変わらないので作り直さない
     const depthMode = mode === 'depth'
-    const cond = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
+    const cond = store.state.floodModel === 'drainage' ? 'drainage'
+      : resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
     const condKey = depthMode ? cond : ''
     if (!asset || plateauLoading) return
     if (plateau && plateauMode === mode && plateauCondition === condKey) return
@@ -667,7 +675,8 @@ async function boot() {
       semantics.setStyle({
         waterLevel: s.waterLevel,
         // 地物の色は「いま見ている条件」で塗る。差分モードでは土台にした条件を使う
-        condition: resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
+        condition: s.floodModel === 'drainage' ? 'drainage'
+          : resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
         roadThresholds: catalog.semantics.road_depth_classes_m,
         changedOnly: s.layers.changedOnly,
         // **判定が変わるかは選んでいる条件に対して決める。** 以前は

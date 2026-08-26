@@ -44,6 +44,7 @@ CONDITIONS = {
     "highres": ("dtm_highres_050.tif", "h_conn_highres.tif"),
     "control": ("dtm_control_500.tif", "h_conn_control.tif"),
     "pointcloud": ("dtm_pointcloud_050.tif", "h_conn_pointcloud.tif"),
+    "drainage": ("dtm_highres_050.tif", "h_conn_drainage_S2.tif"),
 }
 
 # 差分ピラミッド。専用に 1 枚作っておけば、ブラウザ側のシェーダは常に単一

@@ -16,7 +16,7 @@ export type MTP = number
  * control は `docs/design.md`「ブラウザ側への要求」に挙がっていたのに実装されておらず、
  * pointcloud は解析結果が出ているのに画面から見られなかった（docs/todo.md A1・A4）。
  */
-export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud'
+export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud' | 'drainage'
 
 /**
  * 画面に出す地形レイヤの種類。
@@ -33,7 +33,7 @@ export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud'
 export type SurfaceMode = TerrainCondition | 'diff' | 'diff_src' | 'diff_res' | 'diff_pc' | 'diff_drainage'
 
 export const TERRAIN_CONDITIONS: TerrainCondition[] =
-  ['baseline', 'highres', 'control', 'pointcloud']
+  ['baseline', 'highres', 'control', 'pointcloud', 'drainage']
 
 /** 差分モードごとに、幾何をどの条件から取るか。差分タイルは色だけを与える */
 export const DIFF_GEOMETRY:
@@ -122,7 +122,7 @@ export interface Aoi {
  * 現場の観測に合う方を既定にし、`connected` は切り替えで残す。
  * 排水路の吐口高やフラップゲートが入手できたら `connected` 側を精緻化する。
  */
-export type FloodModel = 'simple' | 'connected'
+export type FloodModel = 'simple' | 'connected' | 'drainage'
 
 /**
  * 地形の面を何で塗るか。

@@ -21,6 +21,7 @@ export const CONDITION_LABEL: Record<TerrainCondition, string> = {
   control: '5m 対照',
   highres: '0.5m',
   pointcloud: '0.5m ＋ 点群',
+  drainage: '仮想排水',
 }
 
 const fmt = (v: number | undefined, u = ' m') =>

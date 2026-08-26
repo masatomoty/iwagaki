@@ -32,7 +32,7 @@ KEEP_PROPS = [
     "ground_elev_baseline", "ground_elev_highres",
     "ground_elev_control", "ground_elev_pointcloud",
     "h_conn_baseline", "h_conn_highres",
-    "h_conn_control", "h_conn_pointcloud",
+    "h_conn_control", "h_conn_pointcloud", "h_conn_drainage",
     "delta_ground_elev", "delta_h_conn",
 ]
 
