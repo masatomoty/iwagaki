@@ -101,6 +101,8 @@
   .seg.wrap { flex-wrap: wrap; gap: 3px; }
   .seg.wrap button { flex: 1 1 46%; line-height: 1.25; padding: 4px 2px; }
   .seg.wrap button .sub { font-size: 10px; }
+  .seg.models { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  .seg.models button { min-width: 0; line-height: 1.25; padding: 5px 2px; font-size: 11.5px; }
   .wl { display: flex; justify-content: space-between; align-items: baseline; }
   .wl b { font-size: 22px; font-variant-numeric: tabular-nums; }
   .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; }
@@ -152,6 +154,13 @@
     flex: 0 0 auto; background: #232936; color: var(--fg); border: 1px solid var(--line);
     border-radius: 6px; padding: 7px 11px; font-size: 12.5px; cursor: pointer;
   }
+  .compare-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .compare-row button { min-width: 0; background: #232936; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 4px; font-size: 11.5px; line-height: 1.25; cursor: pointer; }
+  .compare-row button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
+  .compare-row button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
+    color: #07101d; font-weight: 600; }
+  .compare-row button:disabled { opacity: .38; cursor: default; }
   .condrow button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
   .condrow button[aria-pressed="true"] {
     background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600;

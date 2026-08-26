@@ -479,28 +479,20 @@ export function renderControls(
       <h1>舞鶴 高潮浸水</h1>
       ${areaHtml(area)}
 
+      <p class="grouplabel" style="margin-top:11px">シミュレーション条件</p>
+      <div class="seg models" id="fmodel">${FLOOD_MODELS
+        .filter((m) => m.id !== 'drainage' || !!catalog.terrain.diff_drainage)
+        .map((m) =>
+        `<button data-f="${m.id}" type="button" title="${m.hint}"
+                 aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
+      <div class="whyoff" id="fmodel-note">${floodModelNote(s.floodModel)}</div>
+
       <p class="grouplabel" style="margin-top:11px">地形データ</p>
       <div class="condrow">
         <select id="cond" aria-label="地形データ">${conditionsOf(catalog).map((c) =>
           `<option value="${c.id}" title="${c.hint}"
                    ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
-        <button id="diffbtn" type="button"
-                aria-pressed="${isDiff(s.surface)}"
-        ${DIFF_OF[cond] ? '' : 'disabled'}>判定差</button>
-        <button id="drainagebtn" type="button"
-                aria-pressed="${s.surface === 'diff_drainage'}"
-                ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                title="地表連結モデルと仮想排水モデルの差分">排水差</button>
       </div>
-
-      <!-- **地形の色は頭に置く。** 「浸水深を見せる前に、どの場所の地盤が
-           低いのかを見せる」という市の提案（2026-08）そのものなので、
-           スクロールの下に埋めると開いた画面から見つからない
-           （建物の色で一度それが起きている。state.ts の buildingColor） -->
-      <p class="grouplabel" style="margin-top:11px">地形の色</p>
-      <div class="seg" id="tpaint">${TERRAIN_PAINTS.map((m) =>
-        `<button data-p="${m.id}" type="button" title="${m.hint}"
-                 aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
 
       <p class="grouplabel" style="margin-top:11px">潮位</p>
       <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
@@ -524,16 +516,19 @@ export function renderControls(
     </div>
 
     <div class="body">
-      <!-- **浸水の決め方は本体側。** 既定（潮位 − 地盤高）が市の求めるもの
-           なので、普段は触らせない。切り替えは我々と、排水データが揃った
-           あとのために残してある -->
-      <p class="subhead">浸水の決め方</p>
-      <div class="seg wrap" id="fmodel">${FLOOD_MODELS
-        .filter((m) => m.id !== 'drainage' || !!catalog.terrain.diff_drainage)
-        .map((m) =>
-        `<button data-f="${m.id}" type="button" title="${m.hint}"
-                 aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
-      <div class="whyoff" id="fmodel-note">${floodModelNote(s.floodModel)}</div>
+      <p class="subhead">比較表示</p>
+      <div class="compare-row">
+        <button id="diffbtn" type="button" aria-pressed="${isDiff(s.surface) && s.surface !== 'diff_drainage'}"
+                ${DIFF_OF[cond] ? '' : 'disabled'} title="地形データ同士の判定差">地形条件の判定差</button>
+        <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
+                ${catalog.terrain.diff_drainage ? '' : 'hidden'}
+                title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
+      </div>
+
+      <p class="subhead">地形の色</p>
+      <div class="seg" id="tpaint">${TERRAIN_PAINTS.map((m) =>
+        `<button data-p="${m.id}" type="button" title="${m.hint}"
+                 aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
 
       <p class="subhead">絞り込む</p>
       <label class="row"><input type="checkbox" id="cb-changed"
