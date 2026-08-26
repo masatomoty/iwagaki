@@ -24,7 +24,9 @@ export function depth(
   model: FloodModel = 'simple',
 ): number {
   if (elev === undefined || !Number.isFinite(elev)) return 0
-  if (model === 'connected' && !wet(hConn, H)) return 0
+  // 色分けの規則（浸水深・床上/床下）は全モデルで共通にし、
+  // simple 以外ではモデル固有の h_conn だけを浸水判定に使う。
+  if (model !== 'simple' && !wet(hConn, H)) return 0
   return Math.max(0, H - elev)
 }
 
