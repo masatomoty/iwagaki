@@ -96,7 +96,7 @@ if [ "$UPLOAD_R2" -eq 1 ]; then
     remote_size=$(deploy/r2put.sh s3api head-object --bucket "$BUCKET" --key "$key" \
                     --query ContentLength --output text 2>/dev/null || echo "?")
     if [ "$head4" != "LASF" ] || [ "$remote_size" != "$size" ]; then
-      echo "    検証失敗: 先頭4B='$head4'（期待 LASF）, サイズ=$remote_size（期待 $size）。中断する" >&2
+      echo "    検証失敗: 先頭4B='$head4'（期待 LASF）, サイズ=${remote_size}（期待 ${size}）。中断する" >&2
       exit 1
     fi
     echo "    OK: 先頭 4 バイト = LASF, サイズ = $remote_size"
