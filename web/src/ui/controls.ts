@@ -115,10 +115,9 @@ function conditionsOf(catalog: Catalog) {
  */
 const FLOOD_MODELS: { id: FloodModel; label: string; hint: string }[] = [
   { id: 'connected', label: '海からつながる',
-    hint: '海から地表面をたどって到達できるセルだけを浸水とする（h_conn ≤ 潮位）。'
-      + '側溝・暗渠・排水管を通る逆流は含まないので、内陸側を過小評価する' },
-  { id: 'drainage', label: '仮想排水を考慮',
-    hint: '仮想吐口の陸側端から逆流する h_conn を使う。流量・時間は解かない' },
+    hint: 'h_conn ≤ 潮位' },
+  { id: 'drainage', label: '仮想排水路',
+    hint: '仮想吐口の陸側端から逆流する h_conn を使う' },
 ]
 
 /** 地形の面を何で塗るか。地盤高は「浸水深を見せる前に」という市の提案（2026-08） */
@@ -279,16 +278,12 @@ function buildingLegendHtml(s: Store['state'], entries: LegendEntry[]): string {
       + `<i style="background:${UNKNOWN_HEX};margin-left:5px"></i></div>` : ''}</div>`
 }
 
-/** 決め方の一行説明。**どちらを選んでも「何を含んでいないか」を書く** */
+/** 決め方の一行説明。 */
 function floodModelNote(m: FloodModel): string {
-  if (m === 'drainage') {
-    return '仮想吐口の敷高を超えると陸側端へ到達するとして判定。実測排水網ではなく、流量・時間は解かない'
-  }
   return m === 'simple'
     ? '排水路を通じた逆流が現に起きているという舞鶴市の経験則に合わせた既定。'
       + '水の動きと時間・流量は解いていない'
-    : '海から地表面をたどって到達できるセルだけを浸水とする。'
-      + '側溝・暗渠・排水管の逆流を含まないので内陸側を過小評価する'
+    : ''
 }
 
 /**
