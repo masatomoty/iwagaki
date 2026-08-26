@@ -525,10 +525,12 @@ export function renderControls(
                 title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
       </div>
 
-      <p class="subhead">地形の色</p>
+      <p class="subhead">表示方法</p>
+      <p class="grouplabel">地形の色</p>
       <div class="seg" id="tpaint">${TERRAIN_PAINTS.map((m) =>
         `<button data-p="${m.id}" type="button" title="${m.hint}"
                  aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
+      <div class="whyoff">「地盤高」は浸水判定を使わず、低い場所・高い場所だけを表示</div>
 
       <p class="subhead">絞り込む</p>
       <label class="row"><input type="checkbox" id="cb-changed"
