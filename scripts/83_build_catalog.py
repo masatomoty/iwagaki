@@ -30,7 +30,7 @@ KEEP_PROPS = [
     # 4 条件すべて。以前は baseline / highres だけで、点群融合地形での
     # 判定を地物単位で見られなかった（docs/todo.md A2）
     "ground_elev_baseline", "ground_elev_highres",
-    "ground_elev_control", "ground_elev_pointcloud",
+    "ground_elev_control", "ground_elev_pointcloud", "ground_elev_drainage",
     "h_conn_baseline", "h_conn_highres",
     "h_conn_control", "h_conn_pointcloud", "h_conn_drainage",
     "delta_ground_elev", "delta_h_conn",
