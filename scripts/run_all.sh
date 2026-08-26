@@ -9,6 +9,11 @@ $PY scripts/11_fetch_plateau.py
 $PY scripts/20_build_baseline.py
 $PY scripts/21_build_highres.py "$@"
 $PY scripts/30_flood.py
+AOI_NAME="${IWAGAKI_AOI:-yoshiwara}"
+PAIRS="data/out/${AOI_NAME}/synthetic_outfall_pairs.geojson"
+if [ -f "$PAIRS" ]; then
+  $PY scripts/31_drainage_flood.py --pairs "$PAIRS"
+fi
 $PY scripts/40_compare.py > /dev/null
 $PY scripts/50_join_semantics.py
 $PY scripts/60_report.py

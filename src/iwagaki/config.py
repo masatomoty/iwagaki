@@ -190,6 +190,7 @@ H_STEP = 0.05
 CONNECTIVITY = 4          # 4 or 8。baseline/highres で必ず同一にする
 SEED_LEVEL = 0.20         # [m T.P.] これ以下を開放水面の候補とする
 SEED_MIN_AREA = 5000.0    # [m^2] seed 成分の最小面積
+DRAINAGE_DROP_M = 0.30    # 仮想吐口敷高 = 陸側端の地盤高 - この値 [m]
 REPRESENTATIVE_H = (1.0, 1.5, 2.0)   # 代表水位 [m T.P.]
 
 # 道路の通行支障クラス閾値 [m]（暫定・要出典固定）
@@ -294,8 +295,8 @@ CONDITIONS_BY_AOI: dict[str, tuple[str, ...]] = {
 #: 配信する差分。鎖の辺のうち、両端の条件を配信しているものだけ
 DIFFS_BY_AOI: dict[str, tuple[str, ...]] = {
     "yoshiwara": ("diff", "diff_src", "diff_res", "diff_pc"),
-    "nishi_maizuru": ("diff",),
-    "higashi_maizuru": ("diff",),
+    "nishi_maizuru": ("diff", "diff_drainage"),
+    "higashi_maizuru": ("diff", "diff_drainage"),
 }
 WEB_CONDITIONS = CONDITIONS_BY_AOI[AOI.name]
 WEB_DIFFS = DIFFS_BY_AOI[AOI.name]
