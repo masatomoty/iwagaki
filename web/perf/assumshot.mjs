@@ -13,6 +13,7 @@ import { chromium } from '@playwright/test'
 
 const BASE = process.env.BASE ?? 'https://localhost:8443'
 const PY = process.env.PY ?? '../.venv/bin/python'
+const AREA = process.env.AREA ?? 'higashi_maizuru'
 const MODES = ['highres', 'diff_drainage', 'assumption']
 /** floodMaterial.ts の assumptionFill() と同じ 3 色（0-255） */
 const STEPS = [['3段 仮定なし', 41, 87, 148],
@@ -26,8 +27,8 @@ const errs = []
 p.on('pageerror', (e) => errs.push(String(e.message).slice(0, 200)))
 p.on('console', (m) => { if (m.type() === 'error') errs.push('[c] ' + m.text().slice(0, 200)) })
 
-// 仮想排水路は東舞鶴にしか焼いていない（config.CONDITIONS_BY_AOI）
-await p.goto(`${BASE}/?area=higashi_maizuru&pc=0`, { waitUntil: 'load' })
+// 仮想排水路は西舞鶴・東舞鶴にある（config.CONDITIONS_BY_AOI）。AREA で選ぶ
+await p.goto(`${BASE}/?area=${AREA}&pc=0`, { waitUntil: 'load' })
 await p.waitForFunction(
   () => globalThis.__iwagaki?.snapshot?.().milestones?.time_to_terrain !== undefined,
   null, { timeout: 60_000 }).catch(() => {})
@@ -42,7 +43,7 @@ const shots = []
 for (const m of MODES) {
   await p.evaluate((v) => globalThis.__iwagaki.setSurface(v), m)
   await p.waitForTimeout(6000)
-  const f = `perf/shots/assum-${m}.png`
+  const f = `perf/shots/assum-${AREA}-${m}.png`
   await p.screenshot({ path: f })
   shots.push([m, f])
 }
