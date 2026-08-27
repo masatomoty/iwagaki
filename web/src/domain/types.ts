@@ -29,21 +29,54 @@ export type TerrainCondition = 'baseline' | 'highres' | 'control' | 'pointcloud'
  * - `diff_pc`  highres -> pointcloud（地上観測が足した分）
  * - `diff`     baseline -> highres（上 2 段をまとめたもの。README の見出しの図）
  * - `diff_drainage` highres -> S2仮想排水モデル
+ *
+ * `assumption` だけは 2 条件の差ではない。**その土地が浸かると言うのに
+ * どこまで仮定が要るか**を 3 段で出す（`docs/flood_simulation_spec.md` §8）。
+ * 差分と同じく色だけを与えるので、メッシュの形は `DIFF_GEOMETRY` で元の条件から取る。
  */
-export type SurfaceMode = TerrainCondition | 'diff' | 'diff_src' | 'diff_res' | 'diff_pc' | 'diff_drainage'
+export type SurfaceMode = TerrainCondition | 'diff' | 'diff_src' | 'diff_res' | 'diff_pc'
+  | 'diff_drainage' | 'assumption'
 
 export const TERRAIN_CONDITIONS: TerrainCondition[] =
   ['baseline', 'highres', 'control', 'pointcloud', 'drainage']
 
 /** 差分モードごとに、幾何をどの条件から取るか。差分タイルは色だけを与える */
 export const DIFF_GEOMETRY:
-  Record<'diff' | 'diff_src' | 'diff_res' | 'diff_pc' | 'diff_drainage', TerrainCondition> = {
+  Record<'diff' | 'diff_src' | 'diff_res' | 'diff_pc' | 'diff_drainage' | 'assumption',
+    TerrainCondition> = {
   diff: 'highres',
   diff_src: 'control',
   diff_res: 'highres',
   diff_pc: 'pointcloud',
   diff_drainage: 'highres',
+  assumption: 'highres',
 }
+
+/**
+ * **仮定の段階**（`surface: 'assumption'`）。3 段は入れ子になっている。
+ *
+ * | 段 | 浸かると言うのに要る仮定 | 判定 |
+ * |---|---|---|
+ * | 3 | **無し** | `h_conn(highres) <= H`。海から地表面をたどって届く |
+ * | 2 | **吐口がある** | `h_conn(S2) <= H`。仮想排水路を逆流すれば届く |
+ * | 1 | **経路を示せない** | `地盤高 <= H` だけ。潮位以下だが到達経路が無い |
+ *
+ * `S1 ⊆ S2 ⊆ simple` なので段は必ず単調で、「3 段中いくつで浸水したか」を
+ * 数えると 3 / 2 / 1 / 0 がそのままこの表になる [実測: 入れ子を検算済み]。
+ *
+ * **タイルは 1 バイトも増えない。** 3 つとも既存の `diff_drainage` タイルに
+ * 入っている（R = S1 の h_conn、G = S2 の h_conn、B = 地盤高。
+ * 単純モデルでは「浸水し始める水位」がそのまま地盤高なので、B は
+ * h_conn と同じ符号化で同じ比較ができる）。
+ *
+ * **敷高そのものは軸にしない。** `地盤高 − 0.30 m` を ±0.20 m 振っても
+ * 既往最高潮位 0.93 m での浸水面積は 3 ケースとも 24.85 ha で一致し、
+ * 差が出るのは 9〜11 セルだけだった [実測]。S2 の感度を支配しているのは
+ * 敷高ではなく**吐口の有無**である（`src/iwagaki/config.py`）。
+ *
+ * **確率ではない。** 段に重みは無いので、段数を割った比率は出さない。
+ */
+export const ASSUMPTION_STEPS = 3
 
 /**
  * 判定を比べる 2 条件。`from` が基準（出発点）で `to` がいま見ている条件。

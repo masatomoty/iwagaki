@@ -195,8 +195,9 @@ async function boot() {
     return {
       waterLevel: s.waterLevel,
       hStep: catalog.packing.h_step,
-      mode: resolveSurface(catalog.terrain, s.surface)?.isDiff
-        ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
+      mode: s.surface === 'assumption' ? FLOOD_MODE.assumption
+        : resolveSurface(catalog.terrain, s.surface)?.isDiff
+          ? FLOOD_MODE.diff : FLOOD_MODE.terrain,
       exaggeration: s.exaggeration,
       geoid,
       floodOpacity: 0.82,
@@ -212,7 +213,8 @@ async function boot() {
       // 潮位 − 地盤高だけで浸水を決めるか（domain/types.ts の FloodModel）
       // 排水差分は h_conn(highres) と h_conn(drainage) の比較なので、
       // 既定の simple モデル設定に関係なくシェーダへ連結判定を渡す。
-      simple: s.floodModel === 'simple' && s.surface !== 'diff_drainage',
+      simple: s.floodModel === 'simple' && s.surface !== 'diff_drainage'
+        && s.surface !== 'assumption',
       drainage: s.floodModel === 'drainage',
       // 地形の面を地盤高のグラデーションで塗るか（同 TerrainPaint）
       elevPaint: s.terrainPaint === 'elevation',
@@ -240,7 +242,10 @@ async function boot() {
     // どの条件を土台にするかは domain/terrain.ts が決める（描画側に分岐を置かない）
     const resolved = resolveSurface(catalog.terrain, s.surface)
     if (!resolved) return
-    const geomAsset = s.floodModel === 'drainage'
+    // **仮定の段階は 3 段を差分タイルから引く**ので、浸水モデルの選択に関わらず
+    // 地形は元条件（highres）のまま、色タイルは必ず差分タイルを使う
+    const isAssumption = s.surface === 'assumption'
+    const geomAsset = s.floodModel === 'drainage' && !isAssumption
       ? catalog.terrain.drainage ?? resolved.geom : resolved.geom
     const { diffUrl } = resolved
     const drainageDiff = s.floodModel === 'drainage'
@@ -248,7 +253,8 @@ async function boot() {
     const common = {
       viewer, frame, scheduler, extent,
       urlTemplate: geomAsset.url,
-      diffUrlTemplate: s.floodModel === 'drainage' ? undefined : diffUrl ?? drainageDiff,
+      diffUrlTemplate: isAssumption ? diffUrl
+        : s.floodModel === 'drainage' ? undefined : diffUrl ?? drainageDiff,
     }
     // 粗の上限は範囲の広さで決まる（coarseMaxZoom）。細はその 1 段上から
     const coarseMax = coarseMaxZoom(catalog)

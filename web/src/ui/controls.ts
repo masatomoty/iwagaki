@@ -144,6 +144,23 @@ const isDiff = (s: SurfaceMode) =>
   || s === 'diff_drainage'
 
 /**
+ * **仮定の段階は「2 条件の差」ではない。** 同じ地形の上で、その土地が浸かると
+ * 言うのにどこまで仮定を置いているかを見ている（`domain/types.ts` の
+ * `ASSUMPTION_STEPS`）。凡例も見出しも差分とは別に書く
+ */
+const isAssumption = (s: SurfaceMode) => s === 'assumption'
+
+/**
+ * **仮想排水路が絵に効いているときは必ず出す注意書き。**
+ * 吐口の位置・敷高・逆流防止施設の有無は市も把握できておらず
+ * （`docs/todo.md` 中 3）、こちらが置いた仮定である。
+ * 仕様（`docs/flood_simulation_spec.md` §1）が画面表示を必須にしている
+ */
+const SYNTHETIC_NOTE =
+  '<div class="sub">仮想排水路は実在施設ではない。吐口の位置・敷高・'
+  + '逆流防止施設の有無はこちらが置いた仮定</div>'
+
+/**
  * メニューに出すレイヤ。`flood` / `ground` / `semantics` / `pcCoverage` は出さない。
  *
  * `waterSurface` と `roads` は外部からの要望で足した（2026-08）。
@@ -196,13 +213,25 @@ function legendHtml(
     return `<div class="legend">${rows.join('')}</div>`
   }
 
-  if (isDiff(s.surface)) {
+  if (isAssumption(s.surface)) {
+    rows.push(
+      '<div><i style="background:#295794"></i>仮定なし'
+      + '<span class="sub"> 海から地表面をたどって届く</span></div>',
+      '<div><i style="background:#4d8fc2"></i>吐口があれば'
+      + '<span class="sub"> 仮想排水路を逆流して届く</span></div>',
+      '<div><i style="background:#8cbddb"></i>経路を示せない'
+      + '<span class="sub"> 潮位以下だが到達経路が無い</span></div>',
+      '<div class="sub">下の 2 段は斜線。3 段は入れ子（連結 ⊆ 仮想排水 ⊆ 潮位以下）で、'
+      + '仮定の深さであって浸水確率ではない</div>',
+      SYNTHETIC_NOTE)
+  } else if (isDiff(s.surface)) {
     if (s.surface === 'diff_drainage') {
       rows.push(
         '<div><i style="background:#ed3830"></i>仮想排水モデルでのみ到達</div>',
         '<div><i style="background:#f7d129"></i>地表連結モデルでのみ到達</div>',
         '<div><i style="background:#2a5794"></i>両モデルで到達</div>',
-        '<div class="sub">地形タイルの差分のみ。建物・道路の判定差は未配信</div>')
+        '<div class="sub">地形タイルの差分のみ。建物・道路の判定差は未配信</div>',
+        SYNTHETIC_NOTE)
     } else {
       rows.push(
         `<div><i style="background:#ed3830"></i>${label[pair.to]} でのみ浸水</div>`,
@@ -224,7 +253,8 @@ function legendHtml(
   // 窪地 = 標高が潮位以下なだけ）ので、色も斜線にして 1 段弱く出している。
   // 差分モードでは出さない（2 条件の h_conn を比べる画面で、
   // どちらの条件の窪地なのかを色 1 つで表せない）
-  if (s.layers.ponded && s.floodModel === 'connected' && !isDiff(s.surface)) {
+  if (s.layers.ponded && s.floodModel === 'connected'
+      && !isDiff(s.surface) && !isAssumption(s.surface)) {
     rows.push('<div><i style="background:'
       + 'repeating-linear-gradient(135deg,#70bfcc 0 2px,#4c6068 2px 5px)"></i>'
       + '窪地<span class="sub"> 標高は潮位より低いが海とつながらない</span></div>')
@@ -297,6 +327,11 @@ function nowLine(s: Store['state']): string {
   const label = (id: TerrainCondition) => CONDITIONS.find((x) => x.id === id)!.label
   if (s.terrainPaint === 'elevation') {
     return `<b>${c.label} の地盤高</b> <span class="sub">白線 = 潮位</span>`
+      + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
+  }
+  if (isAssumption(s.surface)) {
+    return '<b>浸水と言うのに要る仮定の段階</b>'
+      + '<span class="sub">連結 ⊆ 仮想排水 ⊆ 潮位以下</span>'
       + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
   }
   if (s.surface === 'diff_drainage') {
@@ -408,6 +443,11 @@ export function renderControls(
       diffBtn.title = target ? '2 条件の判定差で塗る'
         : 'この条件の差分タイルは配信していないので出せない'
     }
+    const assumBtn = el.querySelector<HTMLButtonElement>('#assumbtn')
+    if (assumBtn) {
+      assumBtn.hidden = !catalog.terrain.diff_drainage
+      assumBtn.setAttribute('aria-pressed', String(s.surface === 'assumption'))
+    }
     const drainageBtn = el.querySelector<HTMLButtonElement>('#drainagebtn')
     if (drainageBtn) {
       drainageBtn.hidden = !catalog.terrain.diff_drainage
@@ -515,6 +555,10 @@ export function renderControls(
         <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
                 ${catalog.terrain.diff_drainage ? '' : 'hidden'}
                 title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
+        <button id="assumbtn" type="button" aria-pressed="${s.surface === 'assumption'}"
+                ${catalog.terrain.diff_drainage ? '' : 'hidden'}
+                title="その土地が浸かると言うのに、どこまで仮定を置いているか。配信物は増えない"
+        >仮定の段階</button>
       </div>
 
       <p class="subhead">表示方法</p>
@@ -596,6 +640,10 @@ export function renderControls(
   })
   el.querySelector('#drainagebtn')?.addEventListener('click', () => {
     if (catalog.terrain.diff_drainage) store.set({ surface: 'diff_drainage' })
+  })
+  el.querySelector('#assumbtn')?.addEventListener('click', () => {
+    // 3 段はすべて diff_drainage タイルに入っている（domain/terrain.ts）
+    if (catalog.terrain.diff_drainage) store.set({ surface: 'assumption' })
   })
   for (const id of ['#chips', '#refs']) {
     el.querySelector(id)!.addEventListener('click', (e) => {

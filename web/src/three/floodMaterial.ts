@@ -31,7 +31,15 @@ const GRID = 128
 const SKIRT_M = 3
 const TEX = 256
 
-export const FLOOD_MODE = { terrain: 0, diff: 1 } as const
+/**
+ * 面を何で塗るか。`assumption` だけは 2 条件の差ではなく、**その土地が浸かると
+ * 言うのにどこまで仮定が要るか**を 3 段で出す（`domain/types.ts` の
+ * `ASSUMPTION_STEPS`）。差分タイルの R / G / B をそれぞれ
+ * 「海から連結」「仮想排水路を逆流」「潮位以下なだけ」の閾値として引き、
+ * いまの潮位で成立する段を数えるだけ。
+ * **タイルは 1 バイトも増えず、潮位を動かしても再取得は起きない。**
+ */
+export const FLOOD_MODE = { terrain: 0, diff: 1, assumption: 2 } as const
 
 /**
  * 描画パス。**同じタイル・同じテクスチャを 2 回描く。**
@@ -137,6 +145,7 @@ uniform float uPass;
 uniform float uWaterLevel;
 uniform float uWaterBase;
 uniform float uElevPaint;
+uniform float uMode;
 
 out vec2 vUv;
 out float vElev;
@@ -196,7 +205,10 @@ void main() {
   // **地盤高モードでは水面を平常時の海面に置く。** 潮位まで張ると、
   // いちばん見せたい低地がすべて青に隠れて「どこが低いか」が読めない。
   // 水面そのものを消すと、航空レーザが値を返さない港と湾が穴になる
-  if (uPass > 0.5) z = uGeoid + (uElevPaint > 0.5 ? uWaterBase : uWaterLevel) * uExaggeration;
+  // **仮定の段階でも水面は平常時の海面に置く。** 潮位まで張ると、いちばん
+  // 見せたい「仮定が要る土地」が青に隠れて段の色が読めない（地盤高モードと同じ理由）
+  bool flatSea = uElevPaint > 0.5 || uMode > 1.5;
+  if (uPass > 0.5) z = uGeoid + (flatSea ? uWaterBase : uWaterLevel) * uExaggeration;
 
   // XYZ タイルは Web メルカトル上で正方なので、ワールド（= メルカトルの線形変換）で
   // 線形補間してよい。経緯度で補間すると緯度方向が非線形になる
@@ -262,6 +274,34 @@ vec4 pondedFill(float shade) {
 }
 
 /**
+ * **仮定の段階の色。** その土地が浸かると言うのに、どこまでこちらが仮定を
+ * 置いているか（domain/types.ts の ASSUMPTION_STEPS）。
+ * **この文字列はテンプレートリテラルの中なので backtick は書けない。**
+ *
+ * - 3 段 … 仮定なし。海から地表面をたどって届く → **面の色で塗る**
+ * - 2 段 … 吐口があるという仮定が要る → 斜線
+ * - 1 段 … 潮位以下なだけで到達経路を示せない → 弱い斜線
+ *
+ * **仮定が要るものを面の色で塗らない。** 窪地の印と同じ理由づけで、
+ * 画面座標の斜線に寄せて「こちらが重ねた印」として読めるようにする
+ * （docs/web_design.md「画面の色は 1 つの予算である」）。新しい色相は足さず、
+ * 浸水の青を薄める方向だけを使う。
+ */
+vec4 assumptionFill(float steps, float shade) {
+  const vec3 SURE = vec3(0.16, 0.34, 0.58);      // 差分の「どちらも浸水」と同じ青
+  const vec3 GATED = vec3(0.30, 0.56, 0.76);
+  const vec3 UNSURE = vec3(0.55, 0.74, 0.86);
+  if (steps > 2.5) return vec4(SURE * shade, uFloodOpacity);
+  vec3 c = steps > 1.5 ? GATED : UNSURE;
+  float s = fract((gl_FragCoord.x + gl_FragCoord.y) / 11.0);
+  float stripe = smoothstep(0.40, 0.50, s) * (1.0 - smoothstep(0.90, 1.0, s));
+  vec3 base = uShowGround > 0.5 ? groundColor(shade) : c * 0.34;
+  // 段が下がるほど地面が透ける。塗りの強さが仮定の度合いそのものになる
+  float amt = steps > 1.5 ? 0.42 : 0.24;
+  return vec4(mix(base, c, amt + 0.50 * stripe), max(uGroundOpacity, 0.70));
+}
+
+/**
  * **地盤高のグラデーション。**
  *
  * 市の提案（2026-08）「浸水深を見せる前に、どの場所の地盤が低いのかを
@@ -315,17 +355,20 @@ void main() {
   // 水面は張れる（domain/terrain.ts の resolveSurface が返す condition と一致する）。
   if (uPass > 0.5) {
     float hConn = decodeHConn(texture(elevTexture, cu).a);
-    // 地盤高モードの水面は平常時の海面（VS の z と揃えること）
-    float wl = uElevPaint > 0.5 ? uWaterBase : uWaterLevel;
+    // 地盤高モードと仮定の段階モードの水面は平常時の海面（VS の z と揃えること）
+    bool flatSea = uElevPaint > 0.5 || uMode > 1.5;
+    float wl = flatSea ? uWaterBase : uWaterLevel;
     // **単純モデルは連結性を問わない**（標高が潮位を下回れば水面を張る）。
     // ただし **nodata のセルは標高が無いので判定できない**。港と湾は
     // 航空レーザが水面から反射を返さず nodata になるので、そこだけは
     // 従来どおり h_conn に任せる。任せないと湾が穴になる
-    if (uDrainage > 0.5 && uHasDiff > 0.5) {
+    // 仮定の段階モードでは水面は「平常時の水域」を埋めるだけなので、
+    // 排水モデルの h_conn に差し替えない（段の色は地形パスが持つ）
+    if (uDrainage > 0.5 && uHasDiff > 0.5 && uMode < 1.5) {
       hConn = decodeHConn(texture(diffTexture, cu).g);
     }
     bool conn = hConn <= wl;
-    if (!(uSimple > 0.5 && uElevPaint < 0.5 && vValid > 0.999) && !conn) discard;
+    if (!(uSimple > 0.5 && !flatSea && vValid > 0.999) && !conn) discard;
     float depth = wl - vElev;
     if (depth <= 0.0) discard;                 // 潮位より高い地面
     // **汀線を白く出す。** 潮位を動かしたときに動くものは面の色ではなく
@@ -357,6 +400,41 @@ void main() {
   if (uElevPaint > 0.5) {
     if (uShowGround < 0.5) discard;
     fragColor = vec4(elevRamp(vElev) * mix(1.0, shade, 0.55), uGroundOpacity);
+    return;
+  }
+
+  // ---- 仮定の段階 ------------------------------------------------------
+  //
+  // **3 段はすべて差分タイルに既に入っている**（R = 海から連結の h_conn、
+  // G = 仮想排水路の h_conn、B = 地盤高）。単純モデルでは「浸水し始める水位」が
+  // そのまま地盤高なので、B も h_conn と同じ符号化・同じ比較で判定できる。
+  // **S1 ⊆ S2 ⊆ 潮位以下 が入れ子なので、成立した段の数がそのまま段の名前になる**
+  // （domain/types.ts の表。解析側で入れ子を検算済み）。
+  if (uMode > 1.5) {
+    if (uHasDiff < 0.5) {
+      // 差分タイルが欠けている区画。段が「無い」のではなく「分からない」
+      if (uShowGround < 0.5) discard;
+      fragColor = vec4(groundColor(shade), uGroundOpacity);
+      return;
+    }
+    vec4 d = texture(diffTexture, cu);
+    float hS1 = decodeHConn(d.r);
+    float steps = 0.0;
+    if (hS1 <= uWaterLevel) steps += 1.0;
+    if (decodeHConn(d.g) <= uWaterLevel) steps += 1.0;
+    if (decodeHConn(d.b) <= uWaterLevel) steps += 1.0;
+    // 平常時から水域のところは段の色に混ぜない（差分モードと同じ規則）。
+    // 混ぜると潮位 0 で湾が「3 段そろって浸水」の青になる
+    if (hS1 <= uWaterBase && uWaterLevel - vElev <= 0.0) {
+      fragColor = vec4(vec3(0.20, 0.31, 0.40) * shade, uGroundOpacity);
+      return;
+    }
+    if (steps < 0.5) {
+      if (uShowGround < 0.5) discard;
+      fragColor = vec4(groundColor(shade), uGroundOpacity);
+      return;
+    }
+    fragColor = assumptionFill(steps, shade);
     return;
   }
 
