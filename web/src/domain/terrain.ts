@@ -42,10 +42,13 @@ export function resolveSurface(
 ): ResolvedSurface | undefined {
   if (surface === 'diff' || surface === 'diff_src'
       || surface === 'diff_res' || surface === 'diff_pc'
-      || surface === 'diff_drainage') {
+      || surface === 'diff_drainage' || surface === 'assumption') {
     const condition = DIFF_GEOMETRY[surface]
     const geom = terrain[condition]
-    const diff = terrain[surface]
+    // **仮定の段階は専用の配信物を持たない。** 3 段（S1 / S2 / 地盤高）は
+    // すべて `diff_drainage` タイルの R / G / B に既に入っているので、
+    // 色タイルはそれをそのまま借りる（domain/types.ts の ASSUMPTION_STEPS）
+    const diff = surface === 'assumption' ? terrain.diff_drainage : terrain[surface]
     // 差分タイルか元条件のどちらかが配信物に無ければ、差分は出せない
     if (!geom || !diff) return undefined
     return { geom, diffUrl: diff.url, isDiff: true, condition }
@@ -73,5 +76,7 @@ export function comparisonPair(surface: SurfaceMode): ComparisonPair {
   if (surface === 'diff_res') return { from: 'control', to: 'highres' }
   if (surface === 'diff_pc') return { from: 'highres', to: 'pointcloud' }
   if (surface === 'diff_drainage') return { from: 'highres', to: 'highres' }
+  // 仮定の段階は 2 条件の比較ではない（同じ地形の上でモデルの入れ子を見ている）
+  if (surface === 'assumption') return { from: 'highres', to: 'highres' }
   return { from: 'baseline', to: surface }
 }
