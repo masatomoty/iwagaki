@@ -49,6 +49,8 @@ IWAGAKI_AOI=higashi_maizuru scripts/build_web.sh
 ```bash
 scripts/run_all.sh        # 取得 → 地形 → 浸水 → 比較 → 地物結合 → 図
 scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・線路・catalog）
+scripts/88_export_survey_targets.py
+                           # → 西舞鶴・東舞鶴の「次の高潮時に見るべき地物」
 ```
 
 初回は京都府 DEM タイル 4 枚（各 12 MB）と PLATEAU CityGML 4 メンバー（計 1.25 GB）を取得する。
@@ -76,6 +78,13 @@ scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・
 | `summary.json` | 設定・指標 |
 | `tide_levels.json` | 参照水位（気象庁の推算潮位から計算 + 公表値） |
 | `bank_crest.json` | 越流開始水位と護岸天端のプロファイル |
+
+### 調査対象リスト（`data/out/` 直下）
+
+`scripts/88_export_survey_targets.py` は西舞鶴・東舞鶴の `objects.*` を読み、
+潮位 0.93 m / 0.69 m ごとに「2 段」の地物を CSV と GeoJSON へ出す。
+地物外形ではなく代表点（EPSG:4326）を持ち、gml_id で元の `objects.geojson` に戻れる。
+潮位を変えるときは `--tide-m-tp 1.00` のように指定する。
 
 ---
 
