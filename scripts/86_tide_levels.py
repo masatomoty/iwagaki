@@ -44,8 +44,8 @@ def full_year(yy: str) -> int:
     n = int(yy)
     return 1900 + n if n >= 50 else 2000 + n
 
-# `genbo.php?stn=MZ&year=1998&month=09&LV=TP` の「観測基準面の標高」。
-# 現在値（-1.517 m T.P., 2024 成果）ではない。**1998 当時の公表値**。
+# `genbo.php?stn=MZ&year=1998&month=09&LV=TP` の「観測基準面の標高」で確認済み
+# （-130.1 cm）。現在値（-1.517 m T.P., 2024 成果）ではない。**1998 当時の公表値**。
 DATUM_1998_M_TP = -1.301
 
 # 京都府「丹後沿岸海岸保全基本計画（変更原案）」より。原典は気象庁。
