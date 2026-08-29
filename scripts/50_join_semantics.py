@@ -16,6 +16,7 @@ import numpy as np
 from pyproj import Transformer
 from rasterio.features import rasterize
 from scipy import ndimage
+from shapely import STRtree
 from shapely.geometry import Polygon, mapping
 from shapely.ops import unary_union
 
@@ -35,6 +36,39 @@ RING_M = 1.0
 SECTION_TYPE_LABEL = {"1": "土工区間・通常区間", "2": "高架橋", "3": "橋梁",
                       "4": "交差部", "5": "アンダーパス", "6": "トンネル"}
 SECTION_TYPE_NOT_ON_GROUND = {"2", "3", "5", "6"}
+
+# 沿道建物の近さを測るバッファ距離 [m]。走行波（車が冠水路を走ると
+# 舳先波が沿道家屋に当たる）と塩害の判定材料。距離は道路ポリゴンの
+# 外縁から建物 footprint までの最短距離で、接する/重なるときは 0。
+FRONTAGE_BUFFERS_M = (2.0, 5.0, 10.0)
+
+
+def road_frontage(geoms: list[Polygon], is_bldg: np.ndarray) -> dict[int, dict]:
+    """道路の位置インデックス -> 沿道建物の指標。
+
+    `geoms` と `is_bldg` は同じ並び（`keep` と対応）。建物だけで STRtree を
+    張り、道路ごとに最大バッファ内の候補を絞って距離を測る。
+    東舞鶴は約 2,060 道路 x 6,308 建物なので二重ループは張らない。
+    """
+    bldg_geoms = [g for g, b in zip(geoms, is_bldg) if b]
+    out: dict[int, dict] = {}
+    if not bldg_geoms:
+        return out
+    tree = STRtree(bldg_geoms)
+    max_buf = max(FRONTAGE_BUFFERS_M)
+    for k, (g, b) in enumerate(zip(geoms, is_bldg)):
+        if b:
+            continue
+        near_i = int(tree.nearest(g))
+        nearest_m = float(g.distance(bldg_geoms[near_i]))
+        cand = tree.query(g, predicate="dwithin", distance=max_buf)
+        dists = sorted(float(g.distance(bldg_geoms[int(j)])) for j in cand)
+        rec = {"nearest_building_m": round(nearest_m, 3)}
+        for buf in FRONTAGE_BUFFERS_M:
+            n = sum(1 for d in dists if d <= buf)
+            rec[f"frontage_building_count_{int(buf)}m"] = n
+        out[k] = rec
+    return out
 
 
 def to_plane(rings: list[np.ndarray], tf: Transformer) -> Polygon | None:
@@ -150,6 +184,10 @@ def main() -> int:
     # 建物は外周リング、道路は面そのものを集計ゾーンにする
     zone_raw = np.where(np.isin(fp, ids[~is_bldg]), fp, ring)
 
+    frontage = road_frontage(geoms, is_bldg)
+    print(f"沿道建物: {len(frontage)} 道路に建物近接指標を付与"
+          f"（バッファ {FRONTAGE_BUFFERS_M} m）")
+
     # 開放水面セルはゾーンから除く。橋・護岸沿いの地物が水面標高(≒0)を拾って
     # 地盤高が不当に低く出るのを防ぐ。除去率は water_fraction として記録する。
     seed_arr, _, _ = read(OUT / "seed_highres_050.tif")
@@ -225,6 +263,14 @@ def main() -> int:
                 n_changed[k] += 1
                 changed_any = True
         rec["decision_changed_any"] = changed_any and not rec["unreliable"]
+        if f["feature_type"] == "tran:Road":
+            # 建物側にはこの列を出さない（class_*@ と同じく道路限定）
+            rec.update(frontage.get(i - 1, {
+                "nearest_building_m": None,
+                "frontage_building_count_2m": None,
+                "frontage_building_count_5m": None,
+                "frontage_building_count_10m": None,
+            }))
         rows.append(rec)
         gj.append({"type": "Feature", "properties": rec, "geometry": mapping(g)})
 
@@ -254,6 +300,8 @@ def main() -> int:
             r["unreliable_reason"] == "mostly_open_water" for r in rows),
         "ring_m": RING_M,
         "road_depth_classes_m": list(ROAD_DEPTH_CLASSES),
+        "frontage_buffers_m": list(FRONTAGE_BUFFERS_M),
+        "n_roads_with_frontage": len(frontage),
     }
     (OUT / "objects_summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
