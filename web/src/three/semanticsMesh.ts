@@ -12,7 +12,8 @@ import {
   Mesh, Raycaster, ShaderMaterial, ShapeUtils, Vector2,
 } from 'three'
 
-import { decisionChanged, featureDepth, roadClass } from '../domain/flood'
+import { decisionChanged, featureDepth, featureRoadRegulation, roadClass,
+         type RoadRegulation } from '../domain/flood'
 import type { ComparisonPair, FeatureAssertion, FloodModel, RoadColorMode,
               TerrainCondition } from '../domain/types'
 import type { RawFeature } from '../view/semantics'
@@ -75,6 +76,17 @@ const ROAD_WET: [number, number, number][] = [
   [0.97, 0.48, 0.08],   // 0.3 m 〜0.5 m
   [0.85, 0.15, 0.12],   // 0.5 m 以上
 ]
+/**
+ * 市の 3 段（徐行 → 通行規制検討 → 通行止め相当）。**青の明度 3 段に抑える。**
+ * 建物の床下（黄）/床上（赤）と正面衝突させない（docs/web_design.md「画面の色は
+ * 1 つの予算」）。
+ */
+const ROAD_REGULATION: Record<Exclude<RoadRegulation, 'none'>,
+  [number, number, number]> = {
+  slow: [0.62, 0.80, 0.90],
+  consider: [0.17, 0.42, 0.69],
+  stop: [0.08, 0.23, 0.40],
+}
 /**
  * 道路の塗りだけ不透明度を上げる倍率（`uOpacity` 0.55 に掛かる）。
  * 水面を張ると水深に応じて 0.46〜0.84 の青が上から乗るので、
@@ -523,7 +535,9 @@ export class SemanticsMesh {
       // 塗りに 2 つの意味（判定変化の赤 / 通行支障）を載せると、
       // どちらを見ているのか画面から決められない
       else if (isRoad) {
-        c = s.roadColor === 'trafficability'
+        const reg = a ? featureRoadRegulation(a, s.waterLevel) : 'none'
+        c = s.roadColor === 'regulation' && reg !== 'none' ? ROAD_REGULATION[reg]
+          : s.roadColor === 'trafficability'
           ? (depth > 0 ? ROAD_WET[roadClass(depth, s.roadThresholds)] : ROAD_DRY)
           : ROAD_PLAIN
       }
@@ -661,4 +675,3 @@ export function createCoverageOutline(
   l.frustumCulled = false
   return l
 }
-

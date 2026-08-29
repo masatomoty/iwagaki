@@ -106,11 +106,12 @@ export type BuildingColorMode = 'none' | 'class' | 'usage' | 'depth'
  *
  * - `plain`          一律。**どこが道路かを見せることだけ**をする
  * - `trafficability` 通行支障クラス（閾値は catalog の `road_depth_classes_m`）
+ * - `regulation`     塩害＋走行波リスクの規制区分（`scripts/91` と同一）
  *
  * 既定は `plain`。通行支障の色は建物の浸水深（灰/黄/赤）と色域が重なるので、
  * 両方を同時に既定にすると道路と建物の区別がつかない（`state.ts`）。
  */
-export type RoadColorMode = 'plain' | 'trafficability'
+export type RoadColorMode = 'plain' | 'trafficability' | 'regulation'
 
 /** 地物ごとの derived assertion（docs/design.md「PLATEAU を書き換えない」） */
 export interface FeatureAssertion {
@@ -125,6 +126,14 @@ export interface FeatureAssertion {
   unreliableReason?: string
   groundElev: Record<TerrainCondition, MTP | undefined>
   hConn: Record<TerrainCondition, MTP | undefined>
+  /**
+   * 沿道家屋の近さ。**走行波そのものではなく間接指標**（`scripts/50`）。
+   * 古い配信物には無いので optional
+   */
+  nearestBuildingM?: number
+  frontageBuildingCount2m?: number
+  frontageBuildingCount5m?: number
+  frontageBuildingCount10m?: number
 }
 
 export interface LonLat { lon: number; lat: number }

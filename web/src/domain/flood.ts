@@ -50,6 +50,38 @@ export function roadClass(d: number, thresholds: number[]): number {
 }
 
 /**
+ * 市の 3 段の規制区分。**通行可否だけの深さ分類ではない。**
+ *
+ * - 塩害は「海水が路面に乗ること自体」を理由にする
+ * - 走行波は沿道家屋の近さで裏取りする（`frontage_building_count_5m`）
+ * - 0.15 m 以上は沿道建物によらず通行止め相当を優先する
+ *
+ * `scripts/91_traffic_regulation.py::regulation_of` と同一に保つ。
+ * 浸水深は **simple の highres** で評価する（`scripts/91` の既定列）。
+ */
+export type RoadRegulation = 'none' | 'slow' | 'consider' | 'stop'
+
+export const ROAD_STOP_DEPTH_M = 0.15
+
+export function roadRegulation(
+  depthSimple: number, frontage5m: number | undefined,
+): RoadRegulation {
+  if (!Number.isFinite(depthSimple) || depthSimple <= 0) return 'none'
+  if (depthSimple >= ROAD_STOP_DEPTH_M) return 'stop'
+  if (frontage5m !== undefined && Number.isFinite(frontage5m) && frontage5m >= 1) {
+    return 'consider'
+  }
+  return 'slow'
+}
+
+export function featureRoadRegulation(
+  a: FeatureAssertion, H: MTP,
+): RoadRegulation {
+  return roadRegulation(depth(a.groundElev.highres, a.hConn.highres, H, 'simple'),
+                        a.frontageBuildingCount5m)
+}
+
+/**
  * **ペアで指定した 2 条件**の間で判定が変わるか。
  * 道路は通行支障クラスの変化、建物は浸水/非浸水の変化で見る（scripts/50 と同じ規則）。
  *
@@ -133,4 +165,33 @@ export function featurePonded(
   a: FeatureAssertion, c: TerrainCondition, H: MTP, model: FloodModel = 'simple',
 ): boolean {
   return ponded(a.groundElev[c], a.hConn[c], H, model)
+}
+
+/** 再生中に常に見せる「いまの水位での床上 / 床下」棟数。 */
+export function floorCounts(
+  assertions: Iterable<FeatureAssertion>,
+  condition: TerrainCondition, H: MTP, floor: number,
+  model: FloodModel = 'simple',
+): { under: number; above: number } {
+  let under = 0
+  let above = 0
+  for (const a of assertions) {
+    if (a.featureType !== 'bldg:Building' || a.unreliable) continue
+    const d = featureDepth(a, condition, H, model)
+    if (d >= floor) above++
+    else if (d > 0) under++
+  }
+  return { under, above }
+}
+
+/** 再生中に常に見せる「いまの水位で規制対象になる道路」本数。 */
+export function regulatedRoadCount(
+  assertions: Iterable<FeatureAssertion>, H: MTP,
+): number {
+  let n = 0
+  for (const a of assertions) {
+    if (a.featureType !== 'tran:Road' || a.unreliable) continue
+    if (featureRoadRegulation(a, H) !== 'none') n++
+  }
+  return n
 }

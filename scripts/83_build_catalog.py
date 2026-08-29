@@ -34,6 +34,9 @@ KEEP_PROPS = [
     "h_conn_baseline", "h_conn_highres",
     "h_conn_control", "h_conn_pointcloud", "h_conn_drainage",
     "delta_ground_elev", "delta_h_conn",
+    # 交通規制モード。**走行波リスクの間接指標**なので viewer にも渡す（scripts/50,91）
+    "nearest_building_m", "frontage_building_count_2m",
+    "frontage_building_count_5m", "frontage_building_count_10m",
 ]
 
 
