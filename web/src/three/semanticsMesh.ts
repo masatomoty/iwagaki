@@ -77,15 +77,16 @@ const ROAD_WET: [number, number, number][] = [
   [0.85, 0.15, 0.12],   // 0.5 m 以上
 ]
 /**
- * 市の 3 段（徐行 → 通行規制検討 → 通行止め相当）。**青の明度 3 段に抑える。**
- * 建物の床下（黄）/床上（赤）と正面衝突させない（docs/web_design.md「画面の色は
- * 1 つの予算」）。
+ * 市の 3 段（徐行 → 通行規制検討 → 通行止め相当）。
+ * 青は水面（水深の塗り）と同化して見失う（web_design.md の実録）ので、
+ * 無彩色寄りの琥珀 → 橙 → 紫赤の暖色 2〜3 段。道路は線なので建物の
+ * 黄/赤ポリゴンと色域が重なっても形で区別できる。
  */
 const ROAD_REGULATION: Record<Exclude<RoadRegulation, 'none'>,
   [number, number, number]> = {
-  slow: [0.62, 0.80, 0.90],
-  consider: [0.17, 0.42, 0.69],
-  stop: [0.08, 0.23, 0.40],
+  slow: [0.95, 0.69, 0.00],
+  consider: [0.89, 0.40, 0.04],
+  stop: [0.43, 0.10, 0.21],
 }
 /**
  * 道路の塗りだけ不透明度を上げる倍率（`uOpacity` 0.55 に掛かる）。
@@ -535,7 +536,8 @@ export class SemanticsMesh {
       // 塗りに 2 つの意味（判定変化の赤 / 通行支障）を載せると、
       // どちらを見ているのか画面から決められない
       else if (isRoad) {
-        const reg = a ? featureRoadRegulation(a, s.waterLevel) : 'none'
+        // unreliable（橋・トンネル等）は集計と同じく規制対象から外す [既知]
+        const reg = a && !a.unreliable ? featureRoadRegulation(a, s.waterLevel) : 'none'
         c = s.roadColor === 'regulation' && reg !== 'none' ? ROAD_REGULATION[reg]
           : s.roadColor === 'trafficability'
           ? (depth > 0 ? ROAD_WET[roadClass(depth, s.roadThresholds)] : ROAD_DRY)

@@ -74,6 +74,9 @@ export function mountTidePlayback(
   let lastFrame: number | undefined
   let stopAtPeak = true
   let raf = 0
+  // store.set は地物全体の再彩色を誘発する。再生中は 10 Hz に間引く
+  // （ホバーを store.set の外に出したのと同じ理由）。停止時は必ず流す。
+  let lastPush = -Infinity
 
   const q = <T extends Element = HTMLElement>(sel: string) => el.querySelector<T>(sel)
   const peakMs = timeValue(curve.peak_time)
@@ -106,16 +109,22 @@ export function mountTidePlayback(
   const tick = (now: number) => {
     if (!playing) return
     if (lastFrame !== undefined) {
+      const prev = currentMs
       const next = advancedTime(curve.points, currentMs, now - lastFrame, speed)
       currentMs = next.timeMs
-      if (stopAtPeak && currentMs >= peakMs) {
+      // ピークは「手前から向かってきたとき」だけ停止点になる。越えた後の
+      // 再生で巻き戻らないようにする
+      if (stopAtPeak && prev < peakMs && currentMs >= peakMs) {
         currentMs = peakMs
         playing = false
         stopAtPeak = false
       } else if (next.atEnd) playing = false
     }
     lastFrame = now
-    store.set({ waterLevel: tideAt(curve.points, currentMs) })
+    if (!playing || now - lastPush >= 100) {
+      lastPush = now
+      store.set({ waterLevel: tideAt(curve.points, currentMs) })
+    }
     paint()
     const btn = q<HTMLButtonElement>('#play')
     if (btn) {
@@ -135,6 +144,8 @@ export function mountTidePlayback(
     if (playing) {
       const end = timeValue(curve.points[curve.points.length - 1].time)
       if (currentMs >= end) currentMs = timeValue(curve.points[0].time)
+      // すでにピークを越えているなら停止点としては扱わない
+      stopAtPeak = currentMs < peakMs
       raf = requestAnimationFrame(tick)
     } else cancelAnimationFrame(raf)
   })
@@ -181,6 +192,9 @@ export function updateTidePlayback(
   const el = parent.querySelector<HTMLElement>('#playback')
   const out = parent.querySelector<HTMLElement>('#pstats')
   if (!el || !out || !stats) return
+  // 棟数は scripts/91 と読み合わせるため**単純モデル**で固定評価。
+  // viewer の地図配色は connected 既定なので、食い違いを明示して残す
   out.innerHTML = `床下 <b>${stats.under}</b> 棟 / 床上 <b>${stats.above}</b> 棟`
     + ` / 規制対象道路 <b>${stats.regulatedRoads}</b> 本`
+    + '<span class="sub">棟数・規制は単純モデルで評価</span>'
 }

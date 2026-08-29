@@ -50,12 +50,12 @@ export function advancedTime(
   return { timeMs: next, atEnd: points.length === 0 || next >= end }
 }
 
-/** JST の時刻表示。日付は 1 日境界だけ見せると長い曲線でも読める */
+/** JST 固定（UTC+9）の時刻表示。実行環境の TZ に依らず舞鶴の時刻を出す */
 export function formatJst(timeMs: number): string {
-  const d = new Date(timeMs)
-  const mm = `${d.getMonth() + 1}`.padStart(2, '0')
-  const dd = `${d.getDate()}`.padStart(2, '0')
-  const hh = `${d.getHours()}`.padStart(2, '0')
-  const mi = `${d.getMinutes()}`.padStart(2, '0')
+  const d = new Date(timeMs + 9 * 3600 * 1000)
+  const mm = `${d.getUTCMonth() + 1}`.padStart(2, '0')
+  const dd = `${d.getUTCDate()}`.padStart(2, '0')
+  const hh = `${d.getUTCHours()}`.padStart(2, '0')
+  const mi = `${d.getUTCMinutes()}`.padStart(2, '0')
   return `${mm}-${dd} ${hh}:${mi}`
 }
