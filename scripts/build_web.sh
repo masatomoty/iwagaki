@@ -27,6 +27,7 @@ if [ "$AOI" = "yoshiwara" ]; then
 else
   # 潮位は舞鶴験潮場の 1 点。範囲ごとに取り直す意味が無いので複製する
   cp "data/out/yoshiwara/tide_levels.json" "data/out/$AOI/tide_levels.json"
+  cp data/out/yoshiwara/tide_series_*.json "data/out/$AOI/"
 fi
 $PY scripts/83_build_catalog.py          # catalog + objects.geojson(WGS84) + areas.json
 if [ "$AOI" = "yoshiwara" ]; then
