@@ -525,6 +525,13 @@ export function renderControls(
     if (rwrap) rwrap.hidden = !s.layers.roads
     const blg = el.querySelector<HTMLElement>('#bldglegend')
     if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
+    if (tideCurves.length && !el.querySelector('#playback')) {
+      el.querySelector('#legend')?.insertAdjacentHTML('beforebegin',
+        tidePlaybackHtml(tideCurves,
+          catalog.water_level.tide_series?.default ?? tideCurves[0].id))
+      mountTidePlayback(el, tideCurves,
+        catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+    }
     updateTidePlayback(el, playbackStats)
     for (const b of el.querySelectorAll<HTMLButtonElement>('#exag button')) {
       b.setAttribute('aria-pressed', String(Number(b.dataset.x) === s.exaggeration))
