@@ -44,6 +44,23 @@ export interface Catalog {
     representative: number[]
     reference_levels_m_tp: Record<string, number>
     reference_levels_detail?: unknown
+    /**
+     * 潮位の毎時時系列。**取得できたものだけ**解析側が載せる。
+     * 古い配信物や取得失敗時には鍵ごと無い。再生は時間発展ではなく
+     * 各時刻を静水位で解いたパラメータ掃引として扱う
+     */
+    tide_series?: {
+      default: string
+      series: {
+        id: string
+        label: string
+        kind: 'observed' | 'computed'
+        url: string
+        bytes: number
+        peak_time: string
+        peak_value_m_tp: number
+      }[]
+    }
   }
   packing: { scheme: string; elev: string; hconn: string; h_step: number; note: string }
   terrain: Record<string, TerrainAsset>

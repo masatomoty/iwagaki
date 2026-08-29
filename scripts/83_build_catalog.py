@@ -151,6 +151,34 @@ def railway() -> dict:
             "source": props["source"]}
 
 
+def tide_series() -> dict:
+    """`scripts/86` が取得できた潮位時系列だけを配信物に載せる。
+
+    検潮場は範囲に依らないが、**取得失敗は黙って曲線を足さない**。
+    viewer は `series` が空のときに再生 UI ごと出さない。
+    """
+    files = sorted(OUT.glob("tide_series_*.json"))
+    if not files:
+        return {}
+    entries = []
+    for src in files:
+        body = json.loads(src.read_text())
+        dst = WEB_DATA / asset_name(src.name)
+        dst.write_bytes(src.read_bytes())
+        name = publish_file(dst)
+        published = WEB_DATA / name
+        entries.append({
+            "id": body["id"], "label": body["label"], "kind": body["kind"],
+            "url": f"data/{name}", "bytes": published.stat().st_size,
+            "peak_time": body["peak_time"],
+            "peak_value_m_tp": body["peak_value_m_tp"],
+        })
+    # 観測があればそちらを既定にする。天文潮は「気象擾乱が無い比較」用。
+    observed = [e for e in entries if e["kind"] == "observed"]
+    default = (observed if observed else entries)[0]["id"]
+    return {"series": entries, "default": default}
+
+
 def versioned_urls(tiles: dict | None, tiles3d: dict | None) -> None:
     """
     配信物のディレクトリ／ファイルに**内容ハッシュを入れて改名**し、
@@ -359,6 +387,8 @@ def main() -> int:
             "reference_levels_m_tp": (tide["reference_levels_m_tp"] if tide
                                       else {"MSL": TP_OF_MSL}),
             "reference_levels_detail": tide,
+            # **取得できた時系列だけ**。空なら viewer は再生 UI を出さない
+            **({"tide_series": series} if (series := tide_series()) else {}),
         },
         "packing": {
             "scheme": "rgba-terrarium-hconn",
