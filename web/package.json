@@ -9,6 +9,7 @@
     "dev": "pnpm run vendor && vite",
     "build": "pnpm run vendor && vite build",
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
     "serve": "node serve.mjs",
     "serve:h1": "node serve.mjs --http1",
     "perf": "node perf/run.mjs",
