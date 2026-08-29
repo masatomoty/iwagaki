@@ -371,6 +371,22 @@ const CHIPS: { key: string; label: string }[] = [
   { key: '既往最高潮位', label: '既往最高' },
 ]
 
+/** 将来海面上昇の仮置き [m]。IPCC 等の特定シナリオ值ではない */
+const SLR_PRESETS_M = [0.3, 0.6, 1.0]
+
+/**
+ * 海面上昇は **高潮想定の基準潮位に足す**。いま開いている H に足すと、
+ * チップを押す順序で意味が変わってしまう。京都府の想定は
+ * 朔望平均満潮位＋異常潮位を起点に高潮偏差を足しているので、
+ * **その起点が自然**である（`docs/data.md` §4）。
+ */
+function slrChips(refs: [string, number][]): [string, number, string][] {
+  const base = refs.find(([key]) => key === '高潮想定の基準潮位')
+  if (!base) return []
+  return SLR_PRESETS_M.map((d) =>
+    [`海面上昇 +${d} m`, base[1] + d, `+${d}`] as [string, number, string])
+}
+
 function pickChips(refs: [string, number][]): [string, number, string][] {
   const out: [string, number, string][] = []
   for (const c of CHIPS) {
@@ -382,7 +398,8 @@ function pickChips(refs: [string, number][]): [string, number, string][] {
     return [[refs[0][0], refs[0][1], refs[0][0]],
             [refs[refs.length - 1][0], refs[refs.length - 1][1], refs[refs.length - 1][0]]]
   }
-  return out
+  // **海面上昇は想定起点に足す。** 単なる H オフセットとしても使える
+  return [...out, ...slrChips(refs)]
 }
 
 /**
