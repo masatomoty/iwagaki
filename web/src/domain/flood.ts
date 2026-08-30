@@ -12,12 +12,13 @@ export function wet(hConn: MTP | undefined, H: MTP): boolean {
 /**
  * 浸水深 [m]。
  *
- * - `simple`（既定）  … **潮位 − 地盤高**。連結性を問わない
+ * - `simple`          … **潮位 − 地盤高**。連結性を問わない。交通規制と
+ *   `scripts/91` の書き出しで安全側の判定に使う
  * - `connected`       … 海から地表面をたどって到達できるときだけ深さを付ける
  *
  * どちらでも深さの式は同じ `max(0, H − 標高)` で、**`connected` が 0 に潰す
  * セルの集合が `simple` との差そのもの**（= 従来の「窪地」）である。
- * `domain/types.ts` の `FloodModel` に、既定を `simple` にした経緯がある。
+ * `domain/types.ts` の `FloodModel` に使い分けの経緯がある。
  */
 export function depth(
   elev: MTP | undefined, hConn: MTP | undefined, H: MTP,
@@ -109,7 +110,7 @@ export function decisionChanged(
  * 判定が変わる水位帯 [lo, hi)。H がこの帯に入っているとき decision が割れる。
  *
  * **どの値の差かはモデルで変わる。** `connected` なら 2 条件の `h_conn` の差、
- * `simple`（既定）なら**地盤高そのものの差**（浸水し始める水位が地盤高だから）。
+ * `simple` なら**地盤高そのものの差**（浸水し始める水位が地盤高だから）。
  */
 export function changeBand(
   a: FeatureAssertion, pair: ComparisonPair, model: FloodModel = 'simple',
@@ -125,7 +126,7 @@ export function changeBand(
 /**
  * **標高は潮位以下だが、地表面では海とつながっていない窪地。**
  *
- * **`connected` モデルのときだけ存在する状態である。** 既定の `simple`
+ * **`connected` モデルのときだけ存在する状態である。** `simple`
  * （潮位 − 地盤高）では窪地も浸水域に入るので、この関数は常に false を返す。
  * 以下は `connected` を選んでいるときの話。
  *
@@ -171,7 +172,7 @@ export function featurePonded(
 export function floorCounts(
   assertions: Iterable<FeatureAssertion>,
   condition: TerrainCondition, H: MTP, floor: number,
-  model: FloodModel = 'simple',
+  model: FloodModel,
 ): { under: number; above: number } {
   let under = 0
   let above = 0

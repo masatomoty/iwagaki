@@ -74,7 +74,7 @@ export function mountTidePlayback(
   let lastFrame: number | undefined
   let stopAtPeak = true
   let raf = 0
-  // store.set は地物全体の再彩色を誘発する。再生中は 10 Hz に間引く
+  // store.set は地物全体の再彩色を誘発する。再生中は約 15 Hz に間引く
   // （ホバーを store.set の外に出したのと同じ理由）。停止時は必ず流す。
   let lastPush = -Infinity
 
@@ -121,7 +121,7 @@ export function mountTidePlayback(
       } else if (next.atEnd) playing = false
     }
     lastFrame = now
-    if (!playing || now - lastPush >= 100) {
+    if (!playing || now - lastPush >= 66) {
       lastPush = now
       store.set({ waterLevel: tideAt(curve.points, currentMs) })
     }

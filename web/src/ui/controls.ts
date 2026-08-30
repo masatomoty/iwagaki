@@ -213,9 +213,9 @@ function legendHtml(
       rows.push(s.roadColor === 'trafficability'
         ? '<div><i style="background:#ffe699"></i>道路<span class="sub"> 通行支障</span></div>'
         : s.roadColor === 'regulation'
-          ? '<div><i style="background:#f2b000"></i>徐行 &nbsp;'
-            + '<i style="background:#e3660a"></i>規制検討 &nbsp;'
-            + '<i style="background:#6e1a36"></i>通行止め</div>'
+          ? '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
+            + '<i style="background:#995cd6"></i>規制検討 &nbsp;'
+            + '<i style="background:#5b2a86"></i>通行止め</div>'
         : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
     }
     return `<div class="legend">${rows.join('')}</div>`
@@ -281,9 +281,10 @@ function legendHtml(
           .map((h) => `<i style="background:${h}"></i>`).join('')
         + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
       : s.roadColor === 'regulation'
-        ? '<div><i style="background:#f2b000"></i>徐行 &nbsp;'
-          + '<i style="background:#e3660a"></i>通行規制検討 &nbsp;'
-          + '<i style="background:#6e1a36"></i>通行止め相当</div>'
+        ? '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
+          + '<i style="background:#995cd6"></i>通行規制検討 &nbsp;'
+          + '<i style="background:#5b2a86"></i>通行止め相当</div>'
+          + '<div class="sub">単純モデル（潮位−地盤高）で判定。安全側に広く出す</div>'
       : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
   }
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
