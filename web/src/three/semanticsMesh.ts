@@ -12,7 +12,8 @@ import {
   Mesh, Raycaster, ShaderMaterial, ShapeUtils, Vector2,
 } from 'three'
 
-import { decisionChanged, featureDepth, roadClass } from '../domain/flood'
+import { decisionChanged, featureDepth, featureRoadRegulation, roadClass,
+         type RoadRegulation } from '../domain/flood'
 import type { ComparisonPair, FeatureAssertion, FloodModel, RoadColorMode,
               TerrainCondition } from '../domain/types'
 import type { RawFeature } from '../view/semantics'
@@ -75,6 +76,19 @@ const ROAD_WET: [number, number, number][] = [
   [0.97, 0.48, 0.08],   // 0.3 m 〜0.5 m
   [0.85, 0.15, 0.12],   // 0.5 m 以上
 ]
+/**
+ * 市の 3 段（徐行 → 通行規制検討 → 通行止め相当）。**紫の明度 3 段。**
+ * 青は水面（水深の塗り）と同化して見失う（web_design.md「画面の色は
+ * 1 つの予算」の実録）。地盤高ランプが紫を離れた（3de61c9）ので紫〜赤紫の
+ * 帯が空いている。建物（灰・黄・赤）、水（青）、判定差（朱）、
+ * 一律道路（ほぼ白）のどれとも当たらない。
+ */
+const ROAD_REGULATION: Record<Exclude<RoadRegulation, 'none'>,
+  [number, number, number]> = {
+  slow: [0.79, 0.64, 0.88],  // #c9a3e0
+  consider: [0.60, 0.36, 0.84],  // #995cd6
+  stop: [0.36, 0.16, 0.53],  // #5b2a86
+}
 /**
  * 道路の塗りだけ不透明度を上げる倍率（`uOpacity` 0.55 に掛かる）。
  * 水面を張ると水深に応じて 0.46〜0.84 の青が上から乗るので、
@@ -523,7 +537,10 @@ export class SemanticsMesh {
       // 塗りに 2 つの意味（判定変化の赤 / 通行支障）を載せると、
       // どちらを見ているのか画面から決められない
       else if (isRoad) {
-        c = s.roadColor === 'trafficability'
+        // unreliable（橋・トンネル等）は集計と同じく規制対象から外す [既知]
+        const reg = a && !a.unreliable ? featureRoadRegulation(a, s.waterLevel) : 'none'
+        c = s.roadColor === 'regulation' && reg !== 'none' ? ROAD_REGULATION[reg]
+          : s.roadColor === 'trafficability'
           ? (depth > 0 ? ROAD_WET[roadClass(depth, s.roadThresholds)] : ROAD_DRY)
           : ROAD_PLAIN
       }
@@ -661,4 +678,3 @@ export function createCoverageOutline(
   l.frustumCulled = false
   return l
 }
-

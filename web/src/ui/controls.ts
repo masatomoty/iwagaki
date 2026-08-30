@@ -20,6 +20,7 @@
 
 import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
+import type { TideSeries } from '../domain/tideSeries'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
               TerrainCondition, TerrainPaint } from '../domain/types'
@@ -27,6 +28,8 @@ import type { Store } from '../state'
 import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
 } from '../view/buildingColor'
+import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
+         type PlaybackStats } from './tidePlayback'
 
 /** `[` `]` キーが回る段。**キーは 5 段すべて**、メニューは 3 段だけ出す */
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
@@ -51,6 +54,7 @@ const MENU_BUILDING_COLORS = BUILDING_COLOR_MODES.filter((m) => m.id !== 'class'
 const MENU_ROAD_COLORS: { id: RoadColorMode; label: string }[] = [
   { id: 'plain', label: '一律' },
   { id: 'trafficability', label: '通行支障（0.1 / 0.3 / 0.5 m）' },
+  { id: 'regulation', label: '交通規制（徐行 / 検討 / 通行止め）' },
 ]
 
 /**
@@ -208,6 +212,10 @@ function legendHtml(
     if (s.layers.roads) {
       rows.push(s.roadColor === 'trafficability'
         ? '<div><i style="background:#ffe699"></i>道路<span class="sub"> 通行支障</span></div>'
+        : s.roadColor === 'regulation'
+          ? '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
+            + '<i style="background:#995cd6"></i>規制検討 &nbsp;'
+            + '<i style="background:#5b2a86"></i>通行止め</div>'
         : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
     }
     return `<div class="legend">${rows.join('')}</div>`
@@ -272,6 +280,11 @@ function legendHtml(
         + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
           .map((h) => `<i style="background:${h}"></i>`).join('')
         + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
+      : s.roadColor === 'regulation'
+        ? '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
+          + '<i style="background:#995cd6"></i>通行規制検討 &nbsp;'
+          + '<i style="background:#5b2a86"></i>通行止め相当</div>'
+          + '<div class="sub">単純モデル（潮位−地盤高）で判定。安全側に広く出す</div>'
       : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
   }
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
@@ -359,6 +372,22 @@ const CHIPS: { key: string; label: string }[] = [
   { key: '既往最高潮位', label: '既往最高' },
 ]
 
+/** 将来海面上昇の仮置き [m]。IPCC 等の特定シナリオ值ではない */
+const SLR_PRESETS_M = [0.3, 0.6, 1.0]
+
+/**
+ * 海面上昇は **高潮想定の基準潮位に足す**。いま開いている H に足すと、
+ * チップを押す順序で意味が変わってしまう。京都府の想定は
+ * 朔望平均満潮位＋異常潮位を起点に高潮偏差を足しているので、
+ * **その起点が自然**である（`docs/data.md` §4）。
+ */
+function slrChips(refs: [string, number][]): [string, number, string][] {
+  const base = refs.find(([key]) => key === '高潮想定の基準潮位')
+  if (!base) return []
+  return SLR_PRESETS_M.map((d) =>
+    [`海面上昇 +${d} m`, base[1] + d, `+${d}`] as [string, number, string])
+}
+
 function pickChips(refs: [string, number][]): [string, number, string][] {
   const out: [string, number, string][] = []
   for (const c of CHIPS) {
@@ -370,7 +399,8 @@ function pickChips(refs: [string, number][]): [string, number, string][] {
     return [[refs[0][0], refs[0][1], refs[0][0]],
             [refs[refs.length - 1][0], refs[refs.length - 1][1], refs[refs.length - 1][0]]]
   }
-  return out
+  // **海面上昇は想定起点に足す。** 単なる H オフセットとしても使える
+  return [...out, ...slrChips(refs)]
 }
 
 /**
@@ -419,6 +449,7 @@ export function renderControls(
   el: HTMLElement, store: Store, catalog: Catalog,
   buildingLegend: LegendEntry[] = [],
   area?: AreaChoice,
+  tideCurves: TideSeries[] = [], playbackStats?: PlaybackStats,
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
@@ -495,6 +526,14 @@ export function renderControls(
     if (rwrap) rwrap.hidden = !s.layers.roads
     const blg = el.querySelector<HTMLElement>('#bldglegend')
     if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
+    if (tideCurves.length && !el.querySelector('#playback')) {
+      el.querySelector('#legend')?.insertAdjacentHTML('beforebegin',
+        tidePlaybackHtml(tideCurves,
+          catalog.water_level.tide_series?.default ?? tideCurves[0].id))
+      mountTidePlayback(el, tideCurves,
+        catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+    }
+    updateTidePlayback(el, playbackStats)
     for (const b of el.querySelectorAll<HTMLButtonElement>('#exag button')) {
       b.setAttribute('aria-pressed', String(Number(b.dataset.x) === s.exaggeration))
     }
@@ -544,6 +583,7 @@ export function renderControls(
         >${label}<b>${v.toFixed(2)}</b></button>`).join('')}</div>
 
       <div class="nowline" id="nowline">${nowLine(s)}</div>
+      ${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}
       <div id="legend">${legendHtml(s, buildingLegend)}</div>
     </div>
 
@@ -621,6 +661,11 @@ export function renderControls(
     </div>
   `
   el.dataset.built = '1'
+  if (tideCurves.length) {
+    mountTidePlayback(el, tideCurves,
+      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+    updateTidePlayback(el, playbackStats)
+  }
 
   el.querySelector('#area')?.addEventListener('change', (e) => {
     // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す

@@ -30,6 +30,10 @@ export function toAssertion(p: Record<string, unknown>): FeatureAssertion {
       control: num('h_conn_control'), pointcloud: num('h_conn_pointcloud'),
       drainage: num('h_conn_drainage'),
     },
+    nearestBuildingM: num('nearest_building_m'),
+    frontageBuildingCount2m: num('frontage_building_count_2m'),
+    frontageBuildingCount5m: num('frontage_building_count_5m'),
+    frontageBuildingCount10m: num('frontage_building_count_10m'),
   }
 }
 

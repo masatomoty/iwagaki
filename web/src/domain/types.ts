@@ -106,11 +106,12 @@ export type BuildingColorMode = 'none' | 'class' | 'usage' | 'depth'
  *
  * - `plain`          一律。**どこが道路かを見せることだけ**をする
  * - `trafficability` 通行支障クラス（閾値は catalog の `road_depth_classes_m`）
+ * - `regulation`     塩害＋走行波リスクの規制区分（`scripts/91` と同一）
  *
  * 既定は `plain`。通行支障の色は建物の浸水深（灰/黄/赤）と色域が重なるので、
  * 両方を同時に既定にすると道路と建物の区別がつかない（`state.ts`）。
  */
-export type RoadColorMode = 'plain' | 'trafficability'
+export type RoadColorMode = 'plain' | 'trafficability' | 'regulation'
 
 /** 地物ごとの derived assertion（docs/design.md「PLATEAU を書き換えない」） */
 export interface FeatureAssertion {
@@ -125,6 +126,14 @@ export interface FeatureAssertion {
   unreliableReason?: string
   groundElev: Record<TerrainCondition, MTP | undefined>
   hConn: Record<TerrainCondition, MTP | undefined>
+  /**
+   * 沿道家屋の近さ。**走行波そのものではなく間接指標**（`scripts/50`）。
+   * 古い配信物には無いので optional
+   */
+  nearestBuildingM?: number
+  frontageBuildingCount2m?: number
+  frontageBuildingCount5m?: number
+  frontageBuildingCount10m?: number
 }
 
 export interface LonLat { lon: number; lat: number }
@@ -143,7 +152,8 @@ export interface Aoi {
  * - `simple`    … **潮位 − 地盤高**。連結性を問わない。標高が潮位を下回れば
  *   その差だけ浸かっているものとして塗る
  *
- * **既定は `simple`。** `connected` はモデルとしては正しいが、地表面の連結しか
+ * **地図の既定は `connected`。** 側溝・暗渠・排水管を通る逆流を含まない点は
+ * 変わらない。舞鶴市からは
  * 見ておらず、側溝・暗渠・排水管を通る逆流を含まない。舞鶴市からは
  *
  * > 現場にいる経験則として、市内全域的に、排水路などを通じて、潮位よりも
@@ -152,7 +162,9 @@ export interface Aoi {
  *
  * との回答があった（2026-08、東舞鶴。排水区・側溝底高・フラップゲートの有無は
  * **市も整理できていない**ので、連結性を補正するデータが無い）。
- * 現場の観測に合う方を既定にし、`connected` は切り替えで残す。
+ * `simple` は交通規制オーバーレイと `scripts/91` の書き出しで**安全側に広く
+ * 出す判定**に使う。排水路の吐口高やフラップゲートが入手できたら
+ * `connected` 側を精緻化する。
  * 排水路の吐口高やフラップゲートが入手できたら `connected` 側を精緻化する。
  */
 export type FloodModel = 'simple' | 'connected' | 'drainage'

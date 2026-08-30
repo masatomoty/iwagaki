@@ -11,7 +11,9 @@ import { Vector2 } from 'three'
 import { sampleLine } from './assets/terrainSampler'
 import { type CameraDescription, eyeInLocal, visibleBoxLocal,
          visiblePolygonLocal } from './domain/camera'
+import { floorCounts, regulatedRoadCount } from './domain/flood'
 import type { Catalog } from './domain/catalog'
+import type { TideSeries } from './domain/tideSeries'
 import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
 import { comparisonPair, resolveSurface } from './domain/terrain'
 import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
@@ -297,6 +299,18 @@ async function boot() {
    */
   let hovered: string | undefined
   const assertions = new Map<string, FeatureAssertion>()
+  const tideCurves = new Map<string, TideSeries>()
+  if (catalog.water_level.tide_series) {
+    void (async () => {
+      await Promise.all(catalog.water_level.tide_series!.series.map(async (entry) => {
+        const b = await scheduler.submit({
+          key: `tide-${entry.id}`, url: entry.url, cls: 'catalog',
+        })
+        tideCurves.set(entry.id, JSON.parse(new TextDecoder().decode(b)) as TideSeries)
+      }))
+      refresh()
+    })()
+  }
 
   void (async () => {
     const b = await scheduler.submit({
@@ -717,8 +731,16 @@ async function boot() {
           resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
           s.waterLevel, floorDepth, s.layers.ponded, s.floodModel)
       : sch ? legendOf(plateauValues, sch) : []
+    const counts = floorCounts(assertions.values(),
+      resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
+      s.waterLevel, floorDepth, s.floodModel)
+    const playbackStats = {
+      under: counts.under,
+      above: counts.above,
+      regulatedRoads: regulatedRoadCount(assertions.values(), s.waterLevel),
+    }
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
-      { index: areaIndex, current: area })
+      { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats)
     renderInspector(document.getElementById('inspector')!, store, catalog)
     viewer.invalidate()
   }
