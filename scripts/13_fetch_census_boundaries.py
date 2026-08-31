@@ -93,13 +93,16 @@ AOI_BUFFER_M = 100.0
 KEEP_FIELDS = ["KEY_CODE", "PREF_NAME", "CITY_NAME", "S_NAME", "HCODE"]
 
 
-def load_shapefile_bytes() -> dict[str, bytes]:
-    """`r2ka26202.{shp,shx,dbf,prj}` を bytes で返す。キャッシュが無ければ取得する。"""
+def load_shapefile_bytes(force: bool = False) -> dict[str, bytes]:
+    """`r2ka26202.{shp,shx,dbf,prj}` を bytes で返す。キャッシュが無ければ取得する。
+
+    `force=True` のときはキャッシュも手動配置（loose）も見ず、必ず e-Stat から取り直す。
+    """
     if not CACHE.exists():
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         loose = {ext: RAW / "estat" / f"{SHP_STEM}{ext}"
                  for ext in (".shp", ".shx", ".dbf", ".prj")}
-        if all(p.exists() for p in loose.values()):
+        if not force and all(p.exists() for p in loose.values()):
             print(f"using loose shapefile in {loose['.shp'].parent}")
             return {f"{SHP_STEM}{ext}": p.read_bytes() for ext, p in loose.items()}
         print(f"downloading {ESTAT_URL}")
@@ -119,8 +122,8 @@ def load_shapefile_bytes() -> dict[str, bytes]:
                     (".shp", ".shx", ".dbf", ".prj"))}
 
 
-def read_boundaries() -> gpd.GeoDataFrame:
-    members = load_shapefile_bytes()
+def read_boundaries(force: bool = False) -> gpd.GeoDataFrame:
+    members = load_shapefile_bytes(force=force)
     with tempfile.TemporaryDirectory() as tmp:
         for name, data in members.items():
             (Path(tmp) / Path(name).name).write_bytes(data)
@@ -133,12 +136,12 @@ def read_boundaries() -> gpd.GeoDataFrame:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--force", action="store_true",
-                    help="キャッシュを無視して e-Stat から取り直す")
+                    help="キャッシュも手動配置も無視して e-Stat から取り直す")
     args = ap.parse_args()
     if args.force:
         CACHE.unlink(missing_ok=True)
 
-    gdf = read_boundaries()
+    gdf = read_boundaries(force=args.force)
     print(f"e-Stat 境界データ: {len(gdf)} レコード / CRS {gdf.crs}")
 
     missing = [c for c in KEEP_FIELDS if c not in gdf.columns]
