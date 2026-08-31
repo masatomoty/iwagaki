@@ -618,6 +618,22 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
 | 国土数値情報 低位地帯データ (G08) 京都府 | 参照 | https://www.geospatial.jp/ckan/dataset/ksj-g08-26 |
 | OpenStreetMap | 地名・施設の照合 | ODbL |
 
+### 国勢調査 小地域（町丁・字等）境界データ — e-Stat 統計GIS **[実測]**（2026-09-01）
+
+上田氏の要望「浸水建物を国勢調査の小地域ごとに集計」（2026-08-28）の受け皿。
+`scripts/13_fetch_census_boundaries.py` が取得し、`scripts/92_area_aggregate.py` が使う。
+
+| | |
+|---|---|
+| 取得元 | 政府統計の総合窓口 e-Stat／統計地理情報システム（統計GIS）「境界データ」。市区町村単位のダウンロード URL: `https://www.e-stat.go.jp/gis/statmap-search/data?dlserveyId=A002005212020&code=26202&coordSys=1&format=shape&downloadType=5&datum=2011` |
+| 版 | **2020年（令和2年）国勢調査 小地域（町丁・字等別）**。統計表 ID `A002005212020`。舞鶴市（`26202`）で 494 レコード（同一 KEY_CODE の分割ポリゴン・水面調査区を含む） |
+| 測地系 | **JGD2011 経緯度**（`.prj` が `GCS_JGD_2011`、`datum=2011` 指定。本解析の `CRS_LONLAT` = EPSG:6668 と同世代）。中間物は解析 CRS の **EPSG:6674** に変換して置く |
+| 単位 | **行政界（町丁・字等）**。図郭・メッシュではない |
+| ライセンス | 政府統計の総合窓口（e-Stat）利用規約。**出典表記を条件に加工・再配布可（商用含む）。編集・加工した場合はその旨を明記** |
+| 属性 | `KEY_CODE` / `S_NAME`（町丁・字等名）/ `CITY_NAME` などを保持。**人口・世帯数（`JINKO` / `SETAI`）は落とす**（この成果物は建物カウントの受け皿であって統計値の取り込みではない。`docs/design.md`「やらないこと」の「全舞鶴市の処理」「統計値取り込み」に踏み込まない） |
+| 中間物 | `data/interim/census_boundary_maizuru_2020.geojson`（AOI 3 範囲のいずれかに交差する小地域だけ。KEY_CODE で dissolve 済み。EPSG:6674。162 小地域） |
+| 注意 | e-Stat の境界データ URL は API 仕様として公表されたものではない。404 になったら手動ダウンロードして `data/raw/estat/` に置く（手順は `scripts/13` の docstring） |
+
 ---
 
 ## 6. 出典表記（成果物に必ず含めること）
@@ -629,6 +645,13 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
       https://www.geospatial.jp/ckan/dataset/dem05_kyoto
       （本成果は上記を加工して作成したものであり、京都府が作成したものではありません）
 出典：気象庁 潮位観測資料（舞鶴）
+```
+
+小地域集計（`scripts/92`）の成果物にはさらに次を含める:
+
+```
+出典：「令和2年国勢調査」（総務省統計局）の境界データ（e-Stat 統計GIS）を加工して作成
+      https://www.e-stat.go.jp/gis/statmap-search
 ```
 
 ---

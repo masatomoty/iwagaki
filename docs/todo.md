@@ -68,6 +68,15 @@
 1 段粗くして、西舞鶴 3,994 → 1,812 ms / 東舞鶴 4,489 → 1,307 ms
 （`docs/web_results.md`「FMR が遅かったのは枚数であってバイトではない」）。
 
+**上田氏（舞鶴市）から追加の要望が来た**（2026-08-28、Slack）。
+
+| # | 要望 | 状態 |
+|---|---|---|
+| ③ | **浸水建物を国勢調査の小地域（町丁・字等）ごとに集計して地域比較できるようにする** | **入れた（ファイルのみ／viewer 表示は別 PR）。** `scripts/13_fetch_census_boundaries.py` が e-Stat 統計GIS の 2020年国勢調査 小地域境界を取り（`docs/data.md` §5）、`scripts/92_area_aggregate.py` が建物の重心で空間結合して潮位別・モデル別に `data/out/{aoi}/area_flood_H*.{csv,geojson}` ＋ `area_flood_summary.json` を出す。合計は `web/src/domain/flood.ts` の `floorCounts` と一致（`docs/results.md`「小地域ごとの浸水建物」）。既往最高潮位 0.93 m で床上は西舞鶴の旧舞鶴東吉原一に集中、東舞鶴は市街の町丁で `simple`↔`connected` が大きく割れる。**viewer のコロプレス表示・catalog 配線・areas.json 追加は別 PR** |
+
+（同じ 2026-08 のやり取りから派生した「交通規制が必要な道路の可視化」は上の
+`scripts/91`、「次の高潮時に見るべき地物のリスト」は `scripts/88`。）
+
 ## 中
 
 | # | 内容 | 根拠 |
