@@ -939,6 +939,21 @@ todo T2 の当初メモは「PLATEAU `tran` の LineString からグラフを構
   連結でない区画（橋で分断・行き止まり）では等時線もそこで切れる。
 * 信号待ち・勾配・混雑・踏切は含まない（静的な距離のみ）。
 
+### T2 の viewer への配信 **[実測]**（2026-09-02）
+
+`scripts/94_walk_isochrone.py` はこの範囲の `data/out/<AOI>/` 直下に起点ごと 1 本
+`walk_isochrone_<lon>_<lat>_<minutes>min.geojson` を焼く。`scripts/83_build_catalog.py`
+の `walk_isochrones()` がその範囲の GeoJSON を**すべて**内容ハッシュ付きの名前で
+`web/public/data/` へコピーし直し、`catalog.walk_isochrones[]` として配信する
+（起点ごとに 1 エントリ。1 本も無ければ空配列で鍵ごと落ちる）。
+
+| | |
+|---|---|
+| 配信物 | `catalog.walk_isochrones[] = {url, bytes, origin_lon, origin_lat, minutes, label?}` |
+| `label` | `<範囲ラベル> <所要時間> 分`（例: 「吉原 10 分」）。`ui/controls.ts` の起点セレクトにそのまま出す |
+| viewer 側 | `web/src/domain/walkIsochrone.ts`（型・`walkIsochroneInfo`）／`three/walkIsochroneLayer.ts`（面＋縁のネットワーク等時線、縁だけの単純バッファ）。**T1 の中心点 UI とは統合しない** — 起点はこの配列から選ぶだけで、地図クリックで新しい等時線は作らない |
+| UI | 「重ねる」の **徒歩圏（等時線）** トグル。既定 OFF。起点が複数あるときだけ下にセレクトを出す（`#wiwrap`）。ON にした瞬間だけ選んでいる起点の GeoJSON を引く（水みちモードの `flowBasins` と同じ遅延ロード） |
+
 ---
 
 ## 標高成果の世代 **[未確認]**

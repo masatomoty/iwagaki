@@ -63,6 +63,13 @@ export interface LayerToggles {
   changedOnly: boolean
   /** 点群が地表面として効いている範囲の輪郭。AOI 100 ha に対し 3 ha しかない */
   pcCoverage: boolean
+  /**
+   * 徒歩圏（道路ネットワーク等時線 ＋ 単純バッファ、`catalog.walk_isochrones[]`）を出すか。
+   * 既定 OFF。複数自治体からの要望 T2（`docs/todo.md`）の事前生成物をそのまま描くだけの
+   * プレビュー的な単独レイヤで、「公式歩行者網ではない」ことは asset 側の注記で示す。
+   * catalog に `walk_isochrones` が無い配信物では選択肢ごと出さない。
+   */
+  walkIsochrone: boolean
 }
 
 export interface AppState {
@@ -131,6 +138,13 @@ export interface AppState {
    * グラデーションで」という市の提案（2026-08）。`domain/types.ts` の `TerrainPaint`。
    */
   terrainPaint: TerrainPaint
+  /**
+   * 選んでいる徒歩圏（`catalog.walk_isochrones[]` のインデックス）。**T1 の中心点 UI
+   * とは別物** — 起点は解析側が焼いた固定点の一覧から選ぶだけで、地図クリックで
+   * 新しい等時線を作ることはしない（`domain/catalog.ts` の `WalkIsochroneAsset`）。
+   * 未選択（`undefined`）なら 0 番目を既定にする（`main.ts`）。
+   */
+  walkIsochroneIndex?: number
 }
 
 export function initialState(catalog: Catalog): AppState {
@@ -157,6 +171,7 @@ export function initialState(catalog: Catalog): AppState {
       // 既定の条件は highres なので、起動時は出さない。
       // 切り替えは main.ts の syncCoverageDefault()（条件が変わった瞬間だけ入れる）
       pcCoverage: false,
+      walkIsochrone: false,
     },
     coalesceEnabled: true,
     /**

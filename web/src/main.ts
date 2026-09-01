@@ -23,6 +23,7 @@ import {
 import { parsePointBufferIndex, type PointBufferIndex } from './domain/pointBuffer'
 import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
               TerrainCondition } from './domain/types'
+import type { WalkIsochroneGeoJSON } from './domain/walkIsochrone'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
 import type { PcBundle } from './pointcloud/lazy'
@@ -31,6 +32,7 @@ import { initialState, Store } from './state'
 import { FLOOD_MODE } from './three/floodMaterial'
 import { createLocalFrame, worldToLngLat } from './three/mercator'
 import type { PlateauTiles } from './three/plateauTiles'
+import { createWalkIsochroneLayer, type WalkIsochroneLayer } from './three/walkIsochroneLayer'
 // **地物メッシュは遅延しない。** 1.8 kB (br) を後回しにするために 1 往復払っていた。
 // 高 RTT では往復のほうが 2 桁高い（fatpipe-highrtt 405 ms / slow-highrtt 568 ms、
 // 対して JSON 解釈は 3〜7 ms・三角形化は 7〜9 ms。docs/web_results.md
@@ -545,6 +547,39 @@ async function boot() {
     }
   }
 
+  /**
+   * 徒歩圏（`catalog.walk_isochrones[]`、複数自治体からの要望 T2）。**T1 の中心点 UI
+   * とは統合しない** — 起点は解析側が焼いた固定点の一覧から選ぶだけで、地図を
+   * クリックしても新しい等時線は作らない（`ui/controls.ts` の `#wisel`）。
+   * レイヤは「重ねる」で ON にして初めて引く（`flowBasins` と同じ遅延ロード）。
+   */
+  let walkIsochroneLayer: WalkIsochroneLayer | undefined
+  let walkIsochroneLoadedUrl: string | undefined
+  let walkIsochroneLoading = false
+  async function ensureWalkIsochrone() {
+    const assets = catalog.walk_isochrones
+    if (!assets?.length) return
+    const idx = Math.min(Math.max(store.state.walkIsochroneIndex ?? 0, 0), assets.length - 1)
+    const asset = assets[idx]
+    if (!walkIsochroneLayer) {
+      walkIsochroneLayer = createWalkIsochroneLayer(frame, geoid)
+      viewer.world.add(walkIsochroneLayer.object)
+    }
+    if (walkIsochroneLoadedUrl === asset.url || walkIsochroneLoading) return
+    walkIsochroneLoading = true
+    try {
+      const b = await scheduler.submit({ key: `walk-iso-${asset.url}`, url: asset.url, cls: 'prefetch' })
+      const data = JSON.parse(new TextDecoder().decode(b)) as WalkIsochroneGeoJSON
+      walkIsochroneLayer.setData(data)
+      walkIsochroneLoadedUrl = asset.url
+      refresh()
+    } catch {
+      // 表示の補助。取れなくても地図は動かす
+    } finally {
+      walkIsochroneLoading = false
+    }
+  }
+
   /** basin id からハイライトを張り直す（`flowBasins` 未ロードなら何もしない）。 */
   function applyCatchment(rootId: number | undefined) {
     if (!catchment || !flowBasins) return
@@ -978,6 +1013,7 @@ async function boot() {
     if (catchment) {
       catchment.object.visible = s.terrainPaint === 'catchment' && !!s.selectedCatchment
     }
+    if (walkIsochroneLayer) walkIsochroneLayer.object.visible = s.layers.walkIsochrone
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない
     plateau?.setWaterLevel(s.waterLevel)
@@ -1006,7 +1042,7 @@ async function boot() {
     }
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
       { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats,
-      areaFlood)
+      areaFlood, walkIsochroneLayer?.info ?? null)
     renderInspector(document.getElementById('inspector')!, store, catalog)
     viewer.invalidate()
   }
@@ -1123,6 +1159,8 @@ async function boot() {
     if (s.layers.pointcloud && !pcStarted) void startPointCloud()
     if (s.layers.plateau) void ensurePlateau()
     syncCoverageDefault()
+    // 徒歩圏レイヤを ON にした・起点を替えたときだけ引く（既定は OFF、`state.ts`）
+    if (s.layers.walkIsochrone) void ensureWalkIsochrone()
     // 「水みち」モードに入ったら流域ポリゴンを引く。外れたら選択と面を片づける
     const wantCatchment = s.terrainPaint === 'catchment'
     if (wantCatchment !== catchmentMode) {

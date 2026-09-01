@@ -437,6 +437,37 @@ def point_buffer() -> dict:
     return {"url": f"data/{name}", "bytes": q.stat().st_size, "count": len(out_points)}
 
 
+def walk_isochrones() -> list[dict]:
+    """徒歩圏（道路ネットワーク等時線 ＋ 単純バッファ）を配信物に加える
+    （`catalog.walk_isochrones[]`、複数自治体からの要望 T2）。
+
+    `scripts/94_walk_isochrone.py` はこの範囲の `OUT` 直下に起点ごと 1 GeoJSON を
+    焼く（EPSG:4326 なので座標変換は要らない）。**T1 の中心点 UI とは未統合** —
+    起点は解析側が焼いた固定点で、viewer は一覧から選ぶだけ（`ui/controls.ts` の
+    `#wisel`）。1 本も無ければ空配列で鍵ごと落ちる。
+    """
+    files = sorted(OUT.glob("walk_isochrone_*.geojson"))
+    out = []
+    for src in files:
+        raw = json.loads(src.read_text())
+        meta = raw.get("metadata", {})
+        dst = WEB_DATA / asset_name(src.name)
+        dst.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")))
+        name = publish_file(dst)
+        q = WEB_DATA / name
+        minutes = meta.get("minutes")
+        aoi_label = meta.get("aoi_label") or AOI_LABELS.get(AOI.name, AOI.name)
+        label = f"{aoi_label} {minutes:g} 分" if minutes is not None else None
+        out.append({
+            "url": f"data/{name}", "bytes": q.stat().st_size,
+            "origin_lon": meta.get("origin_lon"), "origin_lat": meta.get("origin_lat"),
+            "minutes": minutes, **({"label": label} if label else {}),
+        })
+        print(f"{name}: 徒歩圏 {minutes} 分 "
+              f"({meta.get('origin_lon')}, {meta.get('origin_lat')}), {q.stat().st_size / 1e3:.1f} kB")
+    return out
+
+
 def tide_series() -> dict:
     """`scripts/86` が取得できた潮位時系列だけを配信物に載せる。
 
@@ -632,6 +663,8 @@ def main() -> int:
     flow_asset = flow(tiles, to_wgs)
     # 任意地点＋徒歩圏の集計索引（複数自治体からの要望 T1・optional）
     point_buffer_asset = point_buffer()
+    # 徒歩圏（道路ネットワーク等時線・複数自治体からの要望 T2・無ければ空配列）
+    walk_isochrone_assets = walk_isochrones()
     summary = json.loads((OUT / "summary.json").read_text())
     tide_path = OUT / "tide_levels.json"
     tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
@@ -738,6 +771,9 @@ def main() -> int:
         # 無い配信物では鍵ごと落ちる。地図をクリックしても新規計算はしない
         # （新しい外部 API・サーバ計算は足さない方針、`docs/todo.md` T1）
         **({"point_buffer": point_buffer_asset} if point_buffer_asset else {}),
+        # 徒歩圏（道路ネットワーク等時線 ＋ 単純バッファ、複数自治体からの要望 T2）。
+        # 焼いていない配信物では鍵ごと落ちる
+        **({"walk_isochrones": walk_isochrone_assets} if walk_isochrone_assets else {}),
         # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）。
         # **空なら鍵ごと落とす。** `{}` を置くと読み側で truthy になり、
         # `default_section.from[0]` で落ちる（面的表示用の範囲で実際に落ちた）

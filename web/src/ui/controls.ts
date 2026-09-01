@@ -22,6 +22,7 @@ import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
 import type { AreaFloodRow } from '../domain/flood'
 import type { TideSeries } from '../domain/tideSeries'
+import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
               TerrainCondition, TerrainPaint } from '../domain/types'
@@ -145,7 +146,8 @@ function layersOf(catalog: Catalog) {
   return LAYERS.filter((l) =>
     (l.key !== 'pointcloud' || !!catalog.pointcloud?.url)
     && (l.key !== 'railway' || !!catalog.railway?.url)
-    && (l.key !== 'pourPoints' || !!catalog.flow?.pits?.url))
+    && (l.key !== 'pourPoints' || !!catalog.flow?.pits?.url)
+    && (l.key !== 'walkIsochrone' || !!catalog.walk_isochrones?.length))
 }
 
 const surfaceCondition = (s: SurfaceMode): TerrainCondition => comparisonPair(s).to
@@ -178,7 +180,7 @@ const SYNTHETIC_NOTE =
  * 道路は前から objects.geojson に入っていて描いてもいた）。
  */
 type LayerKey = 'waterSurface' | 'ponded' | 'pourPoints' | 'roads' | 'railway'
-  | 'plateau' | 'pointcloud'
+  | 'plateau' | 'pointcloud' | 'walkIsochrone'
 const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'waterSurface', label: '水面',
     hint: '潮位の高さに水平な水面を張る。切ると浸水域を地面の色だけで見る' },
@@ -197,14 +199,32 @@ const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
       + '市が「表示範囲の東側をここまで」と指した基準線そのもの' },
   { key: 'plateau', label: 'PLATEAU 建物' },
   { key: 'pointcloud', label: '点群' },
+  { key: 'walkIsochrone', label: '徒歩圏（等時線）',
+    hint: '複数自治体からの要望 T2。事前生成済みの起点から、道路ネットワーク上の'
+      + '到達圏と同じ距離の単純バッファを併置する。公式歩行者網ではない' },
 ]
 
 /**
  * 凡例は 1 か所にまとめる。**画面に出ている色は 1 セットなのに、
  * 以前は読む場所が 3 つあった**（Legend / 建物の色 / 地形の凡例に混ざった赤）。
  */
+/**
+ * 徒歩圏（T2）の注記行。**面積・比・「公式歩行者網ではない」の実測値**は
+ * 読み込んだ GeoJSON からしか分からないので、`main.ts` が読んで渡す
+ * （`walkIsochroneLayer.info`）。まだ読み込み中なら省く。
+ */
+function walkIsochroneLegend(info: WalkIsochroneInfo | null): string {
+  if (!info) return ''
+  const ratio = info.networkOverBufferRatio
+  return '<div><i style="background:#4d9e73"></i>徒歩圏（ネットワーク） &nbsp;'
+    + '<i style="background:#8a6a3d"></i>同距離の単純バッファ（縁のみ）'
+    + `<span class="sub"> ${info.minutes} 分・分速 ${info.walkSpeedMPerMin} m`
+    + (ratio !== undefined ? `・面積比 ${ratio.toFixed(2)}` : '') + '</span></div>'
+    + `<div class="sub">${info.notOfficialNote}</div>`
+}
+
 function legendHtml(
-  s: Store['state'], buildingLegend: LegendEntry[],
+  s: Store['state'], buildingLegend: LegendEntry[], walkIsochroneInfo: WalkIsochroneInfo | null,
 ): string {
   const pair = comparisonPair(s.surface)
   const label: Record<TerrainCondition, string> =
@@ -330,6 +350,10 @@ function legendHtml(
       + 'repeating-linear-gradient(90deg,#242830 0 2px,#e0e3e9 2px 5px);'
       + 'box-shadow:inset 0 0 0 1px #242830"></i>'
       + `JR 線路<span class="sub"> ${s.catalog.railway.lines.join(' / ')}</span></div>`)
+  }
+  // 徒歩圏（T2）。潮位非依存の別レイヤなので、浸水系の色とは独立に出す
+  if (s.layers.walkIsochrone && s.catalog.walk_isochrones?.length) {
+    rows.push(walkIsochroneLegend(walkIsochroneInfo))
   }
   return `<div class="legend">${rows.join('')}</div>`
 }
@@ -543,6 +567,7 @@ export function renderControls(
   area?: AreaChoice,
   tideCurves: TideSeries[] = [], playbackStats?: PlaybackStats,
   areaFlood: AreaFloodRow[] = [],
+  walkIsochroneInfo: WalkIsochroneInfo | null = null,
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
@@ -593,7 +618,7 @@ export function renderControls(
     const nl = el.querySelector<HTMLElement>('#nowline')
     if (nl) nl.innerHTML = nowLine(s)
     const lg = el.querySelector<HTMLElement>('#legend')
-    if (lg) lg.innerHTML = legendHtml(s, buildingLegend)
+    if (lg) lg.innerHTML = legendHtml(s, buildingLegend, walkIsochroneInfo)
     // 地域別の浸水建物。水位・モデル・地形条件の変更にその場で追従する
     const ag = el.querySelector<HTMLElement>('#areagroup')
     if (ag) ag.hidden = areaFlood.length === 0
@@ -622,6 +647,12 @@ export function renderControls(
     if (rcb && rcb.value !== s.roadColor) rcb.value = s.roadColor
     const rwrap = el.querySelector<HTMLElement>('#rcolwrap')
     if (rwrap) rwrap.hidden = !s.layers.roads
+    const wiwrap = el.querySelector<HTMLElement>('#wiwrap')
+    if (wiwrap) wiwrap.hidden = !s.layers.walkIsochrone
+    const wisel = el.querySelector<HTMLSelectElement>('#wisel')
+    if (wisel && wisel.value !== String(s.walkIsochroneIndex ?? 0)) {
+      wisel.value = String(s.walkIsochroneIndex ?? 0)
+    }
     const blg = el.querySelector<HTMLElement>('#bldglegend')
     if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
     if (tideCurves.length && !el.querySelector('#playback')) {
@@ -682,7 +713,7 @@ export function renderControls(
 
       <div class="nowline" id="nowline">${nowLine(s)}</div>
       ${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}
-      <div id="legend">${legendHtml(s, buildingLegend)}</div>
+      <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
     </div>
 
     <div class="body">
@@ -727,6 +758,13 @@ export function renderControls(
           `<option value="${m.id}" ${s.roadColor === m.id ? 'selected' : ''}
           >${m.label}</option>`).join('')}</select>
       </div>
+      ${(catalog.walk_isochrones?.length ?? 0) > 1 ? `
+      <div class="nested" id="wiwrap" ${s.layers.walkIsochrone ? '' : 'hidden'}>
+        <p class="grouplabel">徒歩圏の起点</p>
+        <select id="wisel" aria-label="徒歩圏の起点">${catalog.walk_isochrones!.map((w, i) =>
+          `<option value="${i}" ${(s.walkIsochroneIndex ?? 0) === i ? 'selected' : ''}
+          >${w.label ?? `${w.minutes} 分（${i}）`}</option>`).join('')}</select>
+      </div>` : ''}
       <div class="whyoff" id="why-plateau" ${s.exaggeration > 1 ? '' : 'hidden'}
         >高さを強調している間は隠す（建物は実高のまま）</div>
       <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
@@ -830,6 +868,9 @@ export function renderControls(
   })
   el.querySelector('#rcol')!.addEventListener('change', (e) => {
     store.set({ roadColor: (e.target as HTMLSelectElement).value as RoadColorMode })
+  })
+  el.querySelector('#wisel')?.addEventListener('change', (e) => {
+    store.set({ walkIsochroneIndex: Number((e.target as HTMLSelectElement).value) })
   })
   el.querySelector('#bcol')!.addEventListener('change', (e) => {
     // メニューに出すのは なし / 用途 / 浸水深。'class'（普通建物・堅ろう建物）は

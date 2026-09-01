@@ -1,9 +1,10 @@
-"""scripts/83_build_catalog.py の point_buffer() のテスト。
+"""scripts/83_build_catalog.py の point_buffer() / walk_isochrones() のテスト。
 
 catalog.json 全体の組み立てはタイル・PLATEAU・DEM が要るので統合実行でしか確かめられない
 （この repo に scripts/83 の既存ユニットテストが無いのはそのため）。ここは
-`point_buffer()` だけを切り出して確かめる — 範囲を跨いだ共通の索引から
-**この範囲の地点だけ**を拾えているか、索引が無ければ鍵ごと落ちるか。
+2 つの関数だけを切り出して確かめる — `point_buffer()` は範囲を跨いだ共通の索引から
+**この範囲の地点だけ**を拾えているか、索引が無ければ鍵ごと落ちるか。`walk_isochrones()`
+はこの範囲直下の GeoJSON を配信名で拾えているか。
 """
 from __future__ import annotations
 
@@ -69,3 +70,31 @@ def test_point_buffer_empty_when_no_points_in_aoi(tmp_path, monkeypatch):
 def test_point_buffer_empty_without_index(tmp_path, monkeypatch):
     _patch(monkeypatch, tmp_path)
     assert bc.point_buffer() == {}
+
+
+def test_walk_isochrones_publishes_each_geojson(tmp_path, monkeypatch):
+    out_dir = tmp_path / "out" / "yoshiwara"
+    out_dir.mkdir(parents=True)
+    (tmp_path / "web_data").mkdir()
+    (out_dir / "walk_isochrone_135.1_35.1_10min.geojson").write_text(json.dumps({
+        "type": "FeatureCollection",
+        "metadata": {"aoi": "yoshiwara", "aoi_label": "吉原", "origin_lon": 135.1,
+                     "origin_lat": 35.1, "minutes": 10.0},
+        "features": [],
+    }), encoding="utf-8")
+    # summary.json は集計であって等時線そのものではないので拾わない（拡張子違いで自然と除外）
+    (out_dir / "walk_isochrone_summary.json").write_text("{}", encoding="utf-8")
+    _patch(monkeypatch, tmp_path)
+
+    assets = bc.walk_isochrones()
+    assert len(assets) == 1
+    a = assets[0]
+    assert a["origin_lon"] == 135.1 and a["origin_lat"] == 35.1 and a["minutes"] == 10.0
+    assert a["label"] == "吉原 10 分"
+    name = a["url"].split("data/", 1)[1]
+    assert (tmp_path / "web_data" / name).exists()
+
+
+def test_walk_isochrones_empty_without_files(tmp_path, monkeypatch):
+    _patch(monkeypatch, tmp_path)
+    assert bc.walk_isochrones() == []
