@@ -533,10 +533,16 @@ async function boot() {
       }
       flowChannels = new Map(fc.features.map((f) => [f.properties.basin_id, f.geometry.coordinates]))
       // 読み込みが終わる前に流域を選んでいた場合はここで追いつく（`applyCatchment`
-      // と同じ「復帰時に描き直す」流儀）。断面パネルが閉じていれば何もしない
-      const sel = store.state.selectedCatchment?.basinId
-      if (sel !== undefined && document.body.classList.contains('section-open')) {
-        void buildSectionAlongChannel(sel)
+      // と同じ「復帰時に描き直す」流儀）。ただし **その間に手動断面を引く／別の
+      // 流域を選ぶ／パネルを閉じるなど、何か新しいことが起きていたら retry しない**
+      // （`sectionSeq` が pending 登録時から変わっていないことで判定する。
+      // でないと後から解決したこの retry が、ユーザーが既に見ている新しい断面を
+      // 黙って上書きしてしまう）
+      const pending = pendingChannelRetry
+      pendingChannelRetry = undefined
+      if (pending && pending.seq === sectionSeq
+          && document.body.classList.contains('section-open')) {
+        void buildSectionAlongChannel(pending.basinId)
       }
     } catch {
       // 主流路が無くても手動の 2 点断面は変わらず使える
@@ -618,9 +624,16 @@ async function boot() {
    * 別の流域のどちらでも）を始められる。素直に await するだけだと**後から解決した
    * 方が勝ち**、新しい `secLine` に古い断面が乗ってしまう。呼ぶたびに増やす通し
    * 番号で「自分が最新の呼び出しか」を確認し、追い越されていたら結果を捨てる
-   * （両方の関数・水みちモードを抜けるときの 3 か所で増やす）。
+   * （両方の関数・水みちモードを抜けるとき・パネルを閉じるときに増やす）。
    */
   let sectionSeq = 0
+  /**
+   * `catalog.flow.channels` の読み込みが終わる前に流域を選んだときの「積み残し」。
+   * `loadFlowChannels` はこれを見て読み込み完了後に retry するが、登録した時点の
+   * `sectionSeq` から変わっていれば（手動断面・別の流域・パネルを閉じるなど、何か
+   * 新しいことが起きていれば）retry しない
+   */
+  let pendingChannelRetry: { basinId: number; seq: number } | undefined
 
   const redrawSection = () => {
     if (secSeries.length === 0) return
@@ -675,7 +688,13 @@ async function boot() {
    */
   async function buildSectionAlongChannel(basinId: number) {
     const line = flowChannels?.get(basinId)
-    if (!line || line.length < 2) return
+    if (!line || line.length < 2) {
+      // `catalog.flow.channels` がまだ読み込み中で使えなかった。読み込み完了後の
+      // retry 用に、いまの `sectionSeq` と一緒に覚えておく（`loadFlowChannels`）
+      if (!flowChannels) pendingChannelRetry = { basinId, seq: sectionSeq }
+      return
+    }
+    pendingChannelRetry = undefined
     const seq = ++sectionSeq
     const from = line[0]
     const to = line[line.length - 1]
@@ -739,6 +758,7 @@ async function boot() {
     const t = e.target as HTMLElement
     if (t.id === 'secbtn') sectionTool.toggle()
     if (t.id === 'sec-close') {
+      sectionSeq++   // 進行中の断面リクエスト（手動・流域とも）があれば無効化する
       secEl.style.display = 'none'
       document.body.classList.remove('section-open')
       secSeries = []; secLine = null
