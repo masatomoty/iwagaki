@@ -31,7 +31,9 @@ const resolveFlow = (flow, condition) => {
 test('catalog.flow の形', () => {
   const flow = catalog.flow
   assert.ok(flow, 'catalog.flow が無い（scripts/83 の flow() を確認）')
-  const conds = Object.keys(flow).filter((k) => k !== 'pits' && k !== 'basins')
+  // 条件（水みちタイル）だけを拾う。'pits' / 'basins' / 'channels' は条件ではない
+  // （`domain/flow.ts` の isFlowAsset と同じ判定 = accum_max_cells を持つものだけ）
+  const conds = Object.keys(flow).filter((k) => isFlowAsset(flow[k]))
   assert.ok(conds.includes('highres'), 'highres の水みちタイルが無い')
   for (const c of conds) {
     const a = flow[c]

@@ -259,6 +259,35 @@ def flow(tiles: dict | None, to_wgs) -> dict:
         print(f"{name}: {len(feats)} 部分流域, {q.stat().st_size / 1e3:.1f} kB")
         out["basins"] = {"url": f"data/{name}", "bytes": q.stat().st_size,
                          "count": len(feats), "condition": prefer}
+
+    # 流域の主流路（断面ツールの自動測線用）。**highres の 1 本だけ配信**。
+    # viewer は先頭（吐口）と末尾（源流）を測線の 2 点として使う（`main.ts`）。
+    csrc = OUT / f"flow_channels_{prefer}.geojson" if prefer else None
+    if csrc and csrc.exists():
+        raw = json.loads(csrc.read_text())
+        feats = []
+        for f in raw["features"]:
+            coords = [[round(v, 7) for v in to_wgs.transform(x, y)]
+                     for x, y in f["geometry"]["coordinates"]]
+            feats.append({"type": "Feature",
+                          "geometry": {"type": "LineString", "coordinates": coords},
+                          "properties": f["properties"]})
+        fc = {
+            "type": "FeatureCollection",
+            "name": "flow_channels",
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+            "properties": {**raw.get("properties", {}),
+                           "note": "流域の主流路。断面ツールの自動測線"
+                                   "（先頭=吐口・末尾=源流）"},
+            "features": feats,
+        }
+        p = WEB_DATA / asset_name("flow_channels.geojson")
+        p.write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")))
+        name = publish_file(p)
+        q = WEB_DATA / name
+        print(f"{name}: {len(feats)} 主流路, {q.stat().st_size / 1e3:.1f} kB")
+        out["channels"] = {"url": f"data/{name}", "bytes": q.stat().st_size,
+                           "count": len(feats), "condition": prefer}
     return out
 
 

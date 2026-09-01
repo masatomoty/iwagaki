@@ -555,6 +555,10 @@ def _clip_basins(
     併合（`_coarsen_basins`）は clip の**前**に collar グリッド全体で済ませてある。
     clip で AOI に食い込むだけの縁の破片がいくつか残るが、いずれも
     `edge_truncated=True`（集水域が AOI 外へ延びている）でマークされる。
+
+    `channel_rc`（主流路）も同じ矩形へシフトし、吐口（先頭）から連続して矩形内に
+    収まる区間だけを残す。collar 側（矩形の外）へ延びて打ち切った流域は
+    `channel_truncated=True` を立てる。吐口自身が矩形の外なら空にする。
     """
     lab_big = basins.labels
     sub = lab_big[row0:row0 + h, col0:col0 + w]
@@ -571,6 +575,9 @@ def _clip_basins(
     new_outlet = np.full((k + 1, 2), -1, dtype="int64")
     new_maxacc = np.zeros(k + 1, dtype="float64")
     new_edge = np.zeros(k + 1, dtype=bool)
+    empty_chan = np.zeros((0, 2), dtype="int32")
+    new_channel: list[np.ndarray] = [empty_chan for _ in range(k + 1)]
+    new_chan_trunc = np.zeros(k + 1, dtype=bool)
     for old in present.tolist():
         nb = int(remap[old])
         d = int(basins.downstream[old])
@@ -582,6 +589,21 @@ def _clip_basins(
             new_outlet[nb] = (orow - row0, ocol - col0)
         new_edge[nb] = (bool(basins.edge_truncated[old])
                         or int(inside[old]) < int(total[old]) or not in_clip)
+
+        # 主流路も同じ矩形へシフトし、AOI/collar 端で外に出た先は打ち切る
+        # （吐口自身が clip の外なら空にする。そこは既に edge_truncated=True）
+        chan = basins.channel_rc[old] if old < len(basins.channel_rc) else empty_chan
+        if in_clip and chan.shape[0]:
+            shifted = chan.astype("int64").copy()
+            shifted[:, 0] -= row0
+            shifted[:, 1] -= col0
+            ok = (shifted[:, 0] >= 0) & (shifted[:, 0] < h) & (shifted[:, 1] >= 0) & (shifted[:, 1] < w)
+            n_ok = ok.size if ok.all() else int(np.argmin(ok))
+            clipped = shifted[:n_ok].astype("int32")
+        else:
+            clipped = empty_chan
+        new_channel[nb] = clipped
+        new_chan_trunc[nb] = clipped.shape[0] < chan.shape[0]
     return BasinResult(
         labels=remap[sub].astype("int32"),
         downstream=new_downstream.astype("int32"),
@@ -589,6 +611,8 @@ def _clip_basins(
         max_accum=new_maxacc,
         edge_truncated=new_edge,
         n_basins=k,
+        channel_rc=tuple(new_channel),
+        channel_truncated=new_chan_trunc,
     )
 
 
@@ -714,6 +738,13 @@ class BasinResult:
     #                             セル数（面積）とは一致しない。_clip_basins は再クリップしない
     edge_truncated: np.ndarray  # bool (n_basins + 1,), 吐口の流出が AOI/collar 端で切れているか
     n_basins: int
+    #: 各リーフの**主流路**セル列 (row, col)。id 1..n_basins（0 は未使用のダミー、空配列）。
+    #: 吐口（`outlet_rc`）が先頭、源流（またはこの流域の外に出る手前）が末尾
+    #: （`main_channel_from_outlet` で作る。断面ツールの自動測線用、`scripts/33`）
+    channel_rc: "tuple[np.ndarray, ...]" = ()
+    #: 主流路が AOI/collar 端で打ち切られたか（`_clip_basins` が立てる）。
+    #: big グリッド段階（クリップ前）では常に False
+    channel_truncated: np.ndarray = None  # type: ignore[assignment]
 
     def upstream_of(self, basin_id: int) -> "set[int]":
         """`basin_id` とその上流すべての流域 id（`downstream` を逆にたどる）。
@@ -734,6 +765,80 @@ class BasinResult:
             out.add(b)
             stack.extend(children.get(b, ()))
         return out
+
+
+def _walk_main_channel(
+    main: np.ndarray, acc: np.ndarray, valid: np.ndarray, within: np.ndarray,
+    w: int, h: int, start: int,
+) -> np.ndarray:
+    """`main`（flat の主 receiver）を `start` から `within` の中だけ遡り、主流路の
+    セル列を返す。合流点（`within` かつ `valid` な donor が複数）では **`acc` が
+    大きい方の支流だけ**を選ぶ（トランクストリームの標準的な定義）。
+
+    引数はすべて flat（長さ `h*w`）。返り値は (N, 2) int32（row, col）、先頭が
+    `start`、末尾が源流（`within` の中に donor が無いセル）。DAG（Priority-Flood +
+    ε の帰結）なので理論上ループしないが、`h*w` 歩で強制的に止める安全弁を置く。
+    """
+    path = [start]
+    cur = start
+    for _ in range(h * w):
+        row, col = divmod(cur, w)
+        best = -1
+        best_acc = -1.0
+        for dy, dx, _d in _D8:
+            nr, nc = row + dy, col + dx
+            if nr < 0 or nr >= h or nc < 0 or nc >= w:
+                continue
+            ni = nr * w + nc
+            if not within[ni] or not valid[ni] or main[ni] != cur:
+                continue
+            a = acc[ni]
+            if a > best_acc:
+                best_acc = a
+                best = ni
+        if best < 0:
+            break
+        path.append(best)
+        cur = best
+    idx = np.asarray(path, dtype="int64")
+    return np.stack([idx // w, idx % w], axis=1).astype("int32")
+
+
+def main_channel_from_outlet(
+    dinf: DinfResult, accum: np.ndarray, valid: np.ndarray,
+    outlet_rc: "tuple[int, int]", within: "np.ndarray | None" = None,
+) -> np.ndarray:
+    """吐口セル `outlet_rc`（row, col）から D-infinity **主 receiver**（配分の大きい方、
+    `flow_basins` の `main` と同じ定義）を遡り、**主流路**のセル列を返す。
+
+    各合流点（donor が複数）では **集水セル数（`accum`）が大きい方の支流だけ**を選ぶ
+    （トランクストリームの標準的な定義。上流の小さい支流は無視する）。源流（`within`
+    の中に donor が無いセル、または端）に達したら止まる。返り値は (N, 2) int32
+    （row, col）。先頭が `outlet_rc`、末尾が源流。
+
+    `within` を渡すとその mask の外へは遡らない。**流域単体の主流路が欲しいとき**に
+    使う（`flow_basins` の `channel_rc` はリーフの `labels == id` で作る）。省略すると
+    `valid` 全体を遡る（**吐口だけを指定して**主流路を取りたいとき。たとえば大きい
+    窪地の越流点から遡る、など）。
+
+    解析側で一度だけ計算して配信する（**ブラウザで receiver グリッドを再計算しない**。
+    `docs/web_design.md`「水位を動かしてもサーバ往復しない」と同じ理由 — 主流路の
+    抽出も配信前に済ませる）。経路長は流域・吐口ローカルな量（AOI 全体の格子数には
+    依らない）なので、広い AOI でも 1 回の呼び出しは軽い（`scripts/33` の性能確認）。
+    """
+    valid = np.asarray(valid, dtype=bool)
+    h, w = valid.shape
+    row0, col0 = outlet_rc
+    if not (0 <= row0 < h and 0 <= col0 < w):
+        raise ValueError(f"outlet_rc {outlet_rc} は範囲外（{h}x{w}）")
+    main = np.where(dinf.prop2 > dinf.prop1, dinf.receiver2, dinf.receiver1).reshape(-1)
+    acc = np.asarray(accum, dtype="float64").reshape(-1)
+    validf = valid.reshape(-1)
+    maskf = np.asarray(within, dtype=bool).reshape(-1) if within is not None else validf
+    start = row0 * w + col0
+    if not maskf[start]:
+        raise ValueError(f"outlet_rc {outlet_rc} が within マスクの外")
+    return _walk_main_channel(main, acc, validf, maskf, w, h, start)
 
 
 def flow_basins(
@@ -846,6 +951,17 @@ def flow_basins(
     outlet_rc[1:, 0] = outlets // w
     outlet_rc[1:, 1] = outlets % w
 
+    # 各リーフの主流路（吐口→源流）。`labels_flat == b` で自分のリーフの外へ遡らない
+    # ようにする（合流点セル自身は下流側のリーフに属すので、そこで自然に止まる）。
+    # `main` / `acc` / `flat_valid` はこの関数の冒頭で計算済みなので使い回す
+    # （リーフごとに再計算しない。広い AOI でも経路長はリーフ単位で小さい）
+    channel_rc: list[np.ndarray] = [np.zeros((0, 2), dtype="int32")]
+    for b in range(1, nb + 1):
+        o = int(outlets[b - 1])
+        mask = flat_valid & (labels_flat == b)
+        channel_rc.append(_walk_main_channel(main, acc, flat_valid, mask, w, h, o))
+    channel_truncated = np.zeros(nb + 1, dtype=bool)
+
     return BasinResult(
         labels=labels_flat.reshape(h, w).astype("int32"),
         downstream=downstream.astype("int32"),
@@ -853,6 +969,8 @@ def flow_basins(
         max_accum=max_accum,
         edge_truncated=edge,
         n_basins=nb,
+        channel_rc=tuple(channel_rc),
+        channel_truncated=channel_truncated,
     )
 
 
