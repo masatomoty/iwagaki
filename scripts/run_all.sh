@@ -21,3 +21,5 @@ $PY scripts/40_compare.py > /dev/null
 $PY scripts/50_join_semantics.py
 $PY scripts/60_report.py
 $PY scripts/70_figures.py
+# 地表流の集中・窪地構造（潮位非依存の別レイヤ。浸水判定には混ぜない）
+$PY scripts/33_flow_accum.py

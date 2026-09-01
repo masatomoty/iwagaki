@@ -64,6 +64,7 @@ scripts/88_export_survey_targets.py
 | 10 番台 | 取得（DEM / CityGML）と点群の実態調査 |
 | 20 番台 | 地形の生成・融合、表示用 COPC |
 | 30 / 40 | 浸水計算（`h_conn`）と条件間の比較 |
+| 33 | 地表流の集中（flow accumulation）と窪地構造。**潮位非依存の別レイヤ**で `h_conn` には混ぜない |
 | 50 / 60 | 地物との結合、レポート |
 | 80 番台 | Web 配信アセット（タイル・3D Tiles・catalog） |
 
@@ -73,6 +74,9 @@ scripts/88_export_survey_targets.py
 |---|---|
 | `dtm_{baseline,highres,control,pointcloud}_*.tif` | 4 条件の地形 |
 | `h_conn_*.tif` | 連結浸水開始水位。**1 枚で全水位を表す** |
+| `flow_accum_{cond}.tif` | 地表流の集中（D8・一様降雨・生値 = 集水セル数）。「水みち」 |
+| `fill_depth_{cond}.tif` / `spill_elev_{cond}.tif` / `pit_id_{cond}.tif` | 窪地の充填深・越流点標高・窪地 ID（潮位非依存の原理版） |
+| `flow_accum_summary.json` / `flow_accum_pits_{cond}.json` | 窪地数・面積・容積・端で切れた集水の割合・手法・生成時刻 |
 | `objects.geojson` / `objects.csv` | 地物 + 条件ごとの地盤高・`h_conn` |
 | `changed_H*.geojson` | 判定が変わった領域 |
 | `summary.json` | 設定・指標 |

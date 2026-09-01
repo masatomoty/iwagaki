@@ -6,3 +6,4 @@ pyproj>=3.6
 lxml>=5.0
 geopandas>=1.0
 pyogrio>=0.9
+matplotlib>=3.8   # 確認用の図（scripts/33・90）。flow accumulation 本体は純 numpy/scipy（docs/data.md §7）
