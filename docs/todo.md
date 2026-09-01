@@ -131,6 +131,16 @@ FARR のリアルタイム計算エンジンは移植せず、固定 AOI なの�
   既存の「窪地（逆流で…）」レイヤ（潮位依存）とは別物として並記。
 - 潮位スライダを動かしても水みちの色は変わらない（潮位非依存）。
 
+**第 3 段（AOI 端の集水の過小評価を collar で直す）も入れた** **[実測]**（2026-09-01）。
+`src/iwagaki/flow.py` の `route_with_collar` が AOI 外周へ **GSI 5m 標高タイル**
+（DEM5A、穴は DEM10B。`src/iwagaki/gsi_dem.py` が `.txt` で取得。`requirements.txt`
+は増やさない）の collar 帯を `FLOW_COLLAR_M`（既定 150 m）張ってから Priority-Flood +
+D8 を回し、AOI 矩形に clip する。**collar はルーティング専用**で、窪地の充填深・
+越流点・容積は AOI 単独の ε 充填面で解いて AOI セルだけ集計する（数値は不変）。
+`edge_truncated_fraction` は吉原 highres で 60.2 % → **9.3 %**、baseline で
+45.2 % → **29.3 %**。collar が取れなければ collar 無しに落ちる（`collar_used=false`）。
+手法・前後比較は `docs/data.md` §7、結果は `docs/results.md`。
+
 **残っているもの。**
 
 - **クリックで集水域抽出。** クリックした地点の上流を面で出し、地物インスペクタ・

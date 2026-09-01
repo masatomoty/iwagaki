@@ -12,8 +12,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from iwagaki.flow import (d8_accumulation, d8_flow_direction, label_pits,
-                          pit_pour_points, pit_records, priority_flood_fill)
+from iwagaki.flow import (d8_accumulation, d8_flow_direction,
+                          edge_truncated_fraction, label_pits, pit_pour_points,
+                          pit_records, priority_flood_fill, route_with_collar)
 
 
 def test_fill_is_monotone_and_no_pit_on_slope():
@@ -121,6 +122,64 @@ def test_d8_uniform_rain_conservation():
     assert accum.reshape(-1)[terminal].sum() == pytest.approx(n_valid)
     # topological order は全有効セルを含む
     assert d8.order.size == n_valid
+
+
+def test_collar_c0_matches_plain_routing():
+    # collar=0 は素の d8_flow_direction + d8_accumulation と一致する
+    rng = np.random.default_rng(7)
+    dem = rng.random((18, 22)) * 6.0
+    dem[3:6, 8:11] = np.nan
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    d8 = d8_flow_direction(filled)
+    accum0, term0 = d8_accumulation(d8, valid)
+
+    r = route_with_collar(dem, dem.copy(), 0)
+    assert np.allclose(r.accum[valid], accum0[valid])
+    assert np.array_equal(r.term_edge, term0)
+    assert r.conservation_ok
+
+
+def test_collar_adds_upstream_catchment_at_aoi_edge():
+    # 北（行 0）から南へ一様に下る斜面。collar でその斜面を北へ延長すると、
+    # AOI 北端セルは collar 側の上流ぶんだけ集水が増える。
+    h = w = 8
+    c = 3
+    aoi = (100.0 - np.arange(h)[:, None]) + np.zeros((h, w))
+    yy = np.arange(h + 2 * c)[:, None] - c            # AOI 座標系の行番号
+    collar = (100.0 - yy) + np.zeros((h + 2 * c, w + 2 * c))
+
+    with_collar = route_with_collar(aoi, collar.copy(), c)
+    without = route_with_collar(aoi, aoi.copy(), 0)
+
+    # 端の集水は collar で増える（減りはしない）
+    assert with_collar.accum[0, :].sum() > without.accum[0, :].sum()
+    assert np.all(with_collar.accum[0, :] >= without.accum[0, :])
+    # 純粋な平面斜面なら 1 列 1 方向に流れ、collar の行数ぶん (= c) だけ上流が増える
+    assert np.allclose(with_collar.accum[0, :], without.accum[0, :] + c)
+    # AOI 内部は collar の影響を受けない
+    assert np.allclose(with_collar.accum[1:, :], without.accum[1:, :] + c)
+
+
+def test_collar_routes_edge_flow_into_sea_instead_of_truncating():
+    # 西（列 0）へ下る斜面。AOI 単体だと西端で map 外へ抜けて「端で切れる」。
+    # collar のさらに西端を nodata（海）にすると、そこへ抜けるので切れなくなる。
+    h = w = 6
+    c = 3
+    aoi = (100.0 + np.arange(w)[None, :]) + np.zeros((h, w))
+    xx = np.arange(w + 2 * c)[None, :] - c
+    collar = (100.0 + xx) + np.zeros((h + 2 * c, w + 2 * c))
+    collar[:, 0] = np.nan                              # collar の外縁 = 海
+
+    with_collar = route_with_collar(aoi, collar.copy(), c)
+    without = route_with_collar(aoi, aoi.copy(), 0)
+
+    assert without.term_edge[:, 0].all()              # collar 無し: 端で切れている
+    assert not with_collar.term_edge.any()            # collar 有り: すべて海へ抜ける
+    # collar 有りでは端で切れるセルの割合が下がる
+    assert with_collar.term_edge.mean() < without.term_edge.mean()
+    # edge_truncated_fraction（collar 無しの軽量指標）も「全部切れている」を返す
+    assert edge_truncated_fraction(priority_flood_fill(aoi)) == pytest.approx(1.0)
 
 
 def test_d8_single_outlet_plane():
