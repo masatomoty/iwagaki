@@ -102,25 +102,51 @@ GeoJSONまたはGeoPackageで、MVPでは次の1種類を持つ。
 | 属性 | 型 | 内容 |
 |---|---|---|
 | `id` | string | 仮想排水口ID |
-| `geometry` | Point | 海側の吐口位置 |
-| `inland_node` | Point | 陸側の端（集水桝・側溝の上流端） |
-| `invert_mouth_m` | number | 海側吐口の仮想敷高 |
+| `geometry` | Point | 海側の吐口位置（越流点から最寄りの open-water seed） |
+| `inland_node` | `[x, y]` | 陸側の端 = **窪地の越流点セル**（EPSG:6674） |
+| `spill_elev_m_tp` | number | 越流点標高（その窪地の鞍部の高さ） |
+| `invert_ref_m_tp` | number | `spill_elev_m_tp − DRAINAGE_DROP_M`（ネットワーク基準敷高。`scripts/31` は未使用） |
+| `pit_id` | number | `flow_accum_pits_highres` の窪地 ID |
+| `pit_area_m2` / `pit_max_fill_depth_m` | number | 窪地の面積・最大充填深 |
+| `hc_at_pour_m_tp` | number \| null | 越流点セルの `h_conn`（null = nodata） |
+| `target_h_m` | number | 選定に使った潮位閾値 |
 | `drain_to` | string | 排水先（海・河川・排水路など） |
 | `gate_type` | string | `none` / `flap` |
 | `source` | string | 常に `synthetic` |
 
 ### 5.2 仮想データ生成ルール
 
-1. `scripts/87_bank_crest.py` が作る汀線直交断面と護岸天端
-2. DEMから得た断面上の海側吐口・陸側端の標高
+**実装は `scripts/32_generate_synthetic_outfall_pairs.py`。越流点ベース**
+（2026-09-01。旧版の「窪地成分の最低セルを大きい順」から置き換え。`docs/todo.md`,
+`docs/results.md`「仮想排水路を入れるとどうなるか」）。入力は次の 3 つ。
+
+1. `scripts/33_flow_accum.py` が Priority-Flood + ε で特定した窪地とその
+   **越流点セル**（`iwagaki.flow.pit_pour_points`）。`flow_accum_pits_highres.geojson`
+   に面積上位の窪地の越流点・越流点標高（`spill_elev_m_tp`）が入っている
+2. `h_conn_highres.tif`（海から地表面をたどった到達水位。既に連結している
+   窪地に吐口を置かないための判定）
 3. 既存の開放水面seed（`scripts/30_flood.py` の `find_open_water` が生成）
-4. 既知の浸水履歴または現地情報（利用可能な場合）
 
 基本ルールは以下とする。
 
-- 護岸天端を挟んで、海側の吐口と陸側の端を1組のペアとして配置する。
-- `geometry` は海側の口、`inland_node` は護岸内側の集水桝・側溝上流端を表す。
-- 海側吐口の敷高は、陸側端の地盤高から一定の埋設深を引いて一意に決める。
+- **窪地の越流点（鞍部）を陸側端 `inland_node` にする。** 越流点は Priority-Flood
+  が求めるその窪地の実際の吐け口で、排水ネットワーク上の位置になっている。
+  旧版が使っていた「窪地の最低セル」は底であって、ネットワーク上の位置ではない。
+- 残す窪地は次をすべて満たすもの。
+  - 窪地の底（`spill_elev_m_tp − max_fill_depth_m`）が `--target-h`（既定 0.93 m）
+    より低い。潮位が届かない窪地に吐口を置いても S2 は動かない
+  - 越流点セルの `h_conn` が `--target-h` より高い（nodata は非連結扱い）。
+    既に海から地表面で連結しているなら追加seedは不要
+  - 窪地面積が `--min-area-m2`（既定 1000 m²）以上。越流点 GeoJSON は面積上位
+    60 窪地だけなので、その最小収録面積（範囲により 600〜950 m²）**以下**の値を
+    渡すと「面積は足りるが上位に入らなかった低 spill の窪地」（同着含む）を
+    取りこぼす（`scripts/32` が検査して止める）
+- **並び順は越流点標高の昇順**（逆流が効き始めるのが早い順）、同着は面積の降順。
+  先頭から `--max-pairs`（既定 12）個。旧版の「面積降順」は使わない。
+- `geometry` は海側の口（越流点から最寄りの open-water seed）、`inland_node` は
+  越流点セルの中心座標。海側seed上には置かない（越流点は定義上 seed の外）。
+- 海側吐口の敷高は、`scripts/31_drainage_flood.py` が従来どおり
+  陸側端の地盤高から一定の埋設深を引いて決める。
 
   ```text
   invert_mouth_m = elevation(inland_node) - DRAINAGE_DROP_M
@@ -128,7 +154,17 @@ GeoJSONまたはGeoPackageで、MVPでは次の1種類を持つ。
   ```
 
   `DRAINAGE_DROP_M` は `src/iwagaki/config.py` に置き、コードへ直書きしない。この値は実測管底高ではなく、側溝・管路が地盤面より下にあることを表す仮定である。負の標高になってもT.P.基準の値として保持し、0mに丸めない。
-- 陸側端は、天端より内側のセルに置く。海側seedに置いてはならない。
+
+  **`spill_elev_m_tp` と `DRAINAGE_DROP_M` の関係。** `scripts/32` は
+  properties に越流点標高 `spill_elev_m_tp` と `invert_ref_m_tp = spill_elev_m_tp − DRAINAGE_DROP_M`
+  を持たせる。これは排水ネットワーク上の基準敷高（その窪地の鞍部を基準にした
+  埋設深）である。**ただし `scripts/31` はこれを読まない** — 敷高の軸（§8）は
+  ほぼ退化していることが実測で分かっており（旧配置で 3 ケース完全一致、越流点
+  ベースでも既往最高潮位の面積差は 1.4 % 以下）、敷高の決め方を変えても S2 の
+  絵はほとんど動かない。`spill_elev_m_tp` はメタデータとして
+  残し、将来 1D 水理モデルへ渡すときの入力にする。陸側端が越流点になった今、
+  `elevation(inland_node)` は鞍部の高さ ≈ `spill_elev_m_tp` に近い（旧版の窪地
+  最低セルより 0.3〜1.0 m 高い）ので、`invert_mouth_m` 自体も越流点基準に寄る。
 - 排水先は既存seedまたは河川・海域を記録するが、MVPのseed判定には既存open-water seedを使う。
 - 生成したペアは、実在施設ではなく「仮想の逆流経路」と表示する。
 
@@ -209,12 +245,16 @@ JSONに次を記録する。
 
 ## 8. 不確実性
 
-**当初の軸（敷高 ±0.20 m）は効かないことが実測で分かった**（2026-08-27、東舞鶴）。
-12 組の敷高は −0.30〜+0.30 m T.P. に収まっていて、±0.20 m ずらしても
-**潮位 0.50 m 以上ではどのケースでも 12 組すべてが seed になる**。3 ケースで値が
-違うセルは 9〜11 セル（0.0003 ha）だけで、既往最高潮位 0.93 m での浸水面積は
-3 ケースとも 24.85 ha で一致した。**S2 の感度を支配しているのは敷高ではなく
-吐口の有無である**（`docs/results.md`「仮想排水路を入れるとどうなるか」）。
+**当初の軸（敷高 ±0.20 m）はほぼ効かないことが実測で分かった**（2026-08-27、東舞鶴）。
+旧「窪地の最低セル」配置では 12 組の敷高が −0.30〜+0.30 m T.P. に収まり、
+±0.20 m ずらしても**潮位 0.50 m 以上ではどのケースでも 12 組すべてが seed に
+なる** — 3 ケースで値が違うセルは 9〜11 セル（0.0003 ha）だけ、既往最高潮位
+0.93 m の浸水面積は 3 ケースとも 24.85 ha で一致した。**`scripts/32` を
+越流点ベースに変えた後**（2026-09-01、§5.2）は陸側端が鞍部へ上がって敷高が
+0.6〜1.1 m T.P. になり、東舞鶴の +0.20 m ケースだけ 20.46 → 20.18 ha
+（0.28 ha / 1.4 %）動く。西舞鶴はなお 3 ケース完全一致。差は 1.4 % 以下なので
+**S2 の感度を支配しているのは敷高ではなく吐口の有無である**という結論は変わらない
+（`docs/results.md`「越流点ベースで 2 段が半分に減る」）。
 
 敷高 3 ケースの計算は `scripts/31` に残す（`config.DRAINAGE_INVERT_CASES`）。
 **この結論を再現するための感度確認であって、配信もしないし画面にも出さない。**
@@ -278,10 +318,12 @@ assumption_steps(c, H) = count(h <= H for h in [h_conn_S1(c), h_conn_S2(c), elev
 
 ### Phase 2: 仮想排水候補の生成
 
-- `scripts/87_bank_crest.py` の断面から海側吐口・陸側端の候補を抽出する
-- DEMから陸側端の地盤高を取得し、`invert_mouth_m = elevation(inland_node) - DRAINAGE_DROP_M` で敷高を生成する
-- 既存のopen-water seedとの関係を検査する
-- GeoJSONとして保存する
+- **`scripts/33_flow_accum.py` を先に回して窪地の越流点を書き出す**
+- `scripts/32_generate_synthetic_outfall_pairs.py` が越流点標高の低い窪地を
+  最大 `--max-pairs` 個選び、越流点セルを陸側端にする（§5.2）
+- `h_conn_highres` で「既に海から連結している窪地」を落とす
+- 各越流点から最寄りの open-water seed を海側 geometry にして GeoJSON へ保存
+- 敷高は `scripts/31` が `elevation(inland_node) - DRAINAGE_DROP_M` で決める（変更なし）
 
 ### Phase 3: S1/S2の到達水位
 
