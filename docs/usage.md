@@ -51,6 +51,10 @@ scripts/run_all.sh        # 取得 → 地形 → 浸水 → 比較 → 地物�
 scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・線路・catalog）
 scripts/88_export_survey_targets.py
                            # → 西舞鶴・東舞鶴の「次の高潮時に見るべき地物」
+scripts/14_fetch_census_stats.py
+                           # → 国勢調査 小地域の人口・年齢（scripts/13 の境界に KEY_CODE 結合）
+scripts/93_point_buffer_agg.py --lon 135.3355 --lat 35.4508 --radius 500 800 1000
+                           # → 任意地点＋徒歩圏半径で小地域集計（ファイルのみ）
 ```
 
 初回は京都府 DEM タイル 4 枚（各 12 MB）と PLATEAU CityGML 4 メンバー（計 1.25 GB）を取得する。
@@ -62,11 +66,13 @@ scripts/88_export_survey_targets.py
 | 番号帯 | 役割 |
 |---|---|
 | 10 番台 | 取得（DEM / CityGML）と点群の実態調査 |
+| 12 / 13 / 14 | 外部データの取得（線路 = 国土数値情報、国勢調査 小地域の境界・統計）。集計の受け皿 |
 | 20 番台 | 地形の生成・融合、表示用 COPC |
 | 30 / 40 | 浸水計算（`h_conn`）と条件間の比較 |
 | 33 | 地表流の集中（flow accumulation）と窪地構造。**潮位非依存の別レイヤ**で `h_conn` には混ぜない |
 | 50 / 60 | 地物との結合、レポート |
 | 80 番台 | Web 配信アセット（タイル・3D Tiles・catalog） |
+| 88 / 90–93 | 地物ベースの派生成果（調査対象リスト・被害重ね合わせ・交通規制・小地域集計・徒歩圏集計）。**ファイルのみ**で viewer には配線しない |
 
 ### 主な成果物（`data/out/<範囲>/`）
 
@@ -90,6 +96,17 @@ scripts/88_export_survey_targets.py
 潮位 0.93 m / 0.69 m ごとに「2 段」の地物を CSV と GeoJSON へ出す。
 地物外形ではなく代表点（EPSG:4326）を持ち、gml_id で元の `objects.geojson` に戻れる。
 潮位を変えるときは `--tide-m-tp 1.00` のように指定する。
+
+### 任意地点＋徒歩圏の範囲集計（`data/out/point_buffer/` 直下）
+
+`scripts/93_point_buffer_agg.py --lon <経度> --lat <緯度> --radius {500,800,1000}` で、
+中心点の周り半径ごとに ① 人口・年齢分布 ② 建物用途分布 ⑤ 交通（道路量）を
+`point_buffer_<label>.json` ＋ 2 CSV に出す（③ 事業所数・④ 用途地域は**未取得**の枠だけ）。
+
+- 先に `scripts/13`（境界）と `scripts/14`（人口・年齢統計）が要る
+- ① の人口は国勢調査 小地域の公式値を**面按分**した推計（`--method centroid` で重心内包に切替）
+- ② ⑤ は点に最も近い AOI の `objects.geojson` が母数。`--aoi` で明示指定できる
+- **ファイル書き出しだけ。** viewer 配線と徒歩圏（道路ネットワーク等時線＝T2）は別 PR
 
 ---
 

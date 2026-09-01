@@ -14,11 +14,20 @@ import json
 
 import geopandas as gpd
 import pandas as pd
+from pyproj import Transformer
+from shapely.geometry import Point
 
-from iwagaki.config import CRS_ANALYSIS, INTERIM
+from iwagaki.config import CRS_ANALYSIS, CRS_LONLAT, INTERIM
 
 #: `scripts/13` の中間物
 BOUNDARY_PATH = INTERIM / "census_boundary_maizuru_2020.geojson"
+
+#: `scripts/14` の中間物（国勢調査 小地域の人口・年齢）
+STATS_PATH = INTERIM / "census_stats_maizuru_2020.csv"
+
+#: `scripts/14` の CSV のうち数値として読む列（`age_75_plus` は 65+ の内数・再掲）
+STATS_COUNT_FIELDS = ("pop_total", "age_0_14", "age_15_64", "age_65_plus",
+                      "age_unknown", "age_75_plus")
 
 #: 境界から残す属性（人口・世帯数は持ち込まない。`docs/data.md` §5）
 BOUNDARY_FIELDS = ["KEY_CODE", "S_NAME", "CITY_NAME"]
@@ -81,3 +90,88 @@ def assign_centroids(
         },
         index=idx,
     )
+
+
+def load_area_stats() -> pd.DataFrame:
+    """`scripts/14` の小地域統計（人口・年齢）を ``key_code`` を index に返す。
+
+    数値列（:data:`STATS_COUNT_FIELDS`）は nullable Int64。**秘匿（`suppressed`）の
+    小地域は値が欠損**で、按分の分母に入れると人口を過小評価するので、呼び出し側で
+    `suppressed` を見て「圏内に秘匿 N 地域」と添える（`scripts/93`）。
+    """
+    if not STATS_PATH.exists():
+        raise SystemExit(
+            f"{STATS_PATH} がありません。先に scripts/14_fetch_census_stats.py"
+        )
+    df = pd.read_csv(STATS_PATH, dtype={"key_code": str, "hyosyo": str})
+    for col in STATS_COUNT_FIELDS:
+        df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+    df["suppressed"] = df["suppressed"].astype(str).str.lower() == "true"
+    return df.set_index("key_code")
+
+
+def stats_metadata() -> dict:
+    """`scripts/14` が書いた `.json`（版・出典・列定義・秘匿件数）。"""
+    p = STATS_PATH.with_suffix(".json")
+    if not p.exists():
+        return {}
+    meta = json.loads(p.read_text())
+    return {k: meta.get(k) for k in
+            ("stats_id", "stats_name", "boundary_year", "source", "source_url",
+             "derived", "suppression") if k in meta}
+
+
+def point_to_analysis(lon: float, lat: float) -> tuple[float, float]:
+    """経緯度（`CRS_LONLAT` = EPSG:6668）-> 解析平面直角座標（`CRS_ANALYSIS`）。"""
+    tf = Transformer.from_crs(CRS_LONLAT, CRS_ANALYSIS, always_xy=True)
+    x, y = tf.transform(lon, lat)
+    return float(x), float(y)
+
+
+def circle_geom(lon: float, lat: float, radius_m: float):
+    """中心（経緯度）と半径 [m] から、解析 CRS の円ポリゴンを返す。
+
+    `CRS_ANALYSIS` は平面直角座標系（第VI系）なので、この範囲（舞鶴、原点近傍）では
+    スケール誤差は 1e-4 未満。半径 1 km で 0.1 m 未満なので m 単位の buffer で十分。
+    """
+    x, y = point_to_analysis(lon, lat)
+    # quad_segs=64 で真円との面積差は 1e-4 未満（既定 8 だと 0.17 %）
+    return Point(x, y).buffer(radius_m, quad_segs=64)
+
+
+def areas_in_circle(
+    areas: gpd.GeoDataFrame, lon: float, lat: float, radius_m: float
+) -> gpd.GeoDataFrame:
+    """円に掛かる小地域を返す（`areas` の CRS は `CRS_ANALYSIS`）。
+
+    面按分（areal weighting）のための重み列を付ける:
+
+    * ``overlap_m2``   … 小地域 ∩ 円 の面積 [m^2]
+    * ``area_m2``      … 小地域そのものの面積 [m^2]
+    * ``circle_frac``  … ``overlap_m2 / area_m2``（0〜1）。人口が小地域内で一様と
+      仮定して按分するときの係数
+
+    重心内包（centroid containment）でやりたい呼び出し側は ``circle_frac`` を
+    無視して geometry の重心が円内かを見ればよい。
+    """
+    if areas.crs is None:
+        areas = areas.set_crs(CRS_ANALYSIS)
+    circle = circle_geom(lon, lat, radius_m)
+    hit = areas[areas.intersects(circle)].copy()
+    hit["area_m2"] = hit.geometry.area
+    hit["overlap_m2"] = hit.geometry.intersection(circle).area
+    hit["circle_frac"] = (hit["overlap_m2"] / hit["area_m2"]).clip(0.0, 1.0)
+    return hit.reset_index(drop=True)
+
+
+def features_in_circle(
+    features: gpd.GeoDataFrame, lon: float, lat: float, radius_m: float,
+    predicate: str = "intersects",
+) -> gpd.GeoDataFrame:
+    """円内の地物を返す（`features` の CRS は `CRS_ANALYSIS`）。
+
+    ``predicate`` は shapely の述語名。建物を重心で数えたいときは、呼び出し側で
+    ``features.set_geometry(features.geometry.centroid)`` を渡して ``"within"``。
+    """
+    circle = circle_geom(lon, lat, radius_m)
+    return features[getattr(features.geometry, predicate)(circle)].copy()
