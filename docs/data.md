@@ -728,6 +728,23 @@ Priority-Flood が要る。同じ量の別解像度版という位置づけ。
 - **一様降雨・地形のみ。** 実際の降雨分布・地表被覆・浸透・管路・時間発展は含まない
   （FARR と同じ但し書き）。
 
+### viewer への配信（第 2 段）**[実測]**（2026-09-01）
+
+第 1 段の解析ラスタを viewer に載せた（`docs/web_design.md`「水みちと窪地を
+どう出したか」、`docs/results.md`「地表流の集中と窪地構造」→「viewer に出した」）。
+
+- **水みちタイル**（`scripts/80`、`catalog.flow.<条件>`）。1 タイル = 1 地形条件、RGBA:
+  `R` = `round( log(1+集水セル数) / log(1+accum_max) * 255 )`（8bit。16bit だと
+  R,G が高エントロピなノイズ場になり PNG がほぼ 2 倍に膨らんだ [実測]）、
+  `B` = 充填深コード（`h_conn` と同じ 0.05 m 刻み、0 = 窪地でない）、
+  `A` = 0/255。`accum_max` は `catalog.flow.<条件>.accum_max_cells` に載せる。
+  **吉原は z17・広い 2 範囲は z16 まで**（定性オーバーレイなので枚数を優先）。
+  `drainage` は焼かない（`highres` 同地形）。
+- **越流点マーカー**（`scripts/33` の `flow_accum_pits_<条件>.geojson`）。海に通じない
+  窪地の鞍部（`pit_pour_points`）。**面積上位のみ**（highres で窪地は 5〜7 万個。
+  `FLOW_POUR_POINT_MIN_AREA_M2` = 25 m² 以上を上位 60 件）。`scripts/83` が WGS84 に
+  起こして `catalog.flow.pits`（`highres` 1 本）。
+
 ---
 
 ## 標高成果の世代 **[未確認]**

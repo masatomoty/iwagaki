@@ -16,6 +16,7 @@ import type { Catalog } from './domain/catalog'
 import type { TideSeries } from './domain/tideSeries'
 import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
 import { comparisonPair, resolveSurface } from './domain/terrain'
+import { resolveFlow } from './domain/flow'
 import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
               TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
@@ -31,6 +32,7 @@ import type { PlateauTiles } from './three/plateauTiles'
 // 対して JSON 解釈は 3〜7 ms・三角形化は 7〜9 ms。docs/web_results.md
 // 「objects.geojson のパースコストは 3 ms、遅延ロードの往復が 568 ms」）
 import { createRailwayLine, type RailwayLine } from './three/railwayLine'
+import { createPourPoints, type PourPoints } from './three/pourPoints'
 import { createCoverageOutline, SemanticsMesh } from './three/semanticsMesh'
 import { TerrainTiles } from './three/terrainTiles'
 import { FOV_Y_DEG, type Viewer } from './three/viewer'
@@ -220,6 +222,8 @@ async function boot() {
       drainage: s.floodModel === 'drainage',
       // 地形の面を地盤高のグラデーションで塗るか（同 TerrainPaint）
       elevPaint: s.terrainPaint === 'elevation',
+      // 地形の面を水みち（flow accumulation）で塗るか。潮位非依存（同 TerrainPaint）
+      catchmentPaint: s.terrainPaint === 'catchment',
     }
   }
 
@@ -230,7 +234,11 @@ async function boot() {
 
   function buildTerrain() {
     const s = store.state
-    const buildKey = `${s.surface}:${s.floodModel}`
+    // 水みちタイルは水みちモードのときだけ引く（highres で 1.3 MB）ので、
+    // 塗りモードが変わったら作り直す（`elevation ⇄ flood` は uniform だけで済むが、
+    // `catchment` はタイル取得が要る）
+    const wantFlow = s.terrainPaint === 'catchment'
+    const buildKey = `${s.surface}:${s.floodModel}:${wantFlow ? 'flow' : ''}`
     if (builtSurface === buildKey) return
     builtSurface = buildKey
     coarse?.dispose(); fine?.dispose()
@@ -252,14 +260,23 @@ async function boot() {
     const { diffUrl } = resolved
     const drainageDiff = s.floodModel === 'drainage'
       ? catalog.terrain.diff_drainage?.url : undefined
+    // 水みちタイルは「いま形を取っている条件」に合わせて引く（domain/flow.ts が
+    // 条件欠損を highres にフォールバックさせる）。潮位非依存なので diff とは無関係
+    const flow = wantFlow ? resolveFlow(catalog.flow, resolved.condition) : undefined
+    const flowUrlTemplate = flow?.url
     const common = {
       viewer, frame, scheduler, extent,
       urlTemplate: geomAsset.url,
       diffUrlTemplate: isAssumption ? diffUrl
         : s.floodModel === 'drainage' ? undefined : diffUrl ?? drainageDiff,
+      flowUrlTemplate,
     }
-    // 粗の上限は範囲の広さで決まる（coarseMaxZoom）。細はその 1 段上から
+    // 粗の上限は範囲の広さで決まる（coarseMaxZoom）。細はその 1 段上から。
+    // **水みちモードでは細の上限を水みちタイルの上限に合わせる**（広い範囲は z16）。
+    // 揃えないと z17+ で elev だけ来て水みちが穴になる（`three/pourPoints.ts` の
+    // マーカーは残る）。地形も 1 段粗くなるが、俯瞰で見るオーバーレイなので許容
     const coarseMax = coarseMaxZoom(catalog)
+    const fineMax = flow ? Math.min(geomAsset.max_zoom, flow.max_zoom) : geomAsset.max_zoom
     coarse = new TerrainTiles({
       ...common, cls: 'terrainCoarse', renderOrder: 0,
       minZoom: geomAsset.min_zoom, maxZoom: coarseMax,
@@ -277,7 +294,7 @@ async function boot() {
     }, floodUniforms())
     fine = new TerrainTiles({
       ...common, cls: 'terrainFine', renderOrder: 1,
-      minZoom: coarseMax + 1, maxZoom: geomAsset.max_zoom,
+      minZoom: coarseMax + 1, maxZoom: Math.max(fineMax, coarseMax + 1),
       onViewportLoad: () => {
         if (!fineDone) { fineDone = true; perf.mark('time_to_terrain') }
         // 粗メッシュは FMR 用と割り切る。細が出たら隠す（メッシュ同士は z-fight する）
@@ -332,6 +349,7 @@ async function boot() {
     refresh()
     void loadPcCoverage()
     void loadRailway()
+    void loadPourPoints()
   })()
 
   // ---- PLATEAU ----------------------------------------------------------
@@ -441,6 +459,24 @@ async function boot() {
       const b = await scheduler.submit({ key: 'railway', url: a.url, cls: 'prefetch' })
       railway = createRailwayLine(frame, JSON.parse(new TextDecoder().decode(b)), geoid)
       viewer.world.add(railway.object)
+      refresh()
+    } catch {
+      // 表示の補助なので、取れなくても地図は動かす
+    }
+  }
+
+  /**
+   * 窪地の越流点マーカー（`catalog.flow.pits`、13 kB 程度）。**潮位非依存の別レイヤ。**
+   * railway と同じく prefetch・標高は GeoJSON に焼き込み済み・無くても地図は成立する。
+   */
+  let pourPoints: PourPoints | undefined
+  async function loadPourPoints() {
+    const a = catalog.flow?.pits
+    if (!a?.url || pourPoints) return
+    try {
+      const b = await scheduler.submit({ key: 'flow-pits', url: a.url, cls: 'prefetch' })
+      pourPoints = createPourPoints(frame, JSON.parse(new TextDecoder().decode(b)), geoid)
+      viewer.world.add(pourPoints.object)
       refresh()
     } catch {
       // 表示の補助なので、取れなくても地図は動かす
@@ -715,6 +751,10 @@ async function boot() {
       railway.object.visible = s.layers.railway
       // 標高は頂点に焼いてあるので、鉛直強調は uniform 1 個で済む
       railway.setExaggeration(s.exaggeration)
+    }
+    if (pourPoints) {
+      pourPoints.object.visible = s.layers.pourPoints
+      pourPoints.setExaggeration(s.exaggeration)
     }
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない

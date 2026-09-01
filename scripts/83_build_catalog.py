@@ -24,7 +24,7 @@ from iwagaki.config import (AOI, AOI_LABELS, AOIS, ATTRIBUTION_CENSUS,
                             ATTRIBUTION_RAILWAY, asset_name, catalog_name,
                             CRS_ANALYSIS, DEFAULT_AOI, H_MAX, H_MIN, H_STEP, OUT, RAW,
                             FLOOR_ABOVE_DEPTH, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
-                            TP_OF_MSL,
+                            TP_OF_MSL, WEB_FLOW_CONDITIONS,
                             WEB_DATA, ATTRIBUTION)
 from iwagaki.versioning import publish_dir, publish_file
 
@@ -157,6 +157,68 @@ def railway() -> dict:
     return {"url": f"data/{name}", "bytes": q.stat().st_size,
             "length_m": props["length_m"], "lines": props["lines"],
             "source": props["source"]}
+
+
+def flow(tiles: dict | None, to_wgs) -> dict:
+    """「水みち／窪地」（flow accumulation）タイルと越流点マーカーを catalog に足す。
+
+    **潮位非依存の別オーバーレイ**（`scripts/33` / `src/iwagaki/flow.py`、
+    `docs/todo.md`「FARR のロジックを取り込む」）。`h_conn`・浸水判定には混ぜない。
+    タイルが無ければ空 dict（`railway` / `small_areas` と同じ「鍵ごと落ちる」扱い）。
+    """
+    conds = {k[len("flow_"):]: v for k, v in ((tiles or {}).get("conditions") or {}).items()
+             if k.startswith("flow_")}
+    if not conds:
+        return {}
+    fsum_p = OUT / "flow_accum_summary.json"
+    fsum = json.loads(fsum_p.read_text()) if fsum_p.exists() else {}
+    out: dict = {}
+    for cond, meta in conds.items():
+        out[cond] = {
+            "url": meta["url"],
+            "min_zoom": meta["min_zoom"], "max_zoom": meta["max_zoom"],
+            "bytes": meta["bytes"], "tiles": meta["tiles"],
+            "accum_max_cells": meta["accum_max_cells"],
+            "cell_area_m2": fsum.get("conditions", {}).get(cond, {}).get("cell_area_m2"),
+            "packing": meta.get("packing"),
+        }
+
+    # 越流点マーカー。**highres の 1 本だけ配信**（viewer の既定条件。条件切替は将来）。
+    prefer = "highres" if "highres" in conds else next(iter(WEB_FLOW_CONDITIONS), None)
+    src = OUT / f"flow_accum_pits_{prefer}.geojson" if prefer else None
+    pits: dict = {}
+    if src and src.exists():
+        raw = json.loads(src.read_text())
+        feats = []
+        for f in raw["features"]:
+            x, y, *z = f["geometry"]["coordinates"]
+            lon, lat = to_wgs.transform(x, y)
+            feats.append({
+                "type": "Feature",
+                "geometry": {"type": "Point",
+                             "coordinates": [round(lon, 7), round(lat, 7)]
+                             + ([round(z[0], 3)] if z else [])},
+                "properties": f["properties"],
+            })
+        fc = {
+            "type": "FeatureCollection",
+            "name": "flow_pour_points",
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+            "properties": {**raw.get("properties", {}),
+                           "note": "海に通じない窪地の越流点。潮位非依存の原理版。"
+                                   "既存の「窪地（逆流で…）」レイヤとは別物"},
+            "features": feats,
+        }
+        p = WEB_DATA / asset_name("flow_pits.geojson")
+        p.write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")))
+        name = publish_file(p)
+        q = WEB_DATA / name
+        print(f"{name}: {len(feats)} 越流点, {q.stat().st_size / 1e3:.1f} kB")
+        pits = {"url": f"data/{name}", "bytes": q.stat().st_size,
+                "count": len(feats), "condition": prefer}
+    if pits:
+        out["pits"] = pits
+    return out
 
 
 def _round_coords(obj, nd: int = 6):
@@ -458,6 +520,8 @@ def main() -> int:
     versioned_urls(tiles, tiles3d)
     # 小地域ポリゴン（コロプレス用・optional）。境界が無ければ空 dict で鍵ごと落ちる
     small_areas_asset = small_areas(area_total)
+    # 水みち／窪地タイル（潮位非依存の別オーバーレイ・optional）
+    flow_asset = flow(tiles, to_wgs)
     summary = json.loads((OUT / "summary.json").read_text())
     tide_path = OUT / "tide_levels.json"
     tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
@@ -529,8 +593,13 @@ def main() -> int:
                 "label": summary["terrain"].get(
                     cond, "baseline と highres の判定差（h_conn を 2 チャンネルに格納）"),
             }
+            # **`flow_*` は terrain ではない**（潮位非依存の別オーバーレイ）。
+            # 下の `flow` セクションへ分ける
             for cond, meta in (tiles or {}).get("conditions", {}).items()
+            if not cond.startswith("flow_")
         },
+        # 水みち／窪地（flow accumulation）。無ければ鍵ごと無い
+        **({"flow": flow_asset} if flow_asset else {}),
         "plateau": tiles3d or {},
         "pointcloud": pc or {},
         "semantics": {

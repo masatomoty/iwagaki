@@ -27,6 +27,8 @@ export interface TerrainTilesOptions {
   cls: RequestClass
   urlTemplate: string
   diffUrlTemplate?: string
+  /** 水みちタイル（`catalog.flow`）。地形の色が「水みち」のときだけ引く。疎（欠損許容）*/
+  flowUrlTemplate?: string
   minZoom: number
   maxZoom: number
   /** [w, s, e, n]。AOI の外は要求しない */
@@ -49,13 +51,14 @@ interface TileEntry {
   waterMaterial?: ShaderMaterial
   elev?: Texture
   diff?: Texture
+  flow?: Texture
   state: 'loading' | 'ready' | 'failed'
   /** build() で埋める。ワールドメートルでのタイル境界 */
   worldBounds?: [number, number, number, number]
   metersPerTexel?: number
 }
 
-/** 常駐タイル数の上限。z18 で 1 枚 = 256KB テクスチャ × 2（diff 時）*/
+/** 常駐タイル数の上限。z18 で 1 枚 = 256KB テクスチャ × 2〜3（diff / flow 時）*/
 const MAX_TILES = 160
 
 const key = (t: TileId) => `${t.z}/${t.x}/${t.y}`
@@ -138,15 +141,20 @@ export class TerrainTiles {
       // タイルごと落とすと地形に穴が開くので、**欠損は許容して地形だけ描く**。
       // 「差分の情報が無い」と「判定差が無い」は別物なので、色は
       // シェーダ側で地面だけにする（floodMaterial.ts の uHasDiff < 0.5 の枝）。
-      const [image, diffImage] = await Promise.all([
+      const [image, diffImage, flowImage] = await Promise.all([
         get(url(this.o.urlTemplate)),
         this.o.diffUrlTemplate
           ? get(url(this.o.diffUrlTemplate)).catch(() => null)
           : Promise.resolve(null),
+        // 水みちタイルも疎（面的表示用の範囲では条件が少ない・z17 まで）。
+        // 欠損は許容して地面だけ描く（差分と同じ）
+        this.o.flowUrlTemplate
+          ? get(url(this.o.flowUrlTemplate)).catch(() => null)
+          : Promise.resolve(null),
       ])
       const entry = this.tiles.get(k)
       if (!entry) return                       // 待っている間に捨てられた
-      this.build(entry, image, diffImage)
+      this.build(entry, image, diffImage, flowImage)
       entry.state = 'ready'
       this.o.onTileLoaded?.(id.z)
       this.refreshVisibility()
@@ -159,7 +167,10 @@ export class TerrainTiles {
     }
   }
 
-  private build(entry: TileEntry, image: ImageBitmap, diffImage: ImageBitmap | null) {
+  private build(
+    entry: TileEntry, image: ImageBitmap,
+    diffImage: ImageBitmap | null, flowImage: ImageBitmap | null,
+  ) {
     const { z, x, y } = entry.id
     const [w, s, e, n] = tileBoundsLngLat(z, x, y)
     const [xw, ys] = lngLatToWorld(this.o.frame, w, s)
@@ -169,10 +180,13 @@ export class TerrainTiles {
     const waterMaterial = createFloodMaterial(FLOOD_PASS.water)
     entry.elev = makeTileTexture(image)
     entry.diff = diffImage ? makeTileTexture(diffImage) : undefined
+    entry.flow = flowImage ? makeTileTexture(flowImage) : undefined
     for (const m of [material, waterMaterial]) {
       m.uniforms.elevTexture.value = entry.elev
       m.uniforms.diffTexture.value = entry.diff ?? entry.elev
       m.uniforms.uHasDiff.value = entry.diff ? 1 : 0
+      m.uniforms.flowTexture.value = entry.flow ?? entry.elev
+      m.uniforms.uHasFlow.value = entry.flow ? 1 : 0
     }
     entry.material = material
     entry.waterMaterial = waterMaterial
@@ -272,6 +286,7 @@ export class TerrainTiles {
     t.waterMaterial?.dispose()
     t.elev?.dispose()
     t.diff?.dispose()
+    t.flow?.dispose()
     this.tiles.delete(k)
   }
 

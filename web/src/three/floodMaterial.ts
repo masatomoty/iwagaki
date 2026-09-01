@@ -105,6 +105,12 @@ export interface FloodUniformValues {
    * 標高はもともとタイルの RGB に入っているので、これも配信物は増えない。
    */
   elevPaint: boolean
+  /**
+   * **水みち**（flow accumulation）で塗るか。専用タイル `flowTexture`（`catalog.flow`）の
+   * R = log 正規化した集水、B = 充填深コード。**潮位を一切使わない**
+   * （`elevation` と同じく浸水色を出さない面。`docs/todo.md`「FARR のロジックを取り込む」）。
+   */
+  catchmentPaint: boolean
 }
 
 const DECODE = /* glsl */ `
@@ -129,6 +135,12 @@ float decodeHConn(float a) {
   float code = floor(a * 255.0 + 0.5);
   return code < 0.5 ? 1e9 : (code - 1.0) * uHStep;
 }
+
+/** 水みちタイル B チャネル（充填深コード, h_step 刻み。0 = 窪地でない）*/
+float decodeFillDepth(float b) {
+  float code = floor(b * 255.0 + 0.5);
+  return code < 0.5 ? 0.0 : (code - 1.0) * uHStep;
+}
 `
 
 const VS = /* glsl */ `
@@ -145,6 +157,7 @@ uniform float uPass;
 uniform float uWaterLevel;
 uniform float uWaterBase;
 uniform float uElevPaint;
+uniform float uCatchmentPaint;
 uniform float uMode;
 
 out vec2 vUv;
@@ -207,7 +220,8 @@ void main() {
   // 水面そのものを消すと、航空レーザが値を返さない港と湾が穴になる
   // **仮定の段階でも水面は平常時の海面に置く。** 潮位まで張ると、いちばん
   // 見せたい「仮定が要る土地」が青に隠れて段の色が読めない（地盤高モードと同じ理由）
-  bool flatSea = uElevPaint > 0.5 || uMode > 1.5;
+  // **水みちモードも平常時の海面に置く**（潮位まで張ると集水の色が青に隠れる）
+  bool flatSea = uElevPaint > 0.5 || uCatchmentPaint > 0.5 || uMode > 1.5;
   if (uPass > 0.5) z = uGeoid + (flatSea ? uWaterBase : uWaterLevel) * uExaggeration;
 
   // XYZ タイルは Web メルカトル上で正方なので、ワールド（= メルカトルの線形変換）で
@@ -222,6 +236,7 @@ precision highp float;
 
 uniform sampler2D elevTexture;
 uniform sampler2D diffTexture;
+uniform sampler2D flowTexture;
 uniform float uHStep;
 uniform float uWaterLevel;
 uniform float uMode;
@@ -236,6 +251,8 @@ uniform float uPonded;
 uniform float uSimple;
 uniform float uDrainage;
 uniform float uElevPaint;
+uniform float uCatchmentPaint;
+uniform float uHasFlow;
 
 in vec2 vUv;
 in float vElev;
@@ -333,6 +350,23 @@ vec3 elevRamp(float e) {
   return mix(c, vec3(1.0), line * 0.85);
 }
 
+/**
+ * 水みちの色。引数 t は水みちタイルの R チャネル（= log 正規化済みの集水、[0,1]）。
+ * docs/images/flow_accum.png の cubehelix_r に寄せて、低い側は地面へ抜け、
+ * 集水が集まるほど水色 -> 紺 -> 紺黒へ深くする。新しい色相は足さない
+ * （画面の色は 1 つの予算。水の青を借りる。docs/web_design.md）。
+ * この文字列はテンプレートリテラルの中なので backtick は書けない。
+ */
+vec3 catchmentRamp(float t) {
+  const vec3 A = vec3(0.85, 0.86, 0.82);   // 0: ほぼ地面
+  const vec3 B = vec3(0.38, 0.69, 0.74);   // 中: 水色
+  const vec3 C = vec3(0.09, 0.29, 0.53);   // 高: 紺
+  const vec3 D = vec3(0.03, 0.08, 0.22);   // 最高: 紺黒
+  return t < 0.40 ? mix(A, B, t / 0.40)
+       : t < 0.75 ? mix(B, C, (t - 0.40) / 0.35)
+                  : mix(C, D, (t - 0.75) / 0.25);
+}
+
 vec3 depthRamp(float d) {
   vec3 c0 = vec3(0.42, 0.80, 0.95);
   vec3 c1 = vec3(0.15, 0.50, 0.90);
@@ -355,8 +389,8 @@ void main() {
   // 水面は張れる（domain/terrain.ts の resolveSurface が返す condition と一致する）。
   if (uPass > 0.5) {
     float hConn = decodeHConn(texture(elevTexture, cu).a);
-    // 地盤高モードと仮定の段階モードの水面は平常時の海面（VS の z と揃えること）
-    bool flatSea = uElevPaint > 0.5 || uMode > 1.5;
+    // 地盤高／水みち／仮定の段階モードの水面は平常時の海面（VS の z と揃えること）
+    bool flatSea = uElevPaint > 0.5 || uCatchmentPaint > 0.5 || uMode > 1.5;
     float wl = flatSea ? uWaterBase : uWaterLevel;
     // **単純モデルは連結性を問わない**（標高が潮位を下回れば水面を張る）。
     // ただし **nodata のセルは標高が無いので判定できない**。港と湾は
@@ -400,6 +434,28 @@ void main() {
   if (uElevPaint > 0.5) {
     if (uShowGround < 0.5) discard;
     fragColor = vec4(elevRamp(vElev) * mix(1.0, shade, 0.55), uGroundOpacity);
+    return;
+  }
+
+  // ---- 水みち（flow accumulation）で塗る ---------------------------------
+  //
+  // 潮位を一切使わない。一様降雨で地表流がどこに集まるか（src/iwagaki/flow.py）。
+  // 専用タイル（flowTexture）の R = log 正規化した集水、B = 充填深コード。
+  // 窪地セル（B > 0）は水色へ寄せ、充填深でランプ（面の上でも窪地が分かる。
+  // 越流点マーカーは別レイヤ three/pourPoints.ts）。
+  // タイルが欠けている区画は地面だけ（uHasFlow < 0.5。差分の欠損と同じ扱い）。
+  if (uCatchmentPaint > 0.5) {
+    if (uShowGround < 0.5) discard;
+    if (uHasFlow < 0.5) { fragColor = vec4(groundColor(shade), uGroundOpacity); return; }
+    vec4 fc = texture(flowTexture, cu);
+    if (fc.a < 0.5) { fragColor = vec4(groundColor(shade), uGroundOpacity); return; }
+    vec3 col = catchmentRamp(fc.r);
+    float fill = decodeFillDepth(fc.b);
+    if (fill > 0.0) {
+      const vec3 PONDED = vec3(0.44, 0.75, 0.80);
+      col = mix(col, PONDED, clamp(0.30 + fill * 0.45, 0.30, 0.80));
+    }
+    fragColor = vec4(col * mix(1.0, shade, 0.45), uGroundOpacity);
     return;
   }
 
@@ -603,6 +659,7 @@ export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMat
     uniforms: {
       elevTexture: { value: null },
       diffTexture: { value: null },
+      flowTexture: { value: null },
       uWorldBounds: { value: new Vector4() },
       uWaterLevel: { value: 0 },
       uHStep: { value: 0.05 },
@@ -621,6 +678,8 @@ export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMat
       uSimple: { value: 1 },
       uDrainage: { value: 0 },
       uElevPaint: { value: 0 },
+      uCatchmentPaint: { value: 0 },
+      uHasFlow: { value: 0 },
     },
   })
 }
@@ -643,4 +702,6 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uSimple.value = v.simple ? 1 : 0
   u.uDrainage.value = v.drainage ? 1 : 0
   u.uElevPaint.value = v.elevPaint ? 1 : 0
+  u.uCatchmentPaint.value = v.catchmentPaint ? 1 : 0
+  // uHasFlow は TerrainTiles が build() でタイル有無から設定する（uHasDiff と同じ）
 }

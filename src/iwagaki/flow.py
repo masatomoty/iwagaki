@@ -278,6 +278,10 @@ class Pit:
     volume_m3: float
     spill_elev_m_tp: float
     max_ground_elev_m_tp: float
+    #: 越流点セルの行・列（`pit_pour_points`）。窪地から水が溢れ出す鞍部の位置。
+    #: viewer のマーカーはここに置く（`scripts/33` が GeoJSON に起こす）
+    pour_row: int = -1
+    pour_col: int = -1
 
 
 def label_pits(
@@ -292,17 +296,110 @@ def label_pits(
     return lab.astype("int32"), int(n)
 
 
+def top_pits_by_area(
+    labels: np.ndarray, min_area_m2: float, cell_area_m2: float, max_count: int,
+) -> "set[int]":
+    """面積上位の窪地 ID（`min_area_m2` 以上を面積降順で `max_count` 件まで）。
+
+    越流点マーカーに出す窪地を先に絞るのに使う（`scripts/33`。highres で窪地は
+    5〜7 万個あり、全部の越流点を計算すると遅い）。
+    """
+    labels = np.asarray(labels)
+    n = int(labels.max())
+    if n == 0:
+        return set()
+    counts = ndimage.sum_labels(np.ones(labels.shape), labels, index=np.arange(1, n + 1))
+    min_cells = min_area_m2 / cell_area_m2
+    order = np.argsort(counts)[::-1]
+    return {int(order[k]) + 1 for k in range(min(n, max_count))
+            if counts[order[k]] >= min_cells}
+
+
+def pit_pour_points(
+    labels: np.ndarray, fill_depth: np.ndarray, filled: np.ndarray,
+    only: "set[int] | None" = None,
+) -> dict[int, tuple[int, int]]:
+    """窪地 ID -> 越流点セル (row, col)。
+
+    越流点 = その窪地を止めている鞍部。窪地内で、**窪地の外の低い有効セルに
+    隣接していて**（= 縁のセル）、充填面が越流水位（窪地内の `filled` 最大値）に
+    いちばん近いセルを採る。同着は「外側がいちばん低い」で割る（そこが実際の吐け口）。
+    縁のセルが取れない窪地（数値誤差）は最深セル（`fill_depth` の最大）で代用する。
+
+    `only` を渡すとその窪地 ID だけ返す（越流点が要るのは配信する上位の窪地だけで、
+    全 5〜7 万個を回すと遅い。`scripts/33`）。**全画素 1 パスのベクタ演算**なので
+    `only` を絞っても速度は主に窪地の総数で決まる（`ndimage` の集約部分）。
+    """
+    labels = np.asarray(labels)
+    n = int(labels.max())
+    if n == 0:
+        return {}
+    fl = np.asarray(filled, dtype="float64")
+    fd = np.asarray(fill_depth, dtype="float64")
+    ids = np.arange(1, n + 1)
+    spill = ndimage.maximum(fl, labels, index=ids)
+
+    inside = labels > 0
+    # 各セルについて「外側の有効セル隣接の filled 最小値」を 8 シフトで求める
+    outside = np.isfinite(fl) & ~inside
+    out_fl = np.where(outside, fl, np.inf)
+    min_out = np.full(labels.shape, np.inf)
+    for dy, dx, _d in _D8:
+        shifted = np.full(labels.shape, np.inf)
+        ys = slice(max(dy, 0), labels.shape[0] + min(dy, 0))
+        xs = slice(max(dx, 0), labels.shape[1] + min(dx, 0))
+        yt = slice(max(-dy, 0), labels.shape[0] + min(-dy, 0))
+        xt = slice(max(-dx, 0), labels.shape[1] + min(-dx, 0))
+        shifted[yt, xt] = out_fl[ys, xs]
+        min_out = np.minimum(min_out, shifted)
+
+    rim = inside & np.isfinite(min_out)
+    # spill を各セルにブロードキャスト
+    spill_at = np.zeros(labels.shape)
+    spill_at[inside] = spill[labels[inside] - 1]
+    near_spill = np.round(np.abs(fl - spill_at), 6)
+    # ソートキー: near_spill が主、外側の低さが従。rim 以外は +inf で外す
+    BIG = 1e6
+    key = np.where(rim, near_spill * BIG + np.minimum(min_out, BIG - 1.0), np.inf)
+
+    want = ids if only is None else np.array(sorted(only), dtype=ids.dtype)
+    want = want[(want >= 1) & (want <= n)]
+    if want.size == 0:
+        return {}
+
+    out: dict[int, tuple[int, int]] = {}
+    # index を配列で渡すと minimum / minimum_position は必ず配列・リストを返す
+    has_rim = np.atleast_1d(ndimage.minimum(key, labels, index=want))
+    pos = list(ndimage.minimum_position(key, labels, index=want))
+    fb: dict[int, tuple[int, int]] = {}
+    need_fallback = [int(p) for p, hr in zip(want.tolist(), has_rim) if not np.isfinite(hr)]
+    if need_fallback:
+        # rim が 1 つも無い窪地は最深セルで代用
+        fd_key = np.where(inside, -fd, np.inf)
+        fpos = list(ndimage.minimum_position(fd_key, labels, index=need_fallback))
+        fb = {p: (int(q[0]), int(q[1])) for p, q in zip(need_fallback, fpos)}
+    for p, q in zip(want.tolist(), pos):
+        p = int(p)
+        out[p] = fb.get(p, (int(q[0]), int(q[1])))
+    return out
+
+
 def pit_records(
     labels: np.ndarray,
     fill_depth: np.ndarray,
     filled: np.ndarray,
     dem: np.ndarray,
     cell_area_m2: float,
+    pour_for: "set[int] | None" = None,
 ) -> list[Pit]:
-    """窪地 ID ごとの面積・最大充填深・容積・越流点標高。
+    """窪地 ID ごとの面積・最大充填深・容積・越流点標高・越流点セル。
 
     越流点標高 = 窪地内の充填面の最大値（その一帯を止めている鞍部の高さ）。
-    定義上 `spill_elev >= 窪地内の最大地表標高`。
+    定義上 `spill_elev >= 窪地内の最大地表標高`。越流点セルは `pit_pour_points`。
+
+    `pour_for` を渡すと越流点セルはその窪地 ID だけ計算する（残りは `pour_row = -1`）。
+    越流点が要るのは viewer が出す上位の窪地だけなので、5〜7 万個を全部回さない
+    （`scripts/33`）。
     """
     labels = np.asarray(labels)
     n = int(labels.max())
@@ -318,9 +415,11 @@ def pit_records(
     dmax = ndimage.maximum(fd, labels, index=idx)
     spill = ndimage.maximum(fl, labels, index=idx)
     gmax = ndimage.maximum(de, labels, index=idx)
+    pour = pit_pour_points(labels, fd, fl, only=pour_for)
 
     out: list[Pit] = []
     for i in range(n):
+        py, px = pour.get(i + 1, (-1, -1))
         out.append(Pit(
             pit_id=i + 1,
             area_m2=round(float(counts[i] * cell_area_m2), 2),
@@ -328,5 +427,7 @@ def pit_records(
             volume_m3=round(float(vol[i] * cell_area_m2), 2),
             spill_elev_m_tp=round(float(spill[i]), 3),
             max_ground_elev_m_tp=round(float(gmax[i]), 3),
+            pour_row=int(py),
+            pour_col=int(px),
         ))
     return out

@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from iwagaki.flow import (d8_accumulation, d8_flow_direction, label_pits,
-                          pit_records, priority_flood_fill)
+                          pit_pour_points, pit_records, priority_flood_fill)
 
 
 def test_fill_is_monotone_and_no_pit_on_slope():
@@ -56,6 +56,36 @@ def test_known_bowl_pit():
     assert pit.volume_m3 == pytest.approx(37.0, abs=1e-2)
     # 越流点標高 >= 窪地内の最大地表標高
     assert pit.spill_elev_m_tp + 1e-6 >= pit.max_ground_elev_m_tp
+    # 越流点セルは窪地の内側（内側 3x3）に来る
+    assert 1 <= pit.pour_row <= 3 and 1 <= pit.pour_col <= 3
+
+
+def test_pour_point_sits_on_the_saddle():
+    # 縁 5・内側 1・中心 0 の鉢。ただし縁の 1 か所（[0,2]）を 2 に下げて鞍部にする。
+    dem = np.full((5, 5), 5.0)
+    dem[1:4, 1:4] = 1.0
+    dem[2, 2] = 0.0
+    dem[0, 2] = 2.0                      # ここが越流の鞍部（周囲の縁 5 より低い）
+    filled = priority_flood_fill(dem)
+    fill_depth = filled - dem
+    labels, n = label_pits(fill_depth)
+    assert n == 1
+    pour = pit_pour_points(labels, fill_depth, filled)
+    (yx,) = pour.values()
+    # 鞍部 [0,2] に接する窪地の上縁（行 1）から溢れる
+    assert yx[0] == 1 and yx[1] in (1, 2, 3)
+    # その越流点セルの外側には鞍部（filled = 2.0）が隣接している
+    ry, rx = yx
+    assert min(filled[max(ry - 1, 0), c] for c in (rx - 1, rx, rx + 1)
+               if 0 <= c < 5) == pytest.approx(2.0)
+
+
+def test_pour_points_empty_when_no_pit():
+    dem = (10.0 - np.arange(6)[:, None]) + np.zeros((6, 8))
+    filled = priority_flood_fill(dem)
+    fill_depth = filled - dem
+    labels, _ = label_pits(fill_depth)
+    assert pit_pour_points(labels, fill_depth, filled) == {}
 
 
 def test_nodata_acts_as_outlet():

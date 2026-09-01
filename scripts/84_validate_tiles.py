@@ -17,10 +17,12 @@ from rasterio.enums import Resampling
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from iwagaki.config import asset_name, H_STEP, OUT, ROOT, WEB_CONDITIONS
+from iwagaki.config import (asset_name, H_STEP, OUT, ROOT, WEB_CONDITIONS,
+                            WEB_FLOW_CONDITIONS)
 
 mod = __import__("80_build_web_tiles")
 CONDITIONS, WEB_DATA, sample, decode = mod.CONDITIONS, mod.WEB_DATA, mod.sample, mod.decode
+FLOW_CONDITIONS, decode_flow = mod.FLOW_CONDITIONS, mod.decode_flow
 
 ELEV_TOL = 1.0 / 256.0 + 1e-9
 MAX_TILES = 12
@@ -86,8 +88,56 @@ def main() -> int:
                 print(f"FAIL hconn-nodata {cond} {z}/{x}/{y}")
                 fails += 1
 
+    # --- 水みち／窪地タイル ------------------------------------------------
+    #
+    # 8bit log 量子化なので `accum` の絶対誤差は見ない。**log 正規化値**が
+    # 1/255 以内で往復すること、充填深コードが H_STEP/2 以内で戻ることを見る。
+    for cond in WEB_FLOW_CONDITIONS:
+        accum_f, fill_f = FLOW_CONDITIONS[cond]
+        d = tile_dir(f"flow_{cond}")
+        if d is None:
+            print(f"FAIL flow_{cond}: タイルのディレクトリが無い（scripts/80 を先に回す）")
+            fails += 1
+            continue
+        with rasterio.open(OUT / accum_f) as src:
+            a = src.read(1).astype("float64")
+            nd = src.nodata
+        if nd is not None:
+            a[a == nd] = np.nan
+        accum_max = float(np.nanmax(a)) if np.isfinite(a).any() else 1.0
+        denom = np.log1p(max(accum_max, 1.0))
+
+        tiles = sorted(d.rglob("*.png"))
+        step = max(1, len(tiles) // MAX_TILES)
+        for p in tiles[::step][:MAX_TILES]:
+            y, x, z = int(p.stem), int(p.parent.name), int(p.parent.parent.name)
+            accum_src, _ = sample(OUT / accum_f, z, x, y, Resampling.nearest)
+            fill_src, _ = sample(OUT / fill_f, z, x, y, Resampling.nearest)
+            rgba = np.asarray(Image.open(p).convert("RGBA"))
+            accum_rt, fill_rt = decode_flow(rgba, accum_max)
+            checked += 1
+
+            m = np.isfinite(accum_src)
+            if m.any():
+                t_src = np.log1p(np.clip(accum_src[m], 0.0, None)) / denom
+                t_rt = np.log1p(np.clip(accum_rt[m], 0.0, None)) / denom
+                dd = np.abs(t_rt - t_src)
+                if not np.isfinite(dd).all() or dd.max() > 1.0 / 255 + 1e-6:
+                    print(f"FAIL flow {cond} {z}/{x}/{y}: max|d(log)|={np.nanmax(dd):.5f}")
+                    fails += 1
+            # 窪地セル（fill_depth > 0.01）だけコードの往復を見る。
+            # **充填深は連続値**なので半ステップの量子化誤差はそのまま出る（h_conn は
+            # 解析側で 0.05 量子化済みだったが、こちらは違う）。許容は半ステップ + 丸め ULP。
+            mp = np.isfinite(fill_src) & (fill_src > 0.01)
+            if mp.any():
+                dd = np.abs(fill_rt[mp] - fill_src[mp])
+                if not np.isfinite(dd).all() or dd.max() > H_STEP / 2 + 1e-6:
+                    print(f"FAIL flow-fill {cond} {z}/{x}/{y}: max|d|={np.nanmax(dd):.4f}")
+                    fails += 1
+
     print(f"checked {checked} tiles, {fails} failures "
-          f"(elev tol {ELEV_TOL:.6f} m, hconn tol {H_STEP/2} m)")
+          f"(elev tol {ELEV_TOL:.6f} m, hconn tol {H_STEP/2} m, "
+          f"flow log tol {1/255:.4f})")
     # **1 枚も見ていないのに成功を返してはいけない。** 検証していないことと
     # 検証して通ったことは別物である
     if checked == 0:

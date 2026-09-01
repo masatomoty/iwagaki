@@ -331,6 +331,21 @@ DIFFS_BY_AOI: dict[str, tuple[str, ...]] = {
 WEB_CONDITIONS = CONDITIONS_BY_AOI[AOI.name]
 WEB_DIFFS = DIFFS_BY_AOI[AOI.name]
 
+#: 配信する「水みち／窪地」（flow accumulation）タイルの条件。
+#: **flow accumulation は潮位非依存**で、`drainage` は `highres` と同じ地形なので
+#: 焼かない（`scripts/33` は 4 条件を解析するが、タイルは地形条件と 1 対 1）。
+FLOW_TILE_CONDITIONS_BY_AOI: dict[str, tuple[str, ...]] = {
+    aoi: tuple(c for c in conds if c != "drainage")
+    for aoi, conds in CONDITIONS_BY_AOI.items()
+}
+WEB_FLOW_CONDITIONS = FLOW_TILE_CONDITIONS_BY_AOI[AOI.name]
+
+#: 越流点マーカー（`scripts/33` の `flow_accum_pits_*.geojson`）に出す窪地の絞り込み。
+#: **highres は窪地が 6,000 超**あるので、面積上位だけをベクタにする。
+#: 潮位判定には一切使わない原理版（`docs/todo.md`「FARR のロジックを取り込む」）。
+FLOW_POUR_POINT_MIN_AREA_M2 = 25.0
+FLOW_POUR_POINT_MAX_COUNT = 60
+
 # 京都府 数値標高モデル(DEM) 0.5m。図郭 zip ごとの入手先。
 # 06LC は CKAN の署名付きリダイレクト、06MC は S3 直リンク。
 KYOTO_DEM_ZIPS = {
