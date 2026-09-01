@@ -44,6 +44,10 @@
 * `point_buffer_{label}.json`   … 中心・AOI・半径別の ①〜⑤ ＋ 版・出典・注意
 * `point_buffer_{label}_pop.csv` … 半径 × 小地域の按分内訳（① の裏づけ）
 * `point_buffer_{label}_bldg_usage.csv` … 半径 × 用途コードの棟数（② の裏づけ）
+* `index.json` … 生成済み地点の索引（id・地点名・中心・AOI・半径・出力ファイル名）。
+  実行のたびに 1 件追記・上書きする。viewer は任意点をクリックしても新規計算は
+  しない（新しい外部 API を足さない方針、`docs/todo.md` T1）ので、**この索引に
+  載っている地点だけ**を引ける（`web/src/domain/pointBuffer.ts`）
 """
 from __future__ import annotations
 
@@ -369,7 +373,8 @@ def run_point(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     slug = re.sub(r"[^0-9A-Za-z_-]+", "_", label) or "point"
-    (out_dir / f"point_buffer_{slug}.json").write_text(
+    json_name = f"point_buffer_{slug}.json"
+    (out_dir / json_name).write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_csv(out_dir / f"point_buffer_{slug}_pop.csv", pop_rows,
                ["radius_m", "key_code", "s_name", "circle_frac", "weight",
@@ -383,8 +388,38 @@ def run_point(
         print(f"  r={r:>4} m: 人口 {p['population_estimate']:>8.0f}"
               f"（高齢化率 {p['aging_rate_65plus']}, 被覆 {p['boundary_coverage_fraction']:.0%}）"
               f" / 建物 {b} / 道路 {rd} 本")
-    print(f"  wrote {out_dir}/point_buffer_{slug}.json ほか 2 CSV")
+    print(f"  wrote {out_dir}/{json_name} ほか 2 CSV")
+    update_index(out_dir, slug, label, lon, lat, aoi, radii, result["generated_at"], json_name)
     return result
+
+
+def update_index(
+    out_dir: Path, slug: str, label: str, lon: float, lat: float, aoi: str,
+    radii: list[int], generated_at: str, json_name: str,
+) -> None:
+    """`index.json` に地点を 1 件足す（無ければ作る・同じ id は上書き）。
+
+    viewer は任意点をクリックしても新しいファイルを作れない（新しい外部 API・
+    サーバ計算は追加しない、`docs/todo.md` T1）。**事前生成した地点だけを引ける**
+    索引をここで積み上げる。`scripts/83` がこれを `catalog.point_buffer` として配信する
+    （viewer 側の配線は別 PR。`web/src/domain/pointBuffer.ts` の `PointBufferIndex`）。
+    """
+    index_path = out_dir / "index.json"
+    index: dict = {"version": 1, "points": []}
+    if index_path.exists():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    points = [p for p in index.get("points", []) if p.get("id") != slug]
+    points.append({
+        "id": slug, "label": label, "center_wgs84": [lon, lat], "aoi": aoi,
+        "radii_m": radii, "generated_at": generated_at, "url": json_name,
+    })
+    points.sort(key=lambda p: p["id"])
+    index_path.write_text(
+        json.dumps({"version": 1, "points": points}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
 
 
 def _write_csv(path: Path, rows: list[dict], fields: list[str]) -> None:

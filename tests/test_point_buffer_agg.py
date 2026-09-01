@@ -222,6 +222,29 @@ def test_population_zero_pop_no_aging_rate():
     assert sec["aging_rate_65plus"] is None
 
 
+# --- update_index: viewer 用の索引（新規） ----------------------------
+
+def test_update_index_creates_and_upserts(tmp_path):
+    agg.update_index(tmp_path, "a", "地点A", 135.1, 35.1, "yoshiwara",
+                      [500, 800], "2026-09-01T00:00:00+00:00", "point_buffer_a.json")
+    agg.update_index(tmp_path, "b", "地点B", 135.2, 35.2, "nishi_maizuru",
+                      [1000], "2026-09-01T00:00:01+00:00", "point_buffer_b.json")
+    import json as _json
+    idx = _json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert idx["version"] == 1
+    assert [p["id"] for p in idx["points"]] == ["a", "b"]
+
+    # 同じ id を再実行すると 1 件のまま内容だけ更新される（重複しない）
+    agg.update_index(tmp_path, "a", "地点A改", 135.15, 35.15, "yoshiwara",
+                      [500], "2026-09-01T01:00:00+00:00", "point_buffer_a.json")
+    idx = _json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert [p["id"] for p in idx["points"]] == ["a", "b"]
+    a = next(p for p in idx["points"] if p["id"] == "a")
+    assert a["label"] == "地点A改"
+    assert a["center_wgs84"] == [135.15, 35.15]
+    assert a["radii_m"] == [500]
+
+
 def test_areas_in_circle_reprojects_wgs84_input():
     # EPSG:4326 の areas を渡しても内部で 6674 に変換される
     ll = _areas().to_crs("EPSG:4326")

@@ -46,6 +46,38 @@ export interface FlowBasinsAsset {
   condition: string
 }
 
+/**
+ * 徒歩圏（等時線）ひとつぶん（`catalog.walk_isochrones[]`）。
+ * `scripts/94_walk_isochrone.py` が起点＋所要時間の組ごとに 1 GeoJSON を焼く
+ * （`network_isochrone` / `simple_buffer` の 2 面、`domain/walkIsochrone.ts`）。
+ * **T1（任意地点＋半径）の中心点 UI とは未統合**なので起点は解析側の固定点。
+ * 複数起点を並べられるよう配列にしてある。
+ */
+export interface WalkIsochroneAsset {
+  url: string
+  bytes: number
+  origin_lon: number
+  origin_lat: number
+  minutes: number
+  /** 一覧に出す短い見出し（例: 「西舞鶴駅 10分」）。無ければ url から起こす */
+  label?: string
+}
+
+/**
+ * 任意地点＋徒歩圏（半径 500/800/1000 m）の事前生成済み集計の索引
+ * （`catalog.point_buffer`、`scripts/93_point_buffer_agg.py` の `index.json`）。
+ *
+ * **新しい外部 API・サーバ計算は足さない**（`docs/todo.md` T1）ので、viewer は
+ * 地図をクリックしても新規に集計を作れない。ここに載っている地点だけを引ける
+ * （`domain/pointBuffer.ts` の `nearestIndexEntry`）。索引そのものが無い配信物
+ * では「地点＋徒歩圏」の UI 自体を出さない。
+ */
+export interface PointBufferIndexAsset {
+  url: string
+  bytes: number
+  count: number
+}
+
 export interface Catalog {
   version: number
   aoi: {
@@ -150,6 +182,17 @@ export interface Catalog {
     count: number
     boundary?: Record<string, unknown>
   }
+  /**
+   * 徒歩圏（道路ネットワーク等時線 ＋ 単純バッファ）。`scripts/94_walk_isochrone.py`
+   * が起点ごとに焼く。**公式歩行者網ではない**（各 asset の中身にも properties/
+   * metadata として明記）。焼いていない配信物では鍵ごと無い。
+   */
+  walk_isochrones?: WalkIsochroneAsset[]
+  /**
+   * 任意地点＋徒歩圏の集計索引（`PointBufferIndexAsset` 参照）。
+   * `scripts/93` を実行していない配信物では鍵ごと無い。
+   */
+  point_buffer?: PointBufferIndexAsset
   /** 点群が地表面として効いている範囲の輪郭。無い配信物もあるので optional */
   pointcloud_coverage?: { url: string; bytes: number
                           area_ha_cells: number; area_ha_outline: number
