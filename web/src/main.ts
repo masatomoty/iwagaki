@@ -654,13 +654,14 @@ async function boot() {
   // 既定は水位まわり。全体に合わせると市街地の 0〜3 m が背後の 40 m に潰される
   let secFit: 'water' | 'all' = 'water'
   /**
-   * `buildSectionAlongChannel` の非同期な取得を無効化するための通し番号。
-   * 呼ぶたびに増やし、待っている間に増えていたら結果を捨てる（古い流域の断面が
-   * 新しい選択を上書きしない）。**手動の 2 点断面（`buildSection`）を始めたときも
-   * 増やす** — 流域の主流路がまだ読み込み中に手動で測線を引くと、あとから解決した
-   * 流域側の結果が手動の `secLine` に古い断面を乗せてしまうため
+   * `buildSection` / `buildSectionAlongChannel` はどちらも折れ線の頂点ごとに
+   * `sampleLine` を待つ非同期処理で、前の呼び出しの取得が終わる前に次（手動断面・
+   * 別の流域のどちらでも）を始められる。素直に await するだけだと**後から解決した
+   * 方が勝ち**、新しい `secLine` に古い断面が乗ってしまう。呼ぶたびに増やす通し
+   * 番号で「自分が最新の呼び出しか」を確認し、追い越されていたら結果を捨てる
+   * （両方の関数・水みちモードを抜けるときの 3 か所で増やす）。
    */
-  let channelSectionSeq = 0
+  let sectionSeq = 0
 
   const redrawSection = () => {
     if (secSeries.length === 0) return
@@ -672,7 +673,7 @@ async function boot() {
   }
 
   async function buildSection(from: LonLat, to: LonLat) {
-    channelSectionSeq++   // 進行中の流域の主流路リクエストがあれば無効化する
+    const seq = ++sectionSeq
     secLine = [from, to]
     showSectionLine(viewer, from, to)
     secEl.style.display = 'block'
@@ -690,6 +691,7 @@ async function boot() {
       })
       return { ...s, points } as SectionSeries
     }))
+    if (seq !== sectionSeq) return   // 待っている間に別の断面（手動・流域）が始まった
     secSeries = got.filter((x): x is SectionSeries => x !== null)
     const n = secSeries[0]?.points.length ?? 0
     const len = secSeries[0]?.points.at(-1)?.d ?? 0
@@ -710,18 +712,12 @@ async function boot() {
    *
    * 手動の 2 点断面（`sectionTool` の `onLine` → `buildSection`）はこの関数を
    * 経由しないので、既存の操作はそのまま動く（`pickCatchment` から呼ぶだけ）。
-   *
-   * **流域を続けて選んだとき・手動断面へ切り替えたときは新しい方を勝たせる。**
-   * 折れ線の頂点ごとに何度も `sampleLine` を待つので、前の選択の取得が終わる前に
-   * 次の流域を選ぶ・測線を手で引くことができる。素直に await するだけだと後から
-   * 解決した方が勝ち、新しい `secLine` に古い断面が乗ってしまう。呼ぶたびに発行
-   * する通し番号（`channelSectionSeq`）で自分が最新か確認し、追い越されていたら
-   * 結果を捨てる。
+   * 古い呼び出しの結果を捨てる仕組み（`sectionSeq`）は `buildSection` と共有する。
    */
   async function buildSectionAlongChannel(basinId: number) {
     const line = flowChannels?.get(basinId)
     if (!line || line.length < 2) return
-    const seq = ++channelSectionSeq
+    const seq = ++sectionSeq
     const from = line[0]
     const to = line[line.length - 1]
     secLine = [from, to]
@@ -749,7 +745,7 @@ async function boot() {
       }
       return { ...s, points } as SectionSeries
     }))
-    if (seq !== channelSectionSeq) return   // 待っている間に別の流域が選ばれた
+    if (seq !== sectionSeq) return   // 待っている間に別の流域が選ばれた
     secSeries = got.filter((x): x is SectionSeries => x !== null)
     redrawSection()
   }
@@ -1194,7 +1190,7 @@ async function boot() {
         void loadFlowChannels()
         applyCatchment(s.selectedCatchment?.basinId)
       } else {
-        channelSectionSeq++   // 進行中の流域の主流路リクエストがあれば無効化する
+        sectionSeq++   // 進行中の流域の主流路リクエストがあれば無効化する
         applyCatchment(undefined)
         if (s.selectedCatchment) store.set({ selectedCatchment: undefined })
       }
