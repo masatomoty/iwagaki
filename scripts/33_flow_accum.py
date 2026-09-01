@@ -292,9 +292,9 @@ def _write_basins(name: str, grid, basins, pits: list) -> tuple[int, float]:
 
     - `area_ha` はセル数から出す**厳密値**（単純化ポリゴンの面積ではない）。
       `edge_truncated` の流域では AOI 内に入っているぶんだけ。
-    - `max_accum_*` は流域の吐口の集水（= その流域の集水域の広さ）。**collar 込み**
-      なので、`edge_truncated` の流域では `area_ha` より広いことがある（collar 側に
-      上流を持つ）。viewer のインスペクタはこの食い違いを断る。
+    - `max_accum_*` は流域の吐口セルの D-infinity 集水。主 receiver で切った流域境界を
+      分流が跨いで出入りするため `area_ha` とは一致しない。collar 込みの値なので、
+      `edge_truncated` の流域では AOI 内の `area_ha` より大きくなることもある。
     - `edge_truncated` は集水域が AOI/collar の外へ延びている（切れている）か。
     - 越流点（`_write_pour_points` と同じ窪地）が流域内にあれば `pit_id` /
       `spill_elev_m_tp` を付ける。

@@ -390,7 +390,12 @@ def dinf_flow_direction(filled: np.ndarray) -> DinfResult:
     ar = np.arange(h * w)
 
     # receiver が nodata のセルは海へ抜ける（sink）。receiver を自分自身に畳んで
-    # DAG を閉じ、accumulation では終端として扱う（D8 の sink_outlet と同じ）
+    # DAG を閉じ、accumulation では終端として扱う（D8 の sink_outlet と同じ）。
+    # **もう片方の（陸側の）配分を捨てても保存則は破れない**: nodata は routing 上
+    # -1e18 なので、nodata に触れる facet は必ず内角 r が 0 か π/4 に張り付き、
+    # nodata 側へ 100 %（もう片方の prop は 0）になる。中間の分流で nodata に
+    # 抜けるセルは生じない（`tests/test_flow_accum.py` の保存則テスト、実データでも
+    # `route_with_collar` の `conservation_ok` で確認）
     r1_nd = (r1f != ar) & ~flat_valid[r1f] & (p1f > 0.0)
     r2_nd = (r2f != ar) & ~flat_valid[r2f] & (p2f > 0.0)
     sink = flat_valid & (r1_nd | r2_nd)
@@ -543,10 +548,9 @@ def _clip_basins(
     矩形の外にはみ出す流域・吐口が矩形外にある流域は `edge_truncated` を立てる
     （collar 側に上流／下流があり、AOI では集水域が切れている）。id は詰め直す。
 
-    **`max_accum`（= その流域の集水域の広さ）は再クリップしない。** collar 側の
-    上流ぶんを含んだ真の値を残し、`edge_truncated` の流域では「面（`labels`）は
-    AOI 内だけ・集水サイズは collar 込み」になる。viewer はこの食い違いを
-    インスペクタで断る（`web/src/ui/inspector.ts`、`docs/web_design.md`）。
+    **`max_accum`（吐口の D-infinity 集水）は再クリップしない。** collar グリッドで
+    出した吐口の値をそのまま残す（viewer は使わず geojson の解析用。`labels` の
+    面積とは元々一致しない — `BasinResult.max_accum` の注記）。
 
     併合（`_coarsen_basins`）は clip の**前**に collar グリッド全体で済ませてある。
     clip で AOI に食い込むだけの縁の破片がいくつか残るが、いずれも
@@ -705,9 +709,9 @@ class BasinResult:
     labels: np.ndarray          # int32 (h, w), セルごとのリーフ流域 id
     downstream: np.ndarray      # int32 (n_basins + 1,), downstream[b] = b の下流流域 id（終端は -1）
     outlet_rc: np.ndarray       # int32 (n_basins + 1, 2), 各流域の吐口セル (row, col)（未割当は -1）
-    max_accum: np.ndarray       # float64 (n_basins + 1,), 吐口の集水セル数（= その流域の集水域の広さ）。
-    #                             _clip_basins は **これを再クリップしない** ので、collar 側に
-    #                             上流を持つ流域では collar 込みの真の上流サイズが残る（`edge_truncated`）
+    max_accum: np.ndarray       # float64 (n_basins + 1,), 吐口セルの D-infinity 集水。
+    #                             主 receiver で切った流域境界を分流が跨いで出入りするので
+    #                             セル数（面積）とは一致しない。_clip_basins は再クリップしない
     edge_truncated: np.ndarray  # bool (n_basins + 1,), 吐口の流出が AOI/collar 端で切れているか
     n_basins: int
 
@@ -820,8 +824,12 @@ def flow_basins(
         if not terminal[o]:
             downstream[b] = int(labels_flat[main[o]])
 
+    # 流域の集水域の広さ = **吐口セルの集水**（そこを流れ出る総量）。D-infinity は
+    # 縁のセルが主 receiver 以外へ一部を隣の流域へ漏らすので、流域内の最大集水は
+    # 吐口の集水をわずかに上回りうる。吐口の値をそのまま採る（`_coarsen_basins` は
+    # 吸収先＝より下流の吐口の値を引き継ぐ）
     max_accum = np.zeros(nb + 1, dtype="float64")
-    np.maximum.at(max_accum, labels_flat[flat_valid], acc[flat_valid])
+    max_accum[1:] = acc[outlets]
 
     if nb > 1 and ((min_basin_cells and min_basin_cells > 1) or max_basins):
         labels_flat, downstream, outlets, max_accum = _coarsen_basins(

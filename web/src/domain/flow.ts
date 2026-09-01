@@ -130,7 +130,12 @@ export function catchmentOf(basins: FlowBasins, rootId: number): Set<number> {
   return out
 }
 
-/** 集水域全体の集計（面積の合計、最大集水、端で切れているか）。 */
+/**
+ * 集水域全体の集計。**`areaHa`（union した面の面積合計）だけがインスペクタに出る値。**
+ * `maxAccum*` は各リーフの吐口の D-infinity 集水の最大で、主 receiver で切った流域
+ * 境界を分流が跨いで出入りするため面積とは一致しない（`ui/inspector.ts`）。
+ * geojson 側の `max_accum_*` として解析からは参照できる。
+ */
 export function catchmentSummary(basins: FlowBasins, ids: Iterable<number>) {
   let areaHa = 0
   let maxAccumCells = 0

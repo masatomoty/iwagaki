@@ -837,10 +837,12 @@ viewer で「地図をクリックした地点の上流を面で出す」ため�
 - **collar と clip。** ルーティングは `route_with_collar(..., want_basins=True)` で
   collar グリッド全体を解いてから AOI 矩形に clip する。集水域が collar 側／AOI 外へ
   延びる流域は `edge_truncated` を立てる（`area_ha` は AOI 内のセルだけ。
-  `max_accum` は再クリップせず collar 込みの真の上流サイズを残す）。
+  `max_accum` は再クリップしない）。
 - **書き出し。** `scripts/33` が EPSG:6674 の簡略化ポリゴン（`FLOW_BASIN_SIMPLIFY_M`
   = 2 m。`area_ha` はセル数由来の厳密値でポリゴン面積ではない）＋ `basin_id` /
-  `downstream_basin_id` / `max_accum_cells` / `edge_truncated` / 越流点情報。
+  `downstream_basin_id` / `max_accum_cells`（**吐口セルの D-infinity 集水**。主 receiver
+  で切った流域境界を分流が跨ぐので `area_ha` とは一致しない。viewer には出さず
+  解析用）/ `edge_truncated` / 越流点情報。
   `scripts/83` が WGS84 に起こして `catalog.flow.basins`（`highres` 1 本。
   吉原で ~170 個・168 kB）。**断面ツールへの主流路接続は別 PR。**
 

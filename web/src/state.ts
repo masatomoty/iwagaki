@@ -86,13 +86,14 @@ export interface AppState {
   selectedCatchment?: {
     basinId: number
     /**
-     * union した全リーフの面積合計 [ha]（セル数由来の厳密値）。
+     * union した全リーフの**面積合計** [ha]（セル数由来の厳密値。インスペクタが出す値）。
      * `edgeTruncated` のとき AOI 内に入っているぶんだけ。
      */
     areaHa: number
     /**
-     * 集水域の吐口の集水セル数 / m²（= 上流の広さ）。**collar 込み**なので
-     * `edgeTruncated` のとき `areaHa` より大きいことがある。
+     * 集水域の吐口の D-infinity 集水セル数 / m²。**面積（`areaHa`）とは別物** —
+     * 主 receiver で切った流域境界を D-inf の分流が跨いで出入りするため。
+     * インスペクタには出さない（`domain/flow.ts` のコメント）。`__iwagaki` 用に保持。
      */
     maxAccumCells: number
     maxAccumM2: number

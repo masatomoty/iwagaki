@@ -311,6 +311,33 @@ def test_flow_basins_y_valley_splits_into_three():
     assert bool(b.edge_truncated[trunk])
     # ラベルは有効セルを覆い、nodata は 0
     assert (b.labels[valid] > 0).all()
+    # max_accum は **吐口セルの集水**（流域内の最大ではない）
+    for i in range(1, 4):
+        oy, ox = (int(v) for v in b.outlet_rc[i])
+        assert b.max_accum[i] == pytest.approx(accum[oy, ox], rel=1e-9)
+    # トランクの吐口の集水 = 全セル（全量が南端へ集まる）
+    assert b.max_accum[trunk] == pytest.approx(float(valid.sum()), rel=1e-9)
+
+
+def test_dinf_no_partial_split_into_nodata():
+    # nodata に触れる facet は routing 上 -1e18 なので内角が 0 か π/4 に張り付き、
+    # nodata 側へ 100 %（もう片方の prop は 0）になる。中間の分流で nodata へ
+    # 抜けるセルは生じない（`src/iwagaki/flow.py` の sink 畳み込みが陸側の配分を
+    # 捨てても保存則が破れない根拠）。
+    rng = np.random.default_rng(3)
+    dem = rng.random((25, 30)) * 6.0
+    dem[4:9, 6:11] = np.nan          # nodata の島
+    dem[:, -1] = np.nan              # 海の縁
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    di = dinf_flow_direction(filled)
+    fv = valid.reshape(-1)
+    ar = np.arange(fv.size)
+    for rf, pf in ((di.receiver1.reshape(-1), di.prop1.reshape(-1)),
+                   (di.receiver2.reshape(-1), di.prop2.reshape(-1))):
+        to_nd = (rf != ar) & ~fv[rf]
+        partial = fv & to_nd & (pf > 1e-9) & (pf < 1.0 - 1e-9)
+        assert not partial.any()
 
 
 def test_flow_basins_single_valley_is_one_basin():

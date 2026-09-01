@@ -528,6 +528,12 @@ async function boot() {
   function pickCatchment(clientX: number, clientY: number): boolean {
     if (!flowBasins) return false
     const r = viewer.canvas.getBoundingClientRect()
+    // 地面を **ジオイド面**（標高 0）で交える（`sectionTool` と同じ規約）。地表は
+    // 実際には `geoid + 標高 * 鉛直強調` に描かれるので、鉛直強調 > 1 かつ俯角の
+    // 付いた視点では山側で経緯度がずれ、隣の流域を拾いうる。標高の掛からない定数
+    // なので海際は正確で、水みちは俯瞰で見るオーバーレイ（`docs/web_design.md`）・
+    // 既定の鉛直強調 ×1 では真下に交わるため誤差 0。地形を実際に raycast する
+    // 厳密版は別 PR（`sectionTool` も同じ課題を「残差は無視」で受けている）。
     const p = viewer.unproject(clientX - r.left, clientY - r.top, geoid)
     if (!p) return false
     const id = basinAt(flowBasins, p[0], p[1])
