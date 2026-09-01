@@ -67,6 +67,7 @@ scripts/88_export_survey_targets.py
 | 33 | 地表流の集中（flow accumulation）と窪地構造。**潮位非依存の別レイヤ**で `h_conn` には混ぜない |
 | 50 / 60 | 地物との結合、レポート |
 | 80 番台 | Web 配信アセット（タイル・3D Tiles・catalog） |
+| 90 番台 | 派生の書き出し（被害重ね・通行規制・小地域集計・徒歩圏）。**ファイルのみ、viewer 表示は別 PR** |
 
 ### 主な成果物（`data/out/<範囲>/`）
 
@@ -90,6 +91,20 @@ scripts/88_export_survey_targets.py
 潮位 0.93 m / 0.69 m ごとに「2 段」の地物を CSV と GeoJSON へ出す。
 地物外形ではなく代表点（EPSG:4326）を持ち、gml_id で元の `objects.geojson` に戻れる。
 潮位を変えるときは `--tide-m-tp 1.00` のように指定する。
+
+### 任意地点の徒歩圏（`data/out/<範囲>/`）
+
+```bash
+IWAGAKI_AOI=higashi_maizuru scripts/94_walk_isochrone.py --lon 135.38 --lat 35.48 --minutes 10
+```
+
+`scripts/94_walk_isochrone.py` は `objects.geojson` の道路面から隣接グラフを組み
+（`src/iwagaki/road_graph.py`、`docs/data.md` §8）、起点からの
+**(a) 道路ネットワーク上の等時線** と **(b) 同じ距離の単純バッファ**を
+1 つの GeoJSON（EPSG:4326、`layer` で区別）に出す。乖離＝バッファのうち
+ネットワークで届かない面は summary の `network_over_buffer_ratio` に出る。
+**PLATEAU の道路は車道中心線で公式の歩行者網ではない**（properties にも明記）。
+起点が AOI 外なら空を返す。`--dry-run` で合成格子の自己確認だけ回せる。
 
 ---
 
