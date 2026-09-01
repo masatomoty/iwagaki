@@ -96,21 +96,39 @@ FARR は DEM だけで「一様降雨時に地表流がどこに集まるか」�
 | 効くか | 内容 |
 |---|---|
 | **新規性なし** | Priority-Flood の minimax は `h_conn(c) = min-max path` として海 seed から計算済み（`docs/design.md`）。同じ量 |
-| **これが追加分** | **潮位に依存しない flow accumulation（D-inf）**。「水みち」ラスタ。iwagaki に無い |
-| 格上げ | 現状の「窪地」は *標高<潮位 かつ 海に非連結* の判定だけ。Priority-Flood の副産物（充填深・越流点標高・容積）で原理的な窪地マップにできる |
+| **これが追加分** | **潮位に依存しない flow accumulation**。「水みち」ラスタ。iwagaki に無い（第 1 段は D8、D-inf は残タスク） |
+| 格上げ | 現状の「窪地」は *標高<潮位 かつ 海に非連結* の判定だけ。Priority-Flood の副産物（充填深・越流点標高・容積）で原理的な窪地マップにできる → **入れた** |
 | UI プリミティブ | クリックで集水域抽出（既存の地物インスペクタ・断面に接続） |
 | 31/32 との相乗 | `scripts/32` の仮想吐口を「大きい窪地から順」ではなく**越流点＋排水ネットワーク上の位置**で置ける |
 
-**進め方。** `scripts/33_flow_accum.py`（仮）を既存の4ラスタ（baseline/control/highres/pointcloud）と
-**同一グリッド**で回す。出力は潮位非依存の静的セル値なので `h_conn` と同じ扱い（タイルに1回焼く・再計算なし・
-配信量は潮位数に依らない）。「5m と 0.5m で水みち・窪地構造がどう変わるか」は「判定差」と同じ土俵で、
-`control` 条件でデータ源／解像度の分離もできる。
+**第 1 段（解析ラスタの書き出し）は入れた** **[実測]**（2026-09-01）。
+`scripts/33_flow_accum.py` / `src/iwagaki/flow.py` が 4 条件
+（baseline / control / highres / pointcloud、pointcloud が無ければ黙って飛ばす）を
+`scripts/30` と**同一グリッド**で回し、`data/out/<範囲>/` に
 
-- **境界**: 集水域は AOI 外へ伸びる。ルーティング用に GSI 5m DEM の縁取り（collar）を足してから clip
-- **浸水判定には混ぜない**（`docs/design.md`「モデルは分離可能に保つ」）。別オーバーレイに留める
-- FARR のリアルタイム計算エンジンは移植不要。固定 AOI の iwagaki は事前焼きが正解
-- 「一様降雨・地形のみ」の但し書きが要る（FARR と同じ）
-- UI 案（未確定）: 「地形の色」に `集水 / 水みち`（log スケール）を追加／「窪地」斜線を pour-point マーカー＋充填深に格上げ
+- `flow_accum_{cond}.tif`（D8・一様単位降雨・生値 = 集水セル数。「水みち」）
+- `fill_depth_{cond}.tif` / `spill_elev_{cond}.tif` / `pit_id_{cond}.tif`
+  （Priority-Flood + ε の副産物。潮位非依存の原理版の窪地）
+- `flow_accum_summary.json` / `flow_accum_pits_{cond}.json`（窪地数・面積・容積・
+  端で切れた集水の割合・手法・生成時刻）
+
+を出す。確認用の図は `docs/images/` に 3 枚（4 条件の水みち log／highres の窪地マップ／
+control↔highres の差分）。手法・OSS 比較は `docs/data.md` §7、結果は `docs/results.md`
+「地表流の集中と窪地構造」。**画面（Web タイル・viewer）は作っていない。**
+**浸水判定（`h_conn`）には混ぜず、別レイヤに留めた**（`docs/design.md`「やらないこと」）。
+FARR のリアルタイム計算エンジンは移植せず、固定 AOI なので事前焼きにした。
+
+**残っているもの。**
+
+- **Web タイル化（`scripts/80` 番台）と viewer 表示。** UI 案（未確定）:
+  「地形の色」に `集水 / 水みち`（log スケール）を追加／「窪地」斜線を
+  pour-point マーカー＋充填深に格上げ／クリックで集水域抽出（地物インスペクタ・断面に接続）
+- **D-infinity 化**（Tarboton 1997）。第 1 段は D8。`numba`（pyflwdir）か C++（richdem）
+  が要るので依存を足すか自前実装するかの判断がいる（`docs/data.md` §7）
+- **GSI 5m DEM の collar（縁取り）。** ルーティング用に AOI 外周へ 5m DEM を足してから
+  clip する。第 1 段は入れておらず、AOI 端の集水は過小（`edge_truncated_fraction`）
+- **`scripts/32` の仮想吐口を越流点ベースに置く。** 「大きい窪地から順」ではなく
+  `spill_elev` ＋排水ネットワーク上の位置で置く案。今回はやらない（上の仮想排水路まわり）
 
 **ボーリング／地下可視化は調査止まり。** 上田氏本人が今年度「地層再現は断念、
 柱状図単体の縦表示まで」（2026-08-29）。CITY GAP 側も「補間しない・観測点だけ」の

@@ -26,6 +26,7 @@ $PY scripts/19_pc_dtm_fuse.py
 echo "== 5. 融合地形で浸水を再計算し、比較する"
 $PY scripts/30_flood.py
 $PY scripts/40_compare.py > /dev/null
+$PY scripts/33_flow_accum.py
 
 echo "== 6. 地物単位・護岸帯での影響を測る"
 $PY scripts/20_pc_object_impact.py
