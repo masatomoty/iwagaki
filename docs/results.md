@@ -570,8 +570,17 @@ GeoJSON の geometry は**地物の代表点（EPSG:4326）**にしている。�
 地域ごとの比較ができていい」（2026-08-28）に対して、`scripts/92_area_aggregate.py` が
 **2020年国勢調査の小地域（町丁・字等）**ごとに浸水棟数を集計して CSV / GeoJSON /
 サマリ JSON に書き出す。境界は e-Stat 統計GIS の境界データ
-（`scripts/13_fetch_census_boundaries.py`、`docs/data.md` §5）。**画面は作らずファイルだけ**
-（viewer のコロプレス表示と catalog への配線は別 PR）。
+（`scripts/13_fetch_census_boundaries.py`、`docs/data.md` §5）。
+
+**viewer にも出した**（2026-09-01、別 PR）。潮位再生パネルのすぐ下に
+**地域別の浸水建物のランキング表**を置く（浸水棟数の多い順・上位 10 件 ＋
+「ほか N 地域」＋「(小地域外)」＋「合計」）。潮位別の集計値は焼かず、
+`scripts/83` が `scripts/92` と同一の空間結合で建物 1 棟ごとに `area_code` を
+`objects.geojson` へ焼き、viewer が現在の水位・モデルで棟数をその場で数える
+（`docs/web_design.md`「小地域ごとの棟数はどう出したか」）。合計行は既存の
+全体棟数表示（`floorCounts`）と一致する。**コロプレスは色予算の都合で見送り**、
+小地域ポリゴン（`small_areas.geojson`）は `catalog.small_areas` に optional で
+配信だけしてある。
 
 * 建物は **geometry の重心**で小地域に空間結合する。西舞鶴 4,563 棟 / 東舞鶴 6,308 棟
   （`objects.geojson` の `bldg:Building`・`unreliable` 除く）はいずれも

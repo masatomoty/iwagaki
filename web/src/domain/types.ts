@@ -127,6 +127,14 @@ export interface FeatureAssertion {
   groundElev: Record<TerrainCondition, MTP | undefined>
   hConn: Record<TerrainCondition, MTP | undefined>
   /**
+   * 建物の重心が入る国勢調査の小地域（町丁・字等）。`scripts/83` が
+   * `scripts/92` と同一の空間結合で `objects.geojson` に焼く。
+   * どの小地域にも入らない建物・境界データが無い配信物では undefined
+   * （viewer は「(小地域外)」行にまとめる）。**建物にしか付かない。**
+   */
+  areaCode?: string
+  areaName?: string
+  /**
    * 沿道家屋の近さ。**走行波そのものではなく間接指標**（`scripts/50`）。
    * 古い配信物には無いので optional
    */

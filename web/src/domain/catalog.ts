@@ -84,6 +84,19 @@ export interface Catalog {
    */
   railway?: { url: string; bytes: number; length_m: number
               lines: string[]; source: string }
+  /**
+   * 国勢調査 小地域（町丁・字等）のポリゴン。**コロプレスを描くとき用の optional。**
+   * `scripts/83` が簡略化した軽量 GeoJSON を配信する（属性は `area_code` /
+   * `area_name` / `total_bldg` だけ。潮位別の集計値は焼かない）。
+   * 地域別の棟数「表」は建物側の `area_code` から数えるのでこれを必要としない。
+   * 境界データ（`scripts/13`）が無い配信物では鍵ごと無い。
+   */
+  small_areas?: {
+    url: string
+    bytes: number
+    count: number
+    boundary?: Record<string, unknown>
+  }
   /** 点群が地表面として効いている範囲の輪郭。無い配信物もあるので optional */
   pointcloud_coverage?: { url: string; bytes: number
                           area_ha_cells: number; area_ha_outline: number

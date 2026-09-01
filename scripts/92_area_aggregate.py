@@ -75,7 +75,9 @@ from shapely.geometry import shape
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import CRS_ANALYSIS, INTERIM, ROOT
+from iwagaki.areas import (OUTSIDE_KEY, OUTSIDE_NAME, assign_centroids,
+                           boundary_metadata, load_boundaries)
+from iwagaki.config import CRS_ANALYSIS, ROOT
 
 DEFAULT_AOIS = ("nishi_maizuru", "higashi_maizuru")
 AOI_CHOICES = ("yoshiwara", "nishi_maizuru", "higashi_maizuru")
@@ -84,11 +86,9 @@ DEFAULT_TIDES = (0.93, 0.69)
 #: 床上浸水とみなす浸水深 [m]。web/src/view/buildingColor.ts の FLOOR_ABOVE_DEPTH_M。
 FLOOR_ABOVE_DEPTH_M = 0.5
 
-BOUNDARY_PATH = INTERIM / "census_boundary_maizuru_2020.geojson"
-
-#: 重心がどの小地域にも入らなかった建物をまとめる行のキー
-OUTSIDE_KEY = ""
-OUTSIDE_NAME = "(小地域外)"
+#: 建物の重心を小地域へ寄せるロジックと境界の版は `iwagaki.areas` に集約した
+#: （`scripts/83_build_catalog.py` が同じ結合で objects.geojson に area_code を付ける）。
+#: `OUTSIDE_KEY` / `OUTSIDE_NAME` はそこから import している。
 
 VALUE_KIND = "推計棟数（モデル由来。国勢調査の公式統計値ではない）"
 
@@ -174,36 +174,17 @@ def load_buildings(aoi: str) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(rows, crs=CRS_ANALYSIS)
 
 
-def load_boundaries() -> gpd.GeoDataFrame:
-    if not BOUNDARY_PATH.exists():
-        raise SystemExit(
-            f"{BOUNDARY_PATH} がありません。先に scripts/13_fetch_census_boundaries.py"
-        )
-    gdf = gpd.read_file(BOUNDARY_PATH)
-    if gdf.crs is None:
-        gdf = gdf.set_crs(CRS_ANALYSIS)
-    return gdf.to_crs(CRS_ANALYSIS)[["KEY_CODE", "S_NAME", "CITY_NAME", "geometry"]]
-
-
 def assign_to_areas(
     buildings: gpd.GeoDataFrame, areas: gpd.GeoDataFrame
 ) -> pd.DataFrame:
     """建物の重心を小地域に空間結合する。返り値は建物 1 行、小地域キー付き。
 
-    境界ちょうどに乗って複数の小地域に当たる建物は KEY_CODE 昇順で 1 つに決める。
-    どの小地域にも入らない建物は KEY_CODE を空にする。
+    結合そのものは `iwagaki.areas.assign_centroids`（`scripts/83` と共有）。
+    ここでは浸水判定に要る `ground_elev_highres` / `h_conn_highres` を横に付け直す。
     """
-    joined = gpd.sjoin(buildings, areas, predicate="within", how="left")
-    joined = (
-        joined.sort_values("KEY_CODE")
-        .drop_duplicates("gml_id", keep="first")
-        .set_index("gml_id")
-    )
-    out = buildings.set_index("gml_id").copy()
-    out["key_code"] = joined["KEY_CODE"].reindex(out.index).fillna(OUTSIDE_KEY)
-    out["s_name"] = joined["S_NAME"].reindex(out.index).fillna(OUTSIDE_NAME)
-    out["city_name"] = joined["CITY_NAME"].reindex(out.index).fillna("")
-    return pd.DataFrame(out.drop(columns="geometry"))
+    codes = assign_centroids(buildings, areas)
+    out = buildings.set_index("gml_id")
+    return pd.DataFrame(out.drop(columns="geometry")).join(codes)
 
 
 def aggregate(assigned: pd.DataFrame, tide: float) -> dict[str, dict]:
@@ -332,12 +313,6 @@ def totals_of(rows: list[dict]) -> dict:
             "flood_rate": _rate(flooded, total),
         }
     return out
-
-
-def boundary_metadata() -> dict:
-    meta = json.loads(BOUNDARY_PATH.read_text()).get("metadata", {})
-    return {k: meta.get(k) for k in ("survey_id", "boundary_year", "datum",
-                                     "source", "source_url") if k in meta}
 
 
 def run_aoi(aoi: str, tides: list[float], boundary_meta: dict) -> dict:

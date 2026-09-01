@@ -20,6 +20,7 @@
 
 import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
+import type { AreaFloodRow } from '../domain/flood'
 import type { TideSeries } from '../domain/tideSeries'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
@@ -321,6 +322,58 @@ function buildingLegendHtml(s: Store['state'], entries: LegendEntry[]): string {
       + `<i style="background:${UNKNOWN_HEX};margin-left:5px"></i></div>` : ''}</div>`
 }
 
+/**
+ * **地域別の浸水建物**（上田氏の要望③）。潮位再生パネルのすぐ下に置く。
+ *
+ * 表を主にする。**主眼が地域比較**なので、まずランキング。現在の水位・モデルで
+ * `domain/flood.ts::perAreaFloodCounts` が数えた行をそのまま出す
+ * （潮位を動かしても再計算はクライアント内で、サーバ往復なし）。
+ * 上位 `AREA_TABLE_TOP` 件 ＋「ほか N 地域」＋「(小地域外)」＋「合計」。
+ * 合計は頭の全体棟数（`floorCounts`）と一致する。
+ */
+const AREA_TABLE_TOP = 10
+
+function areaFloodHtml(rows: AreaFloodRow[]): string {
+  if (rows.length === 0) return ''
+  const outside = rows.find((r) => r.areaCode === undefined && r.total > 0)
+  const flooded = rows.filter((r) => r.areaCode !== undefined && r.flooded > 0)
+  const shown = flooded.slice(0, AREA_TABLE_TOP)
+  const restAreas = flooded.length - shown.length
+  const restFlooded = flooded.slice(AREA_TABLE_TOP)
+    .reduce((a, r) => a + r.flooded, 0)
+  const sum = rows.reduce((a, r) => ({
+    under: a.under + r.under, above: a.above + r.above,
+    flooded: a.flooded + r.flooded,
+  }), { under: 0, above: 0, flooded: 0 })
+  const pct = (r: AreaFloodRow) => (r.total ? `${Math.round(r.floodRate * 100)}%` : '—')
+  const cells = (flood: number | string, above: number | string,
+                 under: number | string, rate = '') =>
+    `<td class="num">${flood}</td><td class="num">${above}</td>`
+    + `<td class="num">${under}</td><td class="num">${rate}</td>`
+
+  const head = '<tr><td>小地域</td><td class="num">浸水</td><td class="num">床上</td>'
+    + '<td class="num">床下</td><td class="num">率</td></tr>'
+  if (flooded.length === 0) {
+    return `<table class="areatab"><thead>${head}</thead><tbody>`
+      + `<tr><td class="sub" colspan="5">この水位・モデルで浸水する建物は無い</td></tr>`
+      + `<tr class="at"><td>合計</td>${cells(sum.flooded, sum.above, sum.under)}</tr>`
+      + '</tbody></table>'
+  }
+  const body = shown.map((r) =>
+    `<tr><td class="an" title="${r.areaCode ?? ''} ${r.total} 棟">${r.areaName}</td>`
+    + cells(r.flooded, r.above, r.under, pct(r)) + '</tr>').join('')
+  const rest = restAreas > 0
+    ? `<tr class="ar"><td>ほか ${restAreas} 地域</td>${cells(restFlooded, '', '')}</tr>` : ''
+  const out = outside
+    ? `<tr class="ar"><td>(小地域外)</td>`
+      + cells(outside.flooded, outside.above, outside.under, pct(outside)) + '</tr>' : ''
+  return `<table class="areatab"><thead>${head}</thead><tbody>${body}${rest}${out}`
+    + `<tr class="at"><td>合計</td>${cells(sum.flooded, sum.above, sum.under)}</tr>`
+    + '</tbody></table>'
+    + '<div class="sub">現在の水位・モデルでその場で集計（サーバ往復なし）。'
+    + '合計は上の全体棟数と一致</div>'
+}
+
 /** 決め方の一行説明。 */
 function floodModelNote(m: FloodModel): string {
   return m === 'simple'
@@ -450,6 +503,7 @@ export function renderControls(
   buildingLegend: LegendEntry[] = [],
   area?: AreaChoice,
   tideCurves: TideSeries[] = [], playbackStats?: PlaybackStats,
+  areaFlood: AreaFloodRow[] = [],
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
@@ -501,6 +555,11 @@ export function renderControls(
     if (nl) nl.innerHTML = nowLine(s)
     const lg = el.querySelector<HTMLElement>('#legend')
     if (lg) lg.innerHTML = legendHtml(s, buildingLegend)
+    // 地域別の浸水建物。水位・モデル・地形条件の変更にその場で追従する
+    const ag = el.querySelector<HTMLElement>('#areagroup')
+    if (ag) ag.hidden = areaFlood.length === 0
+    const af = el.querySelector<HTMLElement>('#areaflood')
+    if (af) af.innerHTML = areaFloodHtml(areaFlood)
     const cb = el.querySelector<HTMLInputElement>('#cb-changed')
     if (cb && cb.checked !== s.layers.changedOnly) cb.checked = s.layers.changedOnly
     for (const box of el.querySelectorAll<HTMLInputElement>('input[data-l]')) {
@@ -588,6 +647,11 @@ export function renderControls(
     </div>
 
     <div class="body">
+      <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
+        <p class="subhead" style="margin-top:0">地域別の浸水建物</p>
+        <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
+      </div>
+
       <p class="subhead">比較表示</p>
       <div class="compare-row">
         <button id="diffbtn" type="button" aria-pressed="${isDiff(s.surface) && s.surface !== 'diff_drainage'}"

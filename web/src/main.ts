@@ -11,7 +11,7 @@ import { Vector2 } from 'three'
 import { sampleLine } from './assets/terrainSampler'
 import { type CameraDescription, eyeInLocal, visibleBoxLocal,
          visiblePolygonLocal } from './domain/camera'
-import { floorCounts, regulatedRoadCount } from './domain/flood'
+import { floorCounts, perAreaFloodCounts, regulatedRoadCount } from './domain/flood'
 import type { Catalog } from './domain/catalog'
 import type { TideSeries } from './domain/tideSeries'
 import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
@@ -731,8 +731,11 @@ async function boot() {
           resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
           s.waterLevel, floorDepth, s.layers.ponded, s.floodModel)
       : sch ? legendOf(plateauValues, sch) : []
-    const counts = floorCounts(assertions.values(),
-      resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres',
+    const countCondition = resolveSurface(catalog.terrain, s.surface)?.condition ?? 'highres'
+    const counts = floorCounts(assertions.values(), countCondition,
+      s.waterLevel, floorDepth, s.floodModel)
+    // 小地域ごとの浸水建物（要望③）。合計は counts と一致する
+    const areaFlood = perAreaFloodCounts(assertions.values(), countCondition,
       s.waterLevel, floorDepth, s.floodModel)
     const playbackStats = {
       under: counts.under,
@@ -740,7 +743,8 @@ async function boot() {
       regulatedRoads: regulatedRoadCount(assertions.values(), s.waterLevel),
     }
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
-      { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats)
+      { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats,
+      areaFlood)
     renderInspector(document.getElementById('inspector')!, store, catalog)
     viewer.invalidate()
   }
