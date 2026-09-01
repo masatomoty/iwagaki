@@ -15,9 +15,9 @@ $PY scripts/33_flow_accum.py
 AOI_NAME="${IWAGAKI_AOI:-yoshiwara}"
 if [ "$AOI_NAME" = "nishi_maizuru" ] || [ "$AOI_NAME" = "higashi_maizuru" ]; then
   PAIRS="data/out/${AOI_NAME}/synthetic_outfall_pairs.geojson"
-  if [ ! -f "$PAIRS" ]; then
-    $PY scripts/32_generate_synthetic_outfall_pairs.py --output "$PAIRS"
-  fi
+  # 毎回焼き直す。33 の窪地の越流点から決まるので、古い配置版が残ると
+  # scripts/31 が黙って旧ペアを使い続ける（越流点ベースへの切替で顕在化）
+  $PY scripts/32_generate_synthetic_outfall_pairs.py --output "$PAIRS"
   $PY scripts/31_drainage_flood.py --pairs "$PAIRS"
 fi
 $PY scripts/40_compare.py > /dev/null
