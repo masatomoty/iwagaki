@@ -354,11 +354,27 @@ KYOTO_DEM_ZIPS = {
     "06MC": "https://gic-kyoto.s3.ap-northeast-1.amazonaws.com/2024/dem/06MC.zip",
 }
 
+#: 国土地理院 標高タイル（数値標高モデル）。`.txt`（256x256 の CSV、`"e"`=nodata）を
+#: 使うので PNG デコード（Pillow）は要らない。**flow accumulation のルーティング
+#: collar 専用**（`src/iwagaki/gsi_dem.py`、`docs/data.md` §7）。
+#: 主 = DEM5A（航空レーザ 5m, ズーム 15）、副 = DEM10B（10m, ズーム 14。DEM5A の穴埋め）。
+GSI_DEM_TILE_URL = "https://cyberjapandata.gsi.go.jp/xyz/{layer}/{z}/{x}/{y}.txt"
+GSI_DEM_TILE_LAYERS: tuple[tuple[str, int], ...] = (("dem5a", 15), ("dem", 14))
+
+#: flow accumulation のルーティング用に AOI 外周へ足す collar 帯の幅 [m]。
+#: **5.0 と 0.5 の両解像度で割り切れる値**にする（150 / 5 = 30、150 / 0.5 = 300）。
+#: collar はルーティングにだけ効かせ、窪地の充填深・越流点・容積は AOI 内のセルだけ
+#: 集計する（`src/iwagaki/flow.py` の `route_with_collar`、`docs/data.md` §7）。
+#: `IWAGAKI_FLOW_COLLAR`（[m]）で上書きできる（0 で collar 無効）。
+FLOW_COLLAR_M = 150.0
+
 ATTRIBUTION = [
     "出典：3D都市モデル（Project PLATEAU）舞鶴市（2025年度）／国土交通省",
     "出典：京都府オープンデータ「数値標高モデル（DEM）」（2019-2023年計測）"
     "（本成果は同データを加工して作成したものであり、京都府が作成したものではありません）",
     "出典：気象庁 潮位観測資料（舞鶴）",
+    "出典：国土地理院 標高タイル（数値標高モデル DEM5A・DEM10B）"
+    "（地表流の集中解析で解析範囲外周の流路補正にのみ使用）",
 ]
 
 #: 線路を出す範囲だけに足す出典。**PLATEAU 舞鶴市に鉄道は入っていない**

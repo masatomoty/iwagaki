@@ -26,6 +26,11 @@
 境界: 配列の外周セルと nodata セルを流出先（sink）とする。nodata は京都府 DEM
 では主に開放水面（湾・川・水路）なので、そこに達した流れは AOI を出たとみなす。
 最急降下が外周で map の外へ抜けるセルは「AOI 端で切れている」フラグを立てる。
+
+**collar（縁取り）**: AOI 端の集水を過小評価しないよう、`route_with_collar` は
+AOI の外周に GSI 5m DEM のバッファ帯を張ってからルーティングし、集計・書き出しは
+元の AOI 矩形に clip する（`scripts/33`、`docs/data.md` §7）。collar はルーティング
+専用で、窪地の充填深・越流点・容積は AOI 内のセルだけ集計する。
 """
 from __future__ import annotations
 
@@ -268,6 +273,105 @@ def d8_accumulation(
             term_edge[c] = term_edge[r]
 
     return accum.reshape(h, w), term_edge.reshape(h, w)
+
+
+@dataclass(frozen=True)
+class CollarRouting:
+    """`route_with_collar` の結果。配列はすべて AOI 矩形に clip 済み。
+
+    - `filled`: collar DEM を外周に付けて解いた ε 充填面（AOI 部分）。**AOI 端の
+      窪地は collar の地形で堰き止められて充填深が変わる**ので、窪地の充填深・
+      越流点・容積を「collar 帯を数えない」形で出したいなら、これではなく
+      `priority_flood_fill(dem)`（AOI 単独）を使うこと（`scripts/33`）。
+    - `accum`: 集水セル数。**collar 経由で AOI に流れ込む上流の寄与を含む**ので、
+      AOI 端のセルで collar 無しより増える。
+    - `term_edge`: そのセルの流れが最終的に **collar の外周**で map の外へ抜けるか
+      （= まだ端で切れている）。collar 内の窪地・海（nodata）で終わるなら False。
+    - `sink_outlet` / `edge_outlet`: AOI セルのうち nodata へ直接流れ込む / 下流を
+      持たず AOI 矩形の縁に接するもの（collar 有りでは後者はほぼ空になる）。
+    """
+    filled: np.ndarray
+    accum: np.ndarray
+    term_edge: np.ndarray
+    sink_outlet: np.ndarray
+    edge_outlet: np.ndarray
+    conservation_ok: bool
+    collar_shape: tuple[int, int]
+
+
+def route_with_collar(
+    dem: np.ndarray, collar_dem: np.ndarray, collar: int
+) -> CollarRouting:
+    """`dem`（AOI）の外周に `collar_dem` のバッファ帯を張ってから Priority-Flood +
+    D8 を回し、AOI 矩形に clip した集水・端フラグを返す。
+
+    `collar_dem` は shape `(H + 2*collar, W + 2*collar)`。中心 `(H, W)` は必ず
+    `dem` で上書きするので、呼び手は帯だけ埋めれば十分（全面 GSI DEM を渡してもよい）。
+    NaN = nodata。`collar == 0` なら collar 無し（`d8_flow_direction` /
+    `d8_accumulation` を素の AOI に掛けるのと一致する）。
+
+    **collar 帯はルーティングにだけ使う。** 返すのは `accum` と `term_edge`（と
+    その補助フラグ）。窪地の充填深・越流点標高・容積は collar で AOI 端の窪地の
+    充填面まで動くので、呼び手は **AOI 単独**の `priority_flood_fill(dem)` で別に
+    解いて AOI セルだけ集計すること（`scripts/33`、`docs/data.md` §7）。
+    返り値の `filled` は collar 込みの充填面で、その用途には使わない。
+    """
+    dem = np.asarray(dem, dtype="float64")
+    h, w = dem.shape
+    c = int(collar)
+    if c < 0:
+        raise ValueError("collar must be >= 0")
+    big = np.array(collar_dem, dtype="float64")
+    if big.shape != (h + 2 * c, w + 2 * c):
+        raise ValueError(
+            f"collar_dem shape {big.shape} != {(h + 2 * c, w + 2 * c)}")
+    big[c:c + h, c:c + w] = dem
+
+    filled_big = priority_flood_fill(big)
+    d8 = d8_flow_direction(filled_big)
+    valid_big = np.isfinite(filled_big)
+    accum_big, term_big = d8_accumulation(d8, valid_big)
+
+    # 一様単位降雨の保存則は collar グリッド全体で見る
+    rec = d8.receiver.reshape(-1)
+    flat_valid = valid_big.reshape(-1)
+    terminal = flat_valid & ((rec == np.arange(rec.size)) | ~flat_valid[rec])
+    n_valid = int(valid_big.sum())
+    term_sum = float(accum_big.reshape(-1)[terminal].sum())
+
+    sl = (slice(c, c + h), slice(c, c + w))
+    return CollarRouting(
+        filled=filled_big[sl].copy(),
+        accum=accum_big[sl].copy(),
+        term_edge=term_big[sl].copy(),
+        sink_outlet=(d8.sink_outlet[sl] & valid_big[sl]).copy(),
+        edge_outlet=d8.edge_outlet[sl].copy(),
+        conservation_ok=abs(term_sum - n_valid) <= 0.5,
+        collar_shape=big.shape,
+    )
+
+
+def edge_truncated_fraction(filled: np.ndarray) -> float:
+    """collar 無しで解いたときに集水域が AOI 端で切れるセルの割合。
+
+    `route_with_collar` の前後比較用の軽量版（`accum` は積まず、端フラグの伝播だけ）。
+    `filled` は `priority_flood_fill(dem)` の結果（collar 無し）。
+    """
+    filled = np.asarray(filled, dtype="float64")
+    valid = np.isfinite(filled)
+    d8 = d8_flow_direction(filled)
+    rec = d8.receiver.reshape(-1).astype("int64")
+    flat_valid = valid.reshape(-1)
+    edge = d8.edge_outlet.reshape(-1)
+    term_edge = np.zeros(filled.size, dtype=bool)
+    for c in d8.order[::-1].tolist():
+        r = rec[c]
+        if r == c or not flat_valid[r]:
+            term_edge[c] = bool(edge[c])
+        else:
+            term_edge[c] = term_edge[r]
+    nv = int(flat_valid.sum())
+    return float(term_edge[flat_valid].mean()) if nv else 0.0
 
 
 @dataclass(frozen=True)

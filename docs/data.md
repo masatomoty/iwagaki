@@ -720,13 +720,48 @@ Priority-Flood が要る。同じ量の別解像度版という位置づけ。
 - **流出先** = 配列の外周セル ∪ nodata セル。京都府 DEM の nodata は主に開放水面
   （湾・川・水路）なので、そこに達した流れは AOI を出たとみなす。
 - **集水域は AOI の外へ伸びる。** 最急降下が外周で map の外へ抜けるセルには
-  「AOI 端で切れている」フラグを立て、`flow_accum_summary.json` の
-  `edge_truncated_fraction` に割合を出す（吉原 highres で 60 %、西舞鶴で 18 %）。
-- **GSI 5m DEM の collar（縁取り）は第 1 段では入れていない。** ルーティング用に
-  AOI 外周へ 5m DEM を足してから clip する案は `docs/todo.md` に残した。
-  `config.py` の AOI 矩形は開放水面（湾）を含むよう余裕を持たせてある。
+  「端で切れている」フラグを立て、`flow_accum_summary.json` の
+  `edge_truncated_fraction` に割合を出す。
 - **一様降雨・地形のみ。** 実際の降雨分布・地表被覆・浸透・管路・時間発展は含まない
   （FARR と同じ但し書き）。
+
+### collar（縁取り）でルーティングを AOI 端で切らない **[実測]**（2026-09-01, 第 3 段）
+
+AOI 端に近いセルの集水は、集水域が矩形の外へ伸びているぶん過小になる。ルーティング
+専用に **AOI 外周へ GSI 5m DEM のバッファ帯（collar）を張ってから** Priority-Flood +
+D8 を回し、集計・書き出しは元の AOI 矩形に clip する（`src/iwagaki/flow.py` の
+`route_with_collar`、`scripts/33`、実装フェッチャは `src/iwagaki/gsi_dem.py`）。
+
+- **collar の DEM 源** = 国土地理院 標高タイル。主 **DEM5A**（航空レーザ 5m,
+  標高タイル ズーム 15）、無いタイルは **DEM10B**（10m, ズーム 14）で埋める。
+  `.txt` 形式（256×256 の CSV、`"e"` = nodata = 主に海面）を使うので PNG デコード
+  （Pillow）は不要。`requirements.txt` は増やさない（`docs/design.md`）。
+  京都府 DEM（本解析の高解像度地形）とは別世代・別計測なので**接合部に数 cm の段差**
+  が出うるが、AOI 矩形は開放水面（湾）と低地の外側の斜面に掛かるよう引いてあり、
+  段差の影響は斜面の勾配に対して小さい。
+- **幅** = `FLOW_COLLAR_M`（既定 **150 m**。5.0 m と 0.5 m の両解像度で割り切れる）。
+  `IWAGAKI_FLOW_COLLAR`（m 単位、0 で無効）で上書きできる。
+- **collar はルーティングにだけ効かせる。** 窪地の充填深・越流点標高・容積は
+  **AOI 単独**の ε 充填面（`priority_flood_fill(dem)`）で解いて AOI 内のセルだけ
+  集計する。collar 帯のセルはカウントせず、AOI 端の窪地の充填深も collar で変えない
+  （`edge_truncated_fraction` と `flow_accum_*.tif` だけが collar 経由の値になる）。
+- **collar が 1 タイルも取れなければ**（オフライン等）collar 無しで続行し、
+  条件ごとの `collar_used` が `false` になる。`collar_ring_coverage` は collar 帯に
+  占める有効セルの割合（残りは海）。
+
+**collar 後の `edge_truncated_fraction` の変化**（`edge_truncated_fraction_no_collar`
+→ `edge_truncated_fraction`、`flow_accum_summary.json`）:
+
+| 範囲 | baseline | control | highres | pointcloud |
+|---|---|---|---|---|
+| 吉原（collar ring 76 %） | 45.2 % → **29.3 %** | 34.8 % → **17.6 %** | 60.2 % → **9.3 %** | 61.1 % → **9.3 %** |
+| 西舞鶴 | 43.7 % → TBD | 15.3 % → TBD | 18.2 % → TBD | — |
+| 東舞鶴 | 8.8 % → TBD | 7.8 % → TBD | 12.4 % → TBD | — |
+
+0.5 m 条件で下げ幅が大きいのは、狭い AOI（吉原 100 ha）ほど端のセルの比率が高く、
+かつ 0.5 m は線状の集水が矩形の外へ素直に伸びるため。collar 内の窪地や海（nodata）
+で終わる経路が「切れていない」に変わる。残る `edge_truncated` は collar の外周まで
+達する本当に長い経路（山側の谷筋など）。
 
 ### viewer への配信（第 2 段）**[実測]**（2026-09-01）
 
