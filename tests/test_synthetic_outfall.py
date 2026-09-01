@@ -43,11 +43,12 @@ def test_pit_source_truncation_guard():
     feats = [_pit_feature(1, 1, spill=1.2, fill=0.5, area_m2=a)
              for a in (5000, 2000, 900)]
     fc = {"properties": {"total_pits": 100}, "features": feats}
-    # min_area_m2 が最小収録面積より小さい → 取りこぼしうるので止める
+    # min_area_m2 が最小収録面積以下 → 未収録の同着窪地を取りこぼしうるので止める
     assert mod.pit_source_truncation_error(fc, 250.0) is not None
     assert mod.pit_source_truncation_error(fc, 899.0) is not None
-    # 最小収録面積以上なら OK
-    assert mod.pit_source_truncation_error(fc, 900.0) is None
+    assert mod.pit_source_truncation_error(fc, 900.0) is not None   # 同着
+    # 最小収録面積より厳密に大きければ OK
+    assert mod.pit_source_truncation_error(fc, 901.0) is None
     assert mod.pit_source_truncation_error(fc, 1500.0) is None
     # 全窪地が収録されている（頭打ちでない）なら常に OK
     fc_full = {"properties": {"total_pits": 3}, "features": feats}

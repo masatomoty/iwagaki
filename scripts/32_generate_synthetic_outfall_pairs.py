@@ -123,25 +123,28 @@ def select_outfall_pits(
 
 
 def pit_source_truncation_error(fc: dict, min_area_m2: float) -> str | None:
-    """越流点 GeoJSON が面積で頭打ちで、`min_area_m2` がその最小面積より小さいなら
+    """越流点 GeoJSON が面積で頭打ちで、`min_area_m2` がその最小収録面積**以下**なら
     エラーメッセージを返す（そうでなければ `None`）。
 
     `scripts/33` の GeoJSON は面積上位 `FLOW_POUR_POINT_MAX_COUNT` 窪地だけ。
-    `min_area_m2` がその最小面積以下だと「面積は下限以上だが上位に入らなかった
-    低 spill の窪地」が候補から漏れ、spill 昇順という前提が崩れる。
+    未収録の窪地はすべて最小収録面積**以下**なので、`min_area_m2` を最小収録面積
+    より**厳密に大きく**しておけば「面積は下限以上だが上位に入らなかった低 spill
+    の窪地」は存在しない。同着（未収録の窪地が最小収録面積とちょうど同じ）を
+    弾くために比較は `>` にする。
     """
     feats = fc.get("features", [])
     total_pits = int(fc.get("properties", {}).get("total_pits", len(feats)))
     areas = [round(float(f.get("properties", {}).get("area_ha", 0.0)) * 1e4, 2)
              for f in feats]
     min_listed = min(areas, default=0.0)
-    if total_pits <= len(feats) or min_area_m2 >= min_listed:
+    if total_pits <= len(feats) or min_area_m2 > min_listed:
         return None
     return (f"越流点 GeoJSON は面積上位 {len(feats)} 窪地だけ"
             f"（最小 {min_listed:.0f} m²、全 {total_pits} 窪地）。"
-            f"--min-area-m2 {min_area_m2:.0f} はそれより小さいので条件を満たす"
-            f"窪地が漏れる。--min-area-m2 を {min_listed:.0f} 以上にするか、"
-            "scripts/33 の FLOW_POUR_POINT_MAX_COUNT を増やして越流点を焼き直す。")
+            f"--min-area-m2 {min_area_m2:.0f} はそれ以下なので条件を満たす窪地が"
+            f"漏れる（同着も含む）。--min-area-m2 を {min_listed:.0f} より大きく"
+            "するか、scripts/33 の FLOW_POUR_POINT_MAX_COUNT を増やして越流点を"
+            "焼き直す。")
 
 
 def main() -> int:
