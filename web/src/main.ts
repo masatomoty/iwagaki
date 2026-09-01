@@ -16,7 +16,10 @@ import type { Catalog } from './domain/catalog'
 import type { TideSeries } from './domain/tideSeries'
 import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
 import { comparisonPair, resolveSurface } from './domain/terrain'
-import { resolveFlow } from './domain/flow'
+import {
+  basinAt, catchmentOf, catchmentSummary, indexFlowBasins, resolveFlow,
+  resolveFlowBasins, type FlowBasins,
+} from './domain/flow'
 import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
               TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
@@ -33,6 +36,7 @@ import type { PlateauTiles } from './three/plateauTiles'
 // 「objects.geojson のパースコストは 3 ms、遅延ロードの往復が 568 ms」）
 import { createRailwayLine, type RailwayLine } from './three/railwayLine'
 import { createPourPoints, type PourPoints } from './three/pourPoints'
+import { createCatchmentLayer, type CatchmentLayer } from './three/catchmentLayer'
 import { createCoverageOutline, SemanticsMesh } from './three/semanticsMesh'
 import { TerrainTiles } from './three/terrainTiles'
 import { FOV_Y_DEG, type Viewer } from './three/viewer'
@@ -483,6 +487,70 @@ async function boot() {
     }
   }
 
+  /**
+   * 部分流域ポリゴン（`catalog.flow.basins`、highres 150 kB 程度）。
+   * **水みちモードに入って初めて引く**（普段は要らない）。クリックすると
+   * その地点の集水域（当たったリーフ＋上流の全リーフ）をハイライトする。
+   */
+  let catchment: CatchmentLayer | undefined
+  let flowBasins: FlowBasins | undefined
+  let flowBasinsLoading = false
+  async function loadFlowBasins() {
+    const a = resolveFlowBasins(catalog.flow)
+    if (!a?.url || flowBasins || flowBasinsLoading) return
+    flowBasinsLoading = true
+    try {
+      const b = await scheduler.submit({ key: 'flow-basins', url: a.url, cls: 'prefetch' })
+      flowBasins = indexFlowBasins(JSON.parse(new TextDecoder().decode(b)))
+      catchment = createCatchmentLayer(frame, geoid)
+      viewer.world.add(catchment.object)
+      // 既に流域が選ばれていれば（モード復帰など）描き直す
+      applyCatchment(store.state.selectedCatchment?.basinId)
+      refresh()
+    } catch {
+      // 表示の補助。取れなければクリックは地物選択にフォールバックする
+    } finally {
+      flowBasinsLoading = false
+    }
+  }
+
+  /** basin id からハイライトを張り直す（`flowBasins` 未ロードなら何もしない）。 */
+  function applyCatchment(rootId: number | undefined) {
+    if (!catchment || !flowBasins) return
+    if (rootId === undefined) { catchment.setCatchment(null); return }
+    const feats = [...catchmentOf(flowBasins, rootId)]
+      .map((id) => flowBasins!.byId.get(id))
+      .filter((f): f is NonNullable<typeof f> => !!f)
+    catchment.setCatchment(feats)
+  }
+
+  /** 「水みち」モードでの地図クリック → 集水域を選ぶ。当たらなければ false。 */
+  function pickCatchment(clientX: number, clientY: number): boolean {
+    if (!flowBasins) return false
+    const r = viewer.canvas.getBoundingClientRect()
+    const p = viewer.unproject(clientX - r.left, clientY - r.top, geoid)
+    if (!p) return false
+    const id = basinAt(flowBasins, p[0], p[1])
+    if (id === undefined) {
+      // 流域に当たらなかった（水面・AOI 外など）。集水域の選択は畳んだうえで
+      // `false` を返し、クリックは地物選択にフォールバックさせる
+      if (store.state.selectedCatchment) store.set({ selectedCatchment: undefined })
+      applyCatchment(undefined)
+      return false
+    }
+    const ids = catchmentOf(flowBasins, id)
+    const s = catchmentSummary(flowBasins, ids)
+    store.set({
+      selected: undefined,
+      selectedCatchment: {
+        basinId: id, areaHa: s.areaHa, maxAccumCells: s.maxAccumCells,
+        maxAccumM2: s.maxAccumM2, edgeTruncated: s.edgeTruncated, pit: s.pit,
+      },
+    })
+    applyCatchment(id)
+    return true
+  }
+
   // ---- 断面 ---------------------------------------------------------------
   //
   // 3D の俯瞰では起伏 0〜3 m が潰れて読めない。測線に沿って横から見る。
@@ -575,7 +643,10 @@ async function boot() {
       secSeries = []; secLine = null
     }
     // 選択を外す。地図の強調も一緒に消える
-    if (t.id === 'insp-close') store.set({ selected: undefined })
+    if (t.id === 'insp-close') {
+      store.set({ selected: undefined, selectedCatchment: undefined })
+      applyCatchment(undefined)
+    }
     // 視点はメニューに出さない。キー 1-6 とビューキューブが担う
     //（`bindCameraKeys` と `attachViewCube`）
     if (t.id === 'sec-fit') {
@@ -756,6 +827,9 @@ async function boot() {
       pourPoints.object.visible = s.layers.pourPoints
       pourPoints.setExaggeration(s.exaggeration)
     }
+    if (catchment) {
+      catchment.object.visible = s.terrainPaint === 'catchment' && !!s.selectedCatchment
+    }
     plateau?.setVisible(s.layers.plateau && s.exaggeration === 1)
     // 浸水深で塗っているときの潮位。**uniform 1 個**で、再取得も作り直しも起きない
     plateau?.setWaterLevel(s.waterLevel)
@@ -825,7 +899,13 @@ async function boot() {
   // 地物のクリック選択（deck.gl の pickable の置き換え）。
   // 断面の作図中は測線の端点を取りに来ているので、選択には使わない
   viewer.canvas.addEventListener('click', (e) => {
-    if (!semantics || !store.state.layers.semantics || sectionTool.isActive) return
+    if (sectionTool.isActive) return
+    // 「水みち」モードのクリックは集水域の抽出に寄せる（`catalog.flow.basins` が
+    // 当たれば）。当たらなかった場合だけ地物選択にフォールバックする
+    if (store.state.terrainPaint === 'catchment' && pickCatchment(e.clientX, e.clientY)) {
+      return
+    }
+    if (!semantics || !store.state.layers.semantics) return
     const r = viewer.canvas.getBoundingClientRect()
     const ndc = new Vector2(
       ((e.clientX - r.left) / r.width) * 2 - 1,
@@ -885,10 +965,23 @@ async function boot() {
     semantics?.setHighlight({ selected: store.state.selected?.gmlId, hovered })
   })
 
+  let catchmentMode = false
   store.subscribe((s) => {
     if (s.layers.pointcloud && !pcStarted) void startPointCloud()
     if (s.layers.plateau) void ensurePlateau()
     syncCoverageDefault()
+    // 「水みち」モードに入ったら流域ポリゴンを引く。外れたら選択と面を片づける
+    const wantCatchment = s.terrainPaint === 'catchment'
+    if (wantCatchment !== catchmentMode) {
+      catchmentMode = wantCatchment
+      if (wantCatchment) {
+        void loadFlowBasins()
+        applyCatchment(s.selectedCatchment?.basinId)
+      } else {
+        applyCatchment(undefined)
+        if (s.selectedCatchment) store.set({ selectedCatchment: undefined })
+      }
+    }
     refresh()
   })
 

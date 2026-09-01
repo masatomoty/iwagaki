@@ -134,7 +134,7 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
   { id: 'catchment', label: '水みち',
     hint: '一様降雨で地表流がどこに集まるか（集水セル数の log）。'
       + '潮位は使わない。地形のみで、浸透・管路・実際の降雨分布は含まない。'
-      + '窪地は水色で出る（FARR 取り込み）' },
+      + '窪地は水色で出る。地図をクリックするとその地点の集水域を面で出す（FARR 取り込み）' },
 ]
 
 /**
@@ -242,6 +242,10 @@ function legendHtml(
     if (s.layers.pourPoints && s.catalog.flow?.pits) {
       rows.push('<div><i style="background:#70bfcc"></i>▽ 越流点'
         + '<span class="sub"> 窪地から水が溢れ出す鞍部（面積上位のみ）</span></div>')
+    }
+    if (s.catalog.flow?.basins) {
+      rows.push('<div><i style="background:#5ab7c9"></i>集水域'
+        + '<span class="sub"> 地図をクリックした地点の上流</span></div>')
     }
     rows.push('<div class="sub">一様降雨・地形のみ。浸透・管路・実際の降雨分布は'
       + '含まない。潮位判定には混ぜていない（FARR 取り込み）</div>')

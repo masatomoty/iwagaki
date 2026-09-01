@@ -14,8 +14,9 @@ import pytest
 
 from iwagaki.flow import (d8_accumulation, d8_flow_direction,
                           dinf_accumulation, dinf_flow_direction,
-                          edge_truncated_fraction, label_pits, pit_pour_points,
-                          pit_records, priority_flood_fill, route_with_collar)
+                          edge_truncated_fraction, flow_basins, label_pits,
+                          pit_pour_points, pit_records, priority_flood_fill,
+                          route_with_collar)
 
 
 def test_fill_is_monotone_and_no_pit_on_slope():
@@ -256,6 +257,108 @@ def test_collar_routes_edge_flow_into_sea_instead_of_truncating():
     assert with_collar.term_edge.mean() < without.term_edge.mean()
     # edge_truncated_fraction（collar 無しの軽量指標）も「全部切れている」を返す
     assert edge_truncated_fraction(priority_flood_fill(aoi)) == pytest.approx(1.0)
+
+
+def _y_valley(h=26, w=25):
+    """Y 字谷の合成 DEM。左枝・右枝が合流点 (row 12, col 12) で 1 本になり、
+    トランクが南（行が増える向き）へ下って map 外へ抜ける。スケルトンからの
+    直交距離を強く効かせて、丘面はかならずスケルトンへ排水する。"""
+    yy, xx = np.mgrid[0:h, 0:w].astype(float)
+
+    def seg(px, py, ax, ay, bx, by):
+        vx, vy = bx - ax, by - ay
+        t = np.clip(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy), 0.0, 1.0)
+        cx, cy = ax + t * vx, ay + t * vy
+        return np.hypot(px - cx, py - cy), t
+
+    jx, jy = 12.0, 12.0
+    dt, tt = seg(xx, yy, jx, jy, jx, h - 1.0)          # トランク: 合流点→南端
+    dl, tl = seg(xx, yy, 3.0, 1.0, jx, jy)             # 左枝
+    dr, tr = seg(xx, yy, w - 4.0, 1.0, jx, jy)         # 右枝
+    trunk_len = h - 1.0 - jy
+    along = np.select(
+        [(dt <= dl) & (dt <= dr), dl <= dr],
+        [(1.0 - tt) * trunk_len,
+         trunk_len + (1.0 - tl) * 14.0],
+        trunk_len + (1.0 - tr) * 14.0)
+    dmin = np.minimum(dt, np.minimum(dl, dr))
+    return along * 1.0 + dmin * 5.0
+
+
+def test_flow_basins_y_valley_splits_into_three():
+    dem = _y_valley()
+    h, w = dem.shape
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    di = dinf_flow_direction(filled)
+    accum, term_edge = dinf_accumulation(di, valid)
+
+    b = flow_basins(di, valid, accum, channel_min_accum=50.0, term_edge=term_edge)
+    assert b.n_basins == 3
+
+    roots = [i for i in range(1, 4) if int(b.downstream[i]) == -1]
+    assert len(roots) == 1
+    trunk = roots[0]
+    # 左右の枝はトランクへ流れ込む
+    assert sorted(int(b.downstream[i]) for i in range(1, 4) if i != trunk) == [trunk, trunk]
+    # トランクの上流をたどると全流域、枝の上流は自分だけ
+    assert b.upstream_of(trunk) == {1, 2, 3}
+    for i in range(1, 4):
+        if i != trunk:
+            assert b.upstream_of(i) == {i}
+    # トランクの吐口は南端付近で、map 外へ抜けるので端で切れている
+    assert int(b.outlet_rc[trunk][0]) >= h - 3
+    assert bool(b.edge_truncated[trunk])
+    # ラベルは有効セルを覆い、nodata は 0
+    assert (b.labels[valid] > 0).all()
+
+
+def test_flow_basins_single_valley_is_one_basin():
+    # 合流の無い 1 本の谷。閾値を越える本流はできるが合流点が無い -> 1 流域。
+    dem = (30.0 - np.arange(20)[:, None]) + np.abs(np.arange(15) - 7)[None, :] * 4.0
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    di = dinf_flow_direction(filled)
+    accum, _ = dinf_accumulation(di, valid)
+    b = flow_basins(di, valid, accum, channel_min_accum=60.0)
+    assert b.n_basins == 1
+    assert int(b.downstream[1]) == -1
+    assert b.upstream_of(1) == {1}
+
+
+def test_flow_basins_coarsen_by_count_and_area():
+    dem = _y_valley()
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    di = dinf_flow_direction(filled)
+    accum, _ = dinf_accumulation(di, valid)
+    # 低い本流閾値で細切れ -> max_basins で 2 個まで畳む
+    fine = flow_basins(di, valid, accum, channel_min_accum=12.0)
+    assert fine.n_basins > 2
+    capped = flow_basins(di, valid, accum, channel_min_accum=12.0, max_basins=2)
+    assert capped.n_basins == 2
+    assert sorted(np.unique(capped.labels[valid]).tolist()) == [1, 2]
+    # 巨大な下限を与えると全部トランク 1 個に畳まれる
+    one = flow_basins(di, valid, accum, channel_min_accum=50.0,
+                      min_basin_cells=10_000)
+    assert one.n_basins == 1
+    assert (one.labels[valid] == 1).all()
+
+
+def test_flow_basins_collar_clip_flags_truncation():
+    # 北から南へ一様に下る斜面を collar で北へ延ばす。AOI 北端の流域は collar 側に
+    # 上流を持つので edge_truncated が立つ。
+    h = w = 10
+    c = 4
+    aoi = (100.0 - np.arange(h)[:, None]) + np.zeros((h, w))
+    yy = np.arange(h + 2 * c)[:, None] - c
+    collar = (100.0 - yy) + np.zeros((h + 2 * c, w + 2 * c))
+    r = route_with_collar(aoi, collar.copy(), c, want_basins=True,
+                          basin_channel_min_accum=1e9)  # 本流なし -> 端終端で分割
+    assert r.basins is not None
+    assert r.basins.n_basins >= 1
+    # 端で切れている流域が少なくとも 1 つ（collar へ上流が延びる or 南で map 外）
+    assert bool(r.basins.edge_truncated.any())
 
 
 def test_d8_single_outlet_plane():

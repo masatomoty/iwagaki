@@ -218,6 +218,47 @@ def flow(tiles: dict | None, to_wgs) -> dict:
                 "count": len(feats), "condition": prefer}
     if pits:
         out["pits"] = pits
+
+    # 部分流域ポリゴン（「クリックで集水域抽出」用）。**highres の 1 本だけ配信**。
+    # viewer は properties.downstream_basin_id を逆にたどって上流の全リーフを union する。
+    bsrc = OUT / f"flow_basins_{prefer}.geojson" if prefer else None
+    if bsrc and bsrc.exists():
+        raw = json.loads(bsrc.read_text())
+
+        def to_ll(ring):
+            return [[round(v, 7) for v in to_wgs.transform(x, y)] for x, y in ring]
+
+        feats = []
+        for f in raw["features"]:
+            g = f["geometry"]
+            if g["type"] == "Polygon":
+                g = {"type": "Polygon", "coordinates": [to_ll(r) for r in g["coordinates"]]}
+            elif g["type"] == "MultiPolygon":
+                g = {"type": "MultiPolygon",
+                     "coordinates": [[to_ll(r) for r in poly] for poly in g["coordinates"]]}
+            else:
+                continue
+            props = dict(f["properties"])
+            if "outlet" in props:
+                ox, oy = to_wgs.transform(*props["outlet"])
+                props["outlet"] = [round(ox, 7), round(oy, 7)]
+            feats.append({"type": "Feature", "geometry": g, "properties": props})
+        fc = {
+            "type": "FeatureCollection",
+            "name": "flow_basins",
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+            "properties": {**raw.get("properties", {}),
+                           "note": "地表流の部分流域。潮位非依存。クリックした流域＋"
+                                   "downstream_basin_id を逆にたどった上流の全リーフが集水域"},
+            "features": feats,
+        }
+        p = WEB_DATA / asset_name("flow_basins.geojson")
+        p.write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")))
+        name = publish_file(p)
+        q = WEB_DATA / name
+        print(f"{name}: {len(feats)} 部分流域, {q.stat().st_size / 1e3:.1f} kB")
+        out["basins"] = {"url": f"data/{name}", "bytes": q.stat().st_size,
+                         "count": len(feats), "condition": prefer}
     return out
 
 

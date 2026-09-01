@@ -32,6 +32,20 @@ export interface FlowPitsAsset {
   condition: string
 }
 
+/**
+ * 地表流の**部分流域**ポリゴン（`catalog.flow.basins`）。GeoJSON Polygon/MultiPolygon、
+ * WGS84。「クリックで集水域抽出」用。各 feature は `properties.downstream_basin_id`
+ * を持ち、viewer はそれを逆にたどって「クリックした流域＋上流の全リーフ」を union する
+ * （`domain/flow.ts` の `catchmentOf`）。**潮位非依存。浸水判定には混ぜない。**
+ */
+export interface FlowBasinsAsset {
+  url: string
+  bytes: number
+  count: number
+  /** どの地形条件の流域か（既定 `highres`）*/
+  condition: string
+}
+
 export interface Catalog {
   version: number
   aoi: {
@@ -94,12 +108,14 @@ export interface Catalog {
    *   `accum_max_cells` は R の log を戻すのに要る（`three/floodMaterial.ts`）。
    * - `pits` = 海に通じない窪地の**越流点マーカー**（面積上位のみ・highres 1 本）。
    *   既存の「窪地（逆流で…）」レイヤとは別物（あちらは潮位依存）。
+   * - `basins` = 地表流の**部分流域**ポリゴン（highres 1 本）。「クリックで集水域抽出」用。
    *
    * タイルが無い配信物では鍵ごと無い。
    */
   flow?: {
     pits?: FlowPitsAsset
-    [condition: string]: FlowAsset | FlowPitsAsset | undefined
+    basins?: FlowBasinsAsset
+    [condition: string]: FlowAsset | FlowPitsAsset | FlowBasinsAsset | undefined
   }
   plateau: Record<string, { url: string; b3dm_count: number; bytes: number
                             region_min_height_ellipsoidal_m: number }>

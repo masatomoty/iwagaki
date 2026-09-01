@@ -814,6 +814,39 @@ baseline / control では下げ幅が小さい（0.5 m 条件は線状の集水�
   `FLOW_POUR_POINT_MIN_AREA_M2` = 25 m² 以上を上位 60 件）。`scripts/83` が WGS84 に
   起こして `catalog.flow.pits`（`highres` 1 本）。
 
+### 部分流域への分割（クリックで集水域抽出・最終段）**[実測]**（2026-09-01）
+
+viewer で「地図をクリックした地点の上流を面で出す」ための事前分割
+（`src/iwagaki/flow.py` の `flow_basins`、`scripts/33` の `flow_basins_<条件>.geojson`、
+`scripts/83` の `catalog.flow.basins`、`docs/web_design.md`「クリックで集水域を抽出する」）。
+
+- **主 receiver の流下木。** D-infinity は 1 セル最大 2 receiver だが、**配分の
+  大きい方**（`prop1 >= prop2` なら `receiver1`）だけを主 receiver として 1 出辺の
+  森を作る。1 出辺なので再合流が起きず、合流点（＝ある本流セルへ 2 本以上の本流が
+  流れ込む点）が木の分岐そのものになる。
+- **本流の合流点で切る。** 本流セル = `accum >= FLOW_BASIN_CHANNEL_MIN_AREA_M2 /
+  セル面積`（既定 3,000 m²、解像度非依存）。合流点へ流れ込む本流リンクごとに別の
+  リーフ流域にし、合流点セル自身は下流側の流域に属す。各リーフに下流のリーフ id
+  （`downstream_basin_id`、AOI 内の終端は −1）を持たせる。viewer はこれを逆に
+  たどって「クリックしたリーフ＋上流の全リーフ」を union する。
+- **細かすぎる流域は隣へ併合。** セル数 `< FLOW_BASIN_MIN_AREA_M2`（既定 1,500 m²）
+  の流域、および流域数が `FLOW_BASIN_MAX_COUNT`（既定 240）を超えているぶんは、
+  **共有境界がいちばん長い隣接流域**へ吸収する（吐口の集水が小さい順）。海際の
+  1〜数セルの終端破片も、数値地形の平滑な収束域で D-infinity の分流→再合流が作る
+  擬似合流点も、これで畳める。
+- **collar と clip。** ルーティングは `route_with_collar(..., want_basins=True)` で
+  collar グリッド全体を解いてから AOI 矩形に clip する。集水域が collar 側／AOI 外へ
+  延びる流域は `edge_truncated` を立てる（`area_ha` は AOI 内のセルだけ。
+  `max_accum` は再クリップせず collar 込みの真の上流サイズを残す）。
+- **書き出し。** `scripts/33` が EPSG:6674 の簡略化ポリゴン（`FLOW_BASIN_SIMPLIFY_M`
+  = 2 m。`area_ha` はセル数由来の厳密値でポリゴン面積ではない）＋ `basin_id` /
+  `downstream_basin_id` / `max_accum_cells` / `edge_truncated` / 越流点情報。
+  `scripts/83` が WGS84 に起こして `catalog.flow.basins`（`highres` 1 本。
+  吉原で ~170 個・168 kB）。**断面ツールへの主流路接続は別 PR。**
+
+流域数（collar 有り・D-infinity・highres）: 吉原 ~170、西舞鶴・東舞鶴は
+`flow_accum_summary.json` の `basin_count` 参照。数値は `docs/results.md`。
+
 ---
 
 ## 標高成果の世代 **[未確認]**

@@ -77,6 +77,30 @@ export interface AppState {
    * 強調は `SemanticsMesh.setHighlight()` が色属性だけ書き換えて担う。
    */
   coalesceEnabled: boolean
+  /**
+   * 「水みち」モードで地図をクリックして選んだ**集水域**（クリックしたリーフ流域＋
+   * その上流の全リーフを union したもの。`domain/flow.ts` の `catchmentOf` /
+   * `catchmentSummary`、`catalog.flow.basins`）。**潮位非依存の別オーバーレイ**で
+   * 浸水判定には混ぜない。水みちモードを外すとクリアする（`main.ts`）。
+   */
+  selectedCatchment?: {
+    basinId: number
+    /**
+     * union した全リーフの面積合計 [ha]（セル数由来の厳密値）。
+     * `edgeTruncated` のとき AOI 内に入っているぶんだけ。
+     */
+    areaHa: number
+    /**
+     * 集水域の吐口の集水セル数 / m²（= 上流の広さ）。**collar 込み**なので
+     * `edgeTruncated` のとき `areaHa` より大きいことがある。
+     */
+    maxAccumCells: number
+    maxAccumM2: number
+    /** 集水域が AOI / collar の外へ延びている（切れている）か */
+    edgeTruncated: boolean
+    /** 流出先が海に通じない窪地なら、その越流点 */
+    pit?: { pitId: number; spillElev: number }
+  }
   /** PLATEAU 建物の塗り分け。b3dm には色が無いので属性から与える */
   buildingColor: BuildingColorMode
   /**

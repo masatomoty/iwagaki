@@ -529,10 +529,69 @@ class CollarRouting:
     edge_outlet: np.ndarray
     conservation_ok: bool
     collar_shape: tuple[int, int]
+    #: `want_basins=True`（かつ `method="dinf"`）のときだけ。collar グリッドで
+    #: 分割した部分流域を **AOI 矩形に clip** したもの（`flow_basins`）。AOI 外へ
+    #: 出る／collar 側に上流を持つ流域は `edge_truncated` が立つ。
+    basins: "BasinResult | None" = None
+
+
+def _clip_basins(
+    basins: "BasinResult", row0: int, col0: int, h: int, w: int,
+) -> "BasinResult":
+    """`flow_basins` の結果を `[row0:row0+h, col0:col0+w]` の矩形に切り出す。
+
+    矩形の外にはみ出す流域・吐口が矩形外にある流域は `edge_truncated` を立てる
+    （collar 側に上流／下流があり、AOI では集水域が切れている）。id は詰め直す。
+
+    **`max_accum`（= その流域の集水域の広さ）は再クリップしない。** collar 側の
+    上流ぶんを含んだ真の値を残し、`edge_truncated` の流域では「面（`labels`）は
+    AOI 内だけ・集水サイズは collar 込み」になる。viewer はこの食い違いを
+    インスペクタで断る（`web/src/ui/inspector.ts`、`docs/web_design.md`）。
+
+    併合（`_coarsen_basins`）は clip の**前**に collar グリッド全体で済ませてある。
+    clip で AOI に食い込むだけの縁の破片がいくつか残るが、いずれも
+    `edge_truncated=True`（集水域が AOI 外へ延びている）でマークされる。
+    """
+    lab_big = basins.labels
+    sub = lab_big[row0:row0 + h, col0:col0 + w]
+    present = np.unique(sub)
+    present = present[present > 0]
+    remap = np.zeros(basins.n_basins + 1, dtype="int64")
+    remap[present] = np.arange(1, present.size + 1)
+    k = int(present.size)
+
+    total = np.bincount(lab_big.reshape(-1), minlength=basins.n_basins + 1)
+    inside = np.bincount(sub.reshape(-1), minlength=basins.n_basins + 1)
+
+    new_downstream = np.full(k + 1, -1, dtype="int64")
+    new_outlet = np.full((k + 1, 2), -1, dtype="int64")
+    new_maxacc = np.zeros(k + 1, dtype="float64")
+    new_edge = np.zeros(k + 1, dtype=bool)
+    for old in present.tolist():
+        nb = int(remap[old])
+        d = int(basins.downstream[old])
+        new_downstream[nb] = int(remap[d]) if d != -1 and remap[d] > 0 else -1
+        new_maxacc[nb] = float(basins.max_accum[old])
+        orow, ocol = (int(v) for v in basins.outlet_rc[old])
+        in_clip = row0 <= orow < row0 + h and col0 <= ocol < col0 + w
+        if in_clip:
+            new_outlet[nb] = (orow - row0, ocol - col0)
+        new_edge[nb] = (bool(basins.edge_truncated[old])
+                        or int(inside[old]) < int(total[old]) or not in_clip)
+    return BasinResult(
+        labels=remap[sub].astype("int32"),
+        downstream=new_downstream.astype("int32"),
+        outlet_rc=new_outlet.astype("int32"),
+        max_accum=new_maxacc,
+        edge_truncated=new_edge,
+        n_basins=k,
+    )
 
 
 def route_with_collar(
     dem: np.ndarray, collar_dem: np.ndarray, collar: int, method: str = "dinf",
+    *, want_basins: bool = False, basin_channel_min_accum: float = 0.0,
+    basin_min_cells: int = 0, basin_max_basins: int = 0,
 ) -> CollarRouting:
     """`dem`（AOI）の外周に `collar_dem` のバッファ帯を張ってから Priority-Flood +
     flow accumulation を回し、AOI 矩形に clip した集水・端フラグを返す。
@@ -584,6 +643,16 @@ def route_with_collar(
     n_valid = int(valid_big.sum())
     term_sum = float(accum_big.reshape(-1)[terminal].sum())
 
+    basins = None
+    if want_basins:
+        if method != "dinf":
+            raise ValueError("want_basins は method='dinf' のときだけ使える")
+        big_basins = flow_basins(
+            fd, valid_big, accum_big, channel_min_accum=basin_channel_min_accum,
+            min_basin_cells=basin_min_cells, max_basins=basin_max_basins,
+            term_edge=term_big)
+        basins = _clip_basins(big_basins, c, c, h, w)
+
     sl = (slice(c, c + h), slice(c, c + w))
     return CollarRouting(
         filled=filled_big[sl].copy(),
@@ -593,6 +662,7 @@ def route_with_collar(
         edge_outlet=edge_big[sl].copy(),
         conservation_ok=abs(term_sum - n_valid) <= max(0.5, 1e-6 * n_valid),
         collar_shape=big.shape,
+        basins=basins,
     )
 
 
@@ -616,6 +686,287 @@ def edge_truncated_fraction(filled: np.ndarray, method: str = "dinf") -> float:
     term_edge = term.reshape(-1)
     nv = int(flat_valid.sum())
     return float(term_edge[flat_valid].mean()) if nv else 0.0
+
+
+# --- 部分流域への分割（クリックで集水域抽出。FARR 取り込み・最終段）----------------
+#
+# viewer は「地図をクリックした地点の上流（集水域）を面で出す」。receiver グリッド
+# （D-inf は receiver1/receiver2/prop1/prop2 の 4 枚）を 0.5m 全域でクライアントへ
+# 配信するのは非現実的なので、解析側で **主 receiver（配分の大きい方）の流下木**を
+# 作り、本流セル（accum >= 閾値）の合流点で切って数十〜数百個のリーフ部分流域に
+# する。各リーフに「下流のリーフ」を持たせて配信し（`downstream`）、viewer は
+# それを逆にたどって「クリックしたリーフ＋その上流の全リーフ」を union する。
+# `docs/data.md` §7 / `docs/web_design.md`「クリックで集水域を抽出する」。
+
+
+@dataclass(frozen=True)
+class BasinResult:
+    """`flow_basins` の結果。id は 1..n_basins（0 = nodata / 未割当）。"""
+    labels: np.ndarray          # int32 (h, w), セルごとのリーフ流域 id
+    downstream: np.ndarray      # int32 (n_basins + 1,), downstream[b] = b の下流流域 id（終端は -1）
+    outlet_rc: np.ndarray       # int32 (n_basins + 1, 2), 各流域の吐口セル (row, col)（未割当は -1）
+    max_accum: np.ndarray       # float64 (n_basins + 1,), 吐口の集水セル数（= その流域の集水域の広さ）。
+    #                             _clip_basins は **これを再クリップしない** ので、collar 側に
+    #                             上流を持つ流域では collar 込みの真の上流サイズが残る（`edge_truncated`）
+    edge_truncated: np.ndarray  # bool (n_basins + 1,), 吐口の流出が AOI/collar 端で切れているか
+    n_basins: int
+
+    def upstream_of(self, basin_id: int) -> "set[int]":
+        """`basin_id` とその上流すべての流域 id（`downstream` を逆にたどる）。
+
+        viewer の `catchmentOf` と同じ木を Python 側で確認するためのもの
+        （`tests/test_flow_accum.py`）。"""
+        children: dict[int, list[int]] = {}
+        for b in range(1, self.n_basins + 1):
+            d = int(self.downstream[b])
+            if d != -1:
+                children.setdefault(d, []).append(b)
+        out: set[int] = set()
+        stack = [int(basin_id)]
+        while stack:
+            b = stack.pop()
+            if b in out:
+                continue
+            out.add(b)
+            stack.extend(children.get(b, ()))
+        return out
+
+
+def flow_basins(
+    dinf: DinfResult,
+    valid: np.ndarray,
+    accum: np.ndarray,
+    channel_min_accum: float,
+    min_basin_cells: int = 0,
+    max_basins: int = 0,
+    term_edge: np.ndarray | None = None,
+) -> BasinResult:
+    """主 receiver の流下木を本流の合流点で切って部分流域に分割する。
+
+    D-infinity は 1 セル最大 2 receiver だが、ここでは **配分の大きい方
+    （`prop1 >= prop2` なら `receiver1`）だけを主 receiver として木を作る**。
+    この木を「本流セル（`accum >= channel_min_accum`）」の合流点
+    （本流ドナーを 2 つ以上持つ本流セル）で切り、各セグメントの上流集水を
+    1 つのリーフ流域にまとめる。
+
+    - `accum`: `dinf_accumulation` の集水セル数（`dinf` と同じグリッド）。
+    - `channel_min_accum`: 本流とみなす集水セル数の下限（`scripts/33` が m² から換算）。
+    - `min_basin_cells`: セル数がこれ未満のリーフ流域は下流へ吸収する
+      （配信するポリゴン数を抑える。0 で無効）。
+    - `term_edge`: `dinf_accumulation` / `route_with_collar` が返す端流出割合。
+      吐口セルの値 > 0.5 の流域に `edge_truncated` を立てる。省略時は全 False。
+
+    返す `downstream` はリーフ流域どうしの下流関係。viewer はこれを逆にたどって
+    「クリック地点の上流の全リーフ」を union する（`docs/web_design.md`）。
+    """
+    valid = np.asarray(valid, dtype=bool)
+    h, w = valid.shape
+    n = h * w
+    flat_valid = valid.reshape(-1)
+    r1 = dinf.receiver1.reshape(-1).astype("int64")
+    r2 = dinf.receiver2.reshape(-1).astype("int64")
+    p1 = dinf.prop1.reshape(-1)
+    p2 = dinf.prop2.reshape(-1)
+    ar = np.arange(n, dtype="int64")
+    acc = np.asarray(accum, dtype="float64").reshape(-1)
+
+    # 主 receiver = 配分の大きい方。終端（自分自身 or nodata 受け）は自分に畳む
+    main = np.where(p2 > p1, r2, r1)
+    terminal = flat_valid & ((main == ar) | ~flat_valid[main])
+    main = np.where(terminal, ar, main)
+
+    channel = flat_valid & (acc >= float(channel_min_accum))
+    chan_src = ar[channel & ~terminal]
+    donor = np.zeros(n, dtype="int64")
+    np.add.at(donor, main[chan_src], 1)
+    junction = channel & (donor >= 2)
+
+    # 木を切るのは「本流セルが合流点へ流れ込む辺」。合流点へ入る各支流リンクが
+    # 別々の流域になり（左右の枝が分かれる）、合流点セル自身は下流側の流域に属す。
+    main_is_junction = np.zeros(n, dtype=bool)
+    mv = chan_src  # 本流かつ非終端のセル
+    main_is_junction[mv] = junction[main[mv]]
+    is_outlet = terminal | main_is_junction
+
+    # 各セルの吐口 = 下流へ主 receiver をたどって最初に当たる is_outlet セル。
+    # 充填標高の昇順（下流が先）に 1 パス。`dinf.order` は降順なので反転して回す。
+    # 4M セルの Python ループなので `array.array`（`dinf_accumulation` と同じ手）。
+    order_a = array.array("i")
+    order_a.frombytes(np.ascontiguousarray(dinf.order, dtype="int32").tobytes())
+    main_a = array.array("i")
+    main_a.frombytes(main.astype("int32").tobytes())
+    outlet_a = array.array("b")
+    outlet_a.frombytes(is_outlet.astype("int8").tobytes())
+    stop_a = array.array("i")
+    stop_a.frombytes(ar.astype("int32").tobytes())
+    for c in reversed(order_a):
+        if outlet_a[c]:
+            stop_a[c] = c
+        else:
+            mc = main_a[c]
+            if mc != c:
+                stop_a[c] = stop_a[mc]
+    stop = np.frombuffer(stop_a, dtype="int32").astype("int64")
+
+    outlets = np.unique(stop[flat_valid])
+    remap = np.zeros(n, dtype="int64")
+    remap[outlets] = np.arange(1, outlets.size + 1)
+    labels_flat = np.where(flat_valid, remap[stop], 0)
+    nb = int(outlets.size)
+
+    downstream = np.full(nb + 1, -1, dtype="int64")
+    for b in range(1, nb + 1):
+        o = int(outlets[b - 1])
+        if not terminal[o]:
+            downstream[b] = int(labels_flat[main[o]])
+
+    max_accum = np.zeros(nb + 1, dtype="float64")
+    np.maximum.at(max_accum, labels_flat[flat_valid], acc[flat_valid])
+
+    if nb > 1 and ((min_basin_cells and min_basin_cells > 1) or max_basins):
+        labels_flat, downstream, outlets, max_accum = _coarsen_basins(
+            labels_flat, downstream, outlets, max_accum, flat_valid,
+            h, w, int(min_basin_cells), int(max_basins))
+        nb = int(outlets.size)
+
+    edge = np.zeros(nb + 1, dtype=bool)
+    if term_edge is not None:
+        te = np.asarray(term_edge, dtype="float64").reshape(-1)
+        edge[1:] = te[outlets] > 0.5
+
+    outlet_rc = np.full((nb + 1, 2), -1, dtype="int64")
+    outlet_rc[1:, 0] = outlets // w
+    outlet_rc[1:, 1] = outlets % w
+
+    return BasinResult(
+        labels=labels_flat.reshape(h, w).astype("int32"),
+        downstream=downstream.astype("int32"),
+        outlet_rc=outlet_rc.astype("int32"),
+        max_accum=max_accum,
+        edge_truncated=edge,
+        n_basins=nb,
+    )
+
+
+def _basin_adjacency(labels_flat: np.ndarray, h: int, w: int, nb: int) -> dict:
+    """リーフ流域 id の隣接（共有境界の長さ）。`{a: {b: 共有辺数}}`（a < b 双方向）。"""
+    lab = labels_flat.reshape(h, w)
+    adj: dict[int, dict[int, int]] = {b: {} for b in range(1, nb + 1)}
+    mult = nb + 1
+    for a_arr, b_arr in ((lab[:, :-1], lab[:, 1:]), (lab[:-1, :], lab[1:, :])):
+        a = a_arr.reshape(-1)
+        b = b_arr.reshape(-1)
+        m = (a != b) & (a > 0) & (b > 0)
+        lo = np.minimum(a[m], b[m]).astype("int64")
+        hi = np.maximum(a[m], b[m]).astype("int64")
+        keys, counts = np.unique(lo * mult + hi, return_counts=True)
+        for k, c in zip(keys.tolist(), counts.tolist()):
+            x, y = divmod(k, mult)
+            adj[x][y] = adj[x].get(y, 0) + c
+            adj[y][x] = adj[y].get(x, 0) + c
+    return adj
+
+
+def _coarsen_basins(
+    labels_flat: np.ndarray, downstream: np.ndarray, outlets: np.ndarray,
+    max_accum: np.ndarray, flat_valid: np.ndarray, h: int, w: int,
+    min_cells: int, max_basins: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """細かすぎるリーフ流域を **隣接する流域へ併合**して数を減らす。
+
+    毎回「セル数 < `min_cells` の流域（最優先）／`max_basins` を超えているなら
+    吐口の集水がいちばん小さい流域」を、**共有境界がいちばん長い隣接流域**へ
+    併合する。これで海際の 1〜数セルの終端破片も、数値地形の平滑な収束域で
+    D-infinity の分流→再合流が作る擬似合流点も、まとめて畳める
+    （`docs/data.md` §7、`docs/web_design.md`）。id は連番に詰め直す。
+
+    - `min_cells`: セル数がこれ未満の流域は隣へ併合する（0 で無効）。
+    - `max_basins`: 生存流域数がこれ以下になるまで併合を続ける（0 で無効）。
+    """
+    import heapq
+
+    nb = int(outlets.size)
+    cnt = np.bincount(labels_flat[flat_valid], minlength=nb + 1).astype("int64")
+    ds = downstream.astype("int64").copy()
+    macc = max_accum.astype("float64").copy()
+    alive = np.ones(nb + 1, dtype=bool)
+    alive[0] = False
+    redirect = np.arange(nb + 1, dtype="int64")
+    adj = _basin_adjacency(labels_flat, h, w, nb)
+    children: dict[int, list[int]] = {}
+    for b in range(1, nb + 1):
+        d = int(ds[b])
+        if d != -1:
+            children.setdefault(d, []).append(b)
+
+    target = max_basins if max_basins else 0
+    n_alive = nb
+    gen = np.zeros(nb + 1, dtype="int64")
+
+    def entry(b: int) -> tuple:
+        forced = bool(min_cells) and cnt[b] < min_cells
+        return (0 if forced else 1,
+                float(cnt[b]) if forced else float(macc[b]), int(gen[b]), b)
+
+    heap = [entry(b) for b in range(1, nb + 1)]
+    heapq.heapify(heap)
+
+    while heap:
+        f, _metric, g, b = heapq.heappop(heap)
+        if not alive[b] or g != gen[b]:
+            continue
+        forced = bool(min_cells) and cnt[b] < min_cells
+        if not forced and (target == 0 or n_alive <= target):
+            continue
+        nbrs = [(bord, macc[q], q) for q, bord in adj.get(b, {}).items() if alive[q]]
+        if not nbrs:
+            continue
+        _b, _m, p = max(nbrs)
+        alive[b] = False
+        redirect[b] = p
+        cnt[p] += cnt[b]
+        macc[p] = max(macc[p], macc[b])
+        for q, bord in adj.pop(b, {}).items():
+            if q == p or not alive[q]:
+                adj.get(q, {}).pop(b, None)
+                continue
+            adj[p][q] = adj[p].get(q, 0) + bord
+            adj[q][p] = adj[q].get(p, 0) + bord
+            adj[q].pop(b, None)
+        adj.get(p, {}).pop(b, None)
+        for ch in children.get(b, ()):
+            ds[ch] = p
+            children.setdefault(p, []).append(ch)
+        n_alive -= 1
+        gen[p] += 1
+        heapq.heappush(heap, entry(p))
+
+    survivors = [b for b in range(1, nb + 1) if alive[b]]
+
+    def root(b: int) -> int:
+        while redirect[b] != b:
+            b = int(redirect[b])
+        return b
+
+    compact = {old: i + 1 for i, old in enumerate(survivors)}
+    lut = np.zeros(nb + 1, dtype="int64")
+    for b in range(1, nb + 1):
+        lut[b] = compact[root(b)]
+    new_labels = np.where(flat_valid, lut[labels_flat], 0)
+    new_outlets = outlets[np.array(survivors, dtype="int64") - 1]
+
+    k = len(survivors)
+    new_ds = np.full(k + 1, -1, dtype="int64")
+    new_macc = np.zeros(k + 1, dtype="float64")
+    for old in survivors:
+        nb_id = compact[old]
+        new_macc[nb_id] = macc[old]
+        d = int(ds[old])
+        if d == -1:
+            continue
+        nd = compact[root(d)]
+        new_ds[nb_id] = -1 if nd == nb_id else nd
+    return new_labels, new_ds, new_outlets, new_macc
 
 
 @dataclass(frozen=True)

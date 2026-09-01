@@ -379,6 +379,19 @@ FLOW_COLLAR_M = 150.0
 #: 上書きできる（`src/iwagaki/flow.py`、`docs/data.md` §7「FARR 取り込み・第 4 段」）。
 FLOW_METHOD = "dinf"
 
+#: 「クリックで集水域抽出」用の部分流域分割（`src/iwagaki/flow.py` の `flow_basins`、
+#: `scripts/33` / `scripts/83`、`docs/web_design.md`「クリックで集水域を抽出する」）。
+#: - `CHANNEL_MIN_AREA_M2`: 本流とみなす集水面積の下限。ここで木を切って部分流域にする。
+#:   小さいほど流域数が増える（配信ポリゴンが増える）。m² 指定なので解像度非依存。
+#: - `MIN_AREA_M2`: これ未満のリーフ流域は下流へ吸収する（海際の破片を畳む）。
+#: - `SIMPLIFY_M`: 配信ポリゴンの単純化許容（`scripts/33`。表示用。面積は近似になる）。
+FLOW_BASIN_CHANNEL_MIN_AREA_M2 = 3000.0
+FLOW_BASIN_MIN_AREA_M2 = 1500.0
+FLOW_BASIN_SIMPLIFY_M = 2.0
+#: 配信するリーフ流域の数の上限（超えると吐口の集水が小さい順に下流へ吸収）。
+#: ペイロードとクリックのヒット判定コストを抑える（`docs/web_design.md`）。
+FLOW_BASIN_MAX_COUNT = 240
+
 ATTRIBUTION = [
     "出典：3D都市モデル（Project PLATEAU）舞鶴市（2025年度）／国土交通省",
     "出典：京都府オープンデータ「数値標高モデル（DEM）」（2019-2023年計測）"
