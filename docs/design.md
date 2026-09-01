@@ -423,7 +423,8 @@ Web 配信用のタイル・3D Tiles・COPC・`catalog.json` は `web/public/dat
 | CityGML の限定的な抽出 | lxml の iterparse（`bldg` / `tran` / `dem` の 3 種だけなので依存を増やさない）。汎用変換が要るなら PLATEAU-GIS-Converter |
 | 地形 TIN のラスタ化 | 頂点抽出 + 格子代入（GDAL の `gdal_grid` は不要） |
 | 点群の読み書き・間引き・COPC 化 | **PDAL**（`filters.crop` / `filters.voxeldownsize` / `writers.gdal` / `writers.copc`） |
-| 連結成分ラベリング | `scipy.ndimage.label` |
+| 連結成分ラベリング | `scipy.ndimage.label`（ラスタ）／ 自前の DFS（道路グラフ、`iwagaki.road_graph`） |
+| 道路ネットワークの最短路・等時線 | `heapq` だけの多始点 Dijkstra（`networkx` / `scipy.sparse.csgraph` を足さない）。グラフは PLATEAU `tran` の道路面の隣接から起こす（中心線ネットワークは配布物に無い、`docs/data.md` §8） |
 | ラスタ入出力・地物のラスタ化 | rasterio / `rasterio.features` |
 | 座標変換 | pyproj（ジオイドは PROJ network 経由） |
 | 点群の Web 配信 | **COPC**（Cloud Optimized Point Cloud）。独自タイル形式を作らない |
