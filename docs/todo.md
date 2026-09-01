@@ -107,7 +107,7 @@ FARR は DEM だけで「一様降雨時に地表流がどこに集まるか」�
 | 効くか | 内容 |
 |---|---|
 | **新規性なし** | Priority-Flood の minimax は `h_conn(c) = min-max path` として海 seed から計算済み（`docs/design.md`）。同じ量 |
-| **これが追加分** | **潮位に依存しない flow accumulation**。「水みち」ラスタ。iwagaki に無い（第 1 段は D8、D-inf は残タスク） |
+| **これが追加分** | **潮位に依存しない flow accumulation**。「水みち」ラスタ。iwagaki に無い（第 1 段 D8 → 第 4 段で D-infinity。ともに依存追加なし） |
 | 格上げ | 現状の「窪地」は *標高<潮位 かつ 海に非連結* の判定だけ。Priority-Flood の副産物（充填深・越流点標高・容積）で原理的な窪地マップにできる → **入れた** |
 | UI プリミティブ | クリックで集水域抽出（既存の地物インスペクタ・断面に接続） |
 | 31/32 との相乗 | `scripts/32` の仮想吐口を「大きい窪地から順」ではなく**越流点＋排水ネットワーク上の位置**で置ける → **入れた**（2026-09-01） |
@@ -152,16 +152,24 @@ D8 を回し、AOI 矩形に clip する。**collar はルーティング専用*
 45.2 % → **29.3 %**。collar が取れなければ collar 無しに落ちる（`collar_used=false`）。
 手法・前後比較は `docs/data.md` §7、結果は `docs/results.md`。
 
+**第 4 段（ルーティングを D-infinity にする）も入れた** **[実測]**（2026-09-01）。
+`src/iwagaki/flow.py` の `dinf_flow_direction` / `dinf_accumulation` が Tarboton (1997)
+の D-infinity（8 三角 facet の最急勾配方向を、それを挟む隣接 2 セルへ角度で按分。
+1 セル最大 2 receiver）を **numba も C++ も無しの純 numpy/scipy** で実装した
+（`pyflwdir` / `pysheds` が `numba` を要るのは速度のためで、アルゴリズムは配列演算に
+落ちる。`docs/data.md` §7「D-infinity も numba / C++ 無しで書けた」）。位相ソートは
+既存の Kahn を receiver 2 つに一般化。`route_with_collar` と `scripts/33` に
+`method={"dinf","d8"}` を通し、既定 `dinf`・`IWAGAKI_FLOW_METHOD` で上書き可
+（`FLOW_METHOD`）。**D8 API は比較用に残した。** D8 → D-inf で尾根の分岐が滑らかに
+なり、発散地形（斜面上部・扇状地）の集水が扇形に広がる。谷筋の本流位置はほぼ不変。
+数値は `docs/results.md`「地表流の集中と窪地構造」、手法は `docs/data.md` §7。
+
 **残っているもの。**
 
 - **クリックで集水域抽出。** クリックした地点の上流を面で出し、地物インスペクタ・
-  断面に接続する。第 2 段では入れていない（D8 receiver グリッドをクライアントへ
-  届ける設計、または事前計算した流域ポリゴンの配信を別途決める必要がある）。
-- **D-infinity 化**（Tarboton 1997）。第 1 段は D8。`numba`（pyflwdir）か C++（richdem）
-  が要るので依存を足すか自前実装するかの判断がいる（`docs/data.md` §7）
-- ~~**GSI 5m DEM の collar（縁取り）。**~~ → 別 PR（`feat/flow-collar`、FARR 第 3 段）で対応中。
-  ルーティング用に AOI 外周へ 5m DEM を足してから clip し、AOI 端の集水の過小
-  （`edge_truncated_fraction`）を減らす
+  断面に接続する。第 2 段では入れていない（receiver グリッド（D-inf は 2 receiver +
+  配分）をクライアントへ届ける設計、または事前計算した流域ポリゴンの配信を別途
+  決める必要がある）。
 - ~~**`scripts/32` の仮想吐口を越流点ベースに置く。**~~ → **入れた**（2026-09-01）。
   `scripts/33` の窪地（面積 1000 m² 以上）の越流点セルを陸側端にして `spill_elev`
   の低い順に最大 12 組（東舞鶴 12・西舞鶴 9）。東舞鶴の S2 は既往最高潮位で

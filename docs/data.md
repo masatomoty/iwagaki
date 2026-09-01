@@ -689,13 +689,14 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
 | 課題 | 使うもの | 出典 |
 |---|---|---|
 | 窪地充填（fill_depth / spill_elev / volume） | **Priority-Flood + ε**（ε = 1 ULP）を純 numpy/scipy で実装 | Barnes, Lehman & Yatheendradas (2014) "Priority-flood: An optimal depression-filling and watershed-labeling algorithm for digital elevation models", *Computers & Geosciences* 62, 117–127 |
-| flow accumulation（水みち） | **D8**（1 セル 1 方向・最急降下）を位相ソートで積算。一様単位降雨 | O'Callaghan & Mark (1984) "The extraction of drainage networks from digital elevation data", *CVGIP* 28, 323–344 |
+| flow accumulation（水みち、既定） | **D-infinity**（8 三角 facet の最急勾配方向を、それを挟む隣接 2 セルへ角度で按分。1 セル最大 2 方向）を純 numpy/scipy で実装。位相ソートで積算、一様単位降雨 | Tarboton (1997) "A new method for the determination of flow directions and upslope areas in grid digital elevation models", *Water Resources Research* 33(2), 309–319 |
+| flow accumulation（比較用） | **D8**（1 セル 1 方向・最急降下）。`IWAGAKI_FLOW_METHOD=d8` で切替 | O'Callaghan & Mark (1984) "The extraction of drainage networks from digital elevation data", *CVGIP* 28, 323–344 |
 | 窪地のラベリング | `scipy.ndimage.label`（8 近傍） | — |
 
 ### 既存 OSS を評価した結果、自前実装にした **[実測]**
 
 `richdem` / `pyflwdir` / `pysheds` / `whitebox` を比較した。いずれも
-(a) Priority-Flood と D8 を持つが、
+Priority-Flood・D8・D-infinity を持つが、
 
 | OSS | 追加される依存 | 判断 |
 |---|---|---|
@@ -704,12 +705,35 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
 | `pysheds` | `numba` / `scikit-image` ほか | 却下。同上 |
 | `whitebox` | 別プロセスの Rust バイナリを実行時 DL | 却下。オフライン前提と相性が悪い |
 
-**自前実装にした理由**: (b) `src/iwagaki/flood.py` が既に同じ Priority-Flood 系の
+**自前実装にした理由**: (a) `src/iwagaki/flood.py` が既に同じ Priority-Flood 系の
 minimax（`h_conn`）を純 numpy/scipy で持っており、Priority-Flood + ε も `heapq` と
-`scipy.ndimage` だけで 100 行に収まる。(c) `requirements.txt` は軽く保つ方針で
-（`docs/design.md`「重い C++ 依存を足すなら理由を書く」）、D8 までなら依存ゼロで足りる。
-**D-infinity（Tarboton 1997）は `numba` か C++ が要るので第 1 段では入れず、
-`docs/todo.md` に残した。** D8 は 1 セル 1 方向なので尾根の分岐が粗い。
+`scipy.ndimage` だけで 100 行に収まる。(b) `requirements.txt` は軽く保つ方針で
+（`docs/design.md`「重い C++ 依存を足すなら理由を書く」）、D8 でも D-infinity でも
+依存ゼロで足りる。
+
+**D-infinity も numba / C++ 無しで書けた（第 4 段）** **[実測]**（2026-09-01）。
+`pyflwdir` / `pysheds` が `numba` を要るのは JIT で速度を出すためで、アルゴリズム
+自体は素の配列演算に落ちる。Tarboton (1997) の中身は、各セルで **8 つの三角
+facet**（中心セル + 基本方位の隣 e1 + 斜めの隣 e2）ごとに最急勾配とその向き r
+（e1 から e2 へ測る、範囲 0–π/4）を求め、8 facet の最急のものを選んで、r に応じて
+e1・e2 へ按分するだけ（`(π/4 − r)/(π/4)` を e1 に、`r/(π/4)` を e2 に）。
+8 facet の勾配計算は `d8_flow_direction` と同じ 8 方向シフトの `np.where` 更新で
+ベクタ化できる。積算の位相順は Kahn を回さず **充填標高の降順**で代用する
+（`_drain_order`）: ε 充填面では正の配分先 receiver は必ず中心セルより真に低いので
+DAG は閉じ、標高が高いセルから処理すれば donor は必ず receiver より先に来る。
+これで一様単位降雨の保存則は D-inf でも成り立つ（`tests/test_flow_accum.py`）。
+0.5m 条件は数千万セルあり Python ループを回すので、積算・端フラグ伝播は
+`array.array`（型付き）で舐める（list はメモリ過多、numpy スカラ index は遅い）。
+**D8 API は比較用に残し**、`IWAGAKI_FLOW_METHOD=d8`（`FLOW_METHOD`）で切り替えられる。
+実装 `src/iwagaki/flow.py` の `dinf_flow_direction` / `dinf_accumulation`。
+
+**D8 → D-infinity で「水みち」がどう変わるか。** D8 は 1 セル 1 方向なので、尾根
+（分水界）から下る流れが左右どちらか一方に丸められ、平行な流路が階段状に寄る。
+D-inf は最急降下方向を挟む 2 セルへ連続的に配分するので、**尾根の分岐が滑らかに
+なり**、緩斜面・扇状地で扇形に広がる集水が実態に近く出る。谷筋に集まってからの
+本流の位置は D8 とほぼ変わらない（そこは 1 方向に収束する）。差が出るのは
+発散地形（尾根・斜面上部）で、`flow_accum` の低〜中位の値の分布がなだらかになる。
+数値の変化は `docs/results.md`「地表流の集中と窪地構造」。
 
 なお `h_conn` をそのまま流用はできない。`h_conn` は 0.05 m 刻みに量子化され
 `H_MAX = 3.0 m` で頭打ちになるので、充填深・越流点標高・容積には非量子化の
@@ -729,8 +753,10 @@ Priority-Flood が要る。同じ量の別解像度版という位置づけ。
 
 AOI 端に近いセルの集水は、集水域が矩形の外へ伸びているぶん過小になる。ルーティング
 専用に **AOI 外周へ GSI 5m DEM のバッファ帯（collar）を張ってから** Priority-Flood +
-D8 を回し、集計・書き出しは元の AOI 矩形に clip する（`src/iwagaki/flow.py` の
+flow accumulation（既定 D-infinity、`IWAGAKI_FLOW_METHOD=d8` で D8）を回し、
+集計・書き出しは元の AOI 矩形に clip する（`src/iwagaki/flow.py` の
 `route_with_collar`、`scripts/33`、実装フェッチャは `src/iwagaki/gsi_dem.py`）。
+collar と method（dinf / d8）は直交する。
 
 - **collar の DEM 源** = 国土地理院 標高タイル。主 **DEM5A**（航空レーザ 5m,
   標高タイル ズーム 15）、無いタイルは **DEM10B**（10m, ズーム 14。配信レイヤ ID は
@@ -754,16 +780,19 @@ D8 を回し、集計・書き出しは元の AOI 矩形に clip する（`src/i
   占める有効セルの割合（残りは海）。
 
 **collar 後の `edge_truncated_fraction` の変化**（`edge_truncated_fraction_no_collar`
-→ `edge_truncated_fraction`、`flow_accum_summary.json`）:
+→ `edge_truncated_fraction`、`flow_accum_summary.json`）。**既定の D-infinity**
+ルーティング。D-inf では 1 セル 1 値の bool ではなく「そのセルの流出のうち端へ
+抜ける割合」の平均なので、D8 の値（括弧）とは指標が少し違う:
 
 | 範囲（collar ring） | baseline | control | highres | pointcloud |
 |---|---|---|---|---|
-| 吉原（76 %） | 45.2 % → **29.3 %** | 34.8 % → **17.6 %** | 60.2 % → **9.3 %** | 61.1 % → **9.3 %** |
-| 西舞鶴（82 %） | 43.7 % → **4.3 %** | 15.3 % → **4.4 %** | 18.2 % → **4.5 %** | — |
-| 東舞鶴（81 %） | 8.8 % → **2.1 %** | 7.8 % → **2.0 %** | 12.4 % → **3.3 %** | — |
+| 吉原（76 %） | 45.3 % → **28.2 %**（D8 29.3） | 31.9 % → **14.6 %**（D8 17.6） | 60.2 % → **11.5 %**（D8 9.3） | 61.0 % → **11.5 %**（D8 9.3） |
+| 西舞鶴（82 %） | 43.7 % → **4.3 %** | 15.3 % → **4.4 %** | 17.9 % → **4.5 %**（D8 4.5） | — |
+| 東舞鶴（81 %） | 8.9 % → **2.1 %** | 7.3 % → **2.0 %** | 12.4 % → **3.3 %**（D8 3.3） | — |
 
 広い 2 範囲（西舞鶴 625 ha / 東舞鶴 1,000 ha）は端のセルの比率が低いうえ、150 m の
-collar で市街から湾へ抜ける主要な流路がほぼ捕まるので **2〜5 % まで下がる**。
+collar で市街から湾へ抜ける主要な流路がほぼ捕まるので **2〜5 % まで下がる**
+（D8 と D-inf で差はほぼ無い）。
 吉原（100 ha）は狭くて端のセルが多く、山側の谷筋が矩形をまたいで長く伸びるため
 baseline / control では下げ幅が小さい（0.5 m 条件は線状の集水が collar 内の窪地・海で
 終わるので大きく下がる）。残る `edge_truncated` は collar の外周まで達する本当に長い経路。

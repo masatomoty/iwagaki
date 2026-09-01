@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from iwagaki.flow import (d8_accumulation, d8_flow_direction,
+                          dinf_accumulation, dinf_flow_direction,
                           edge_truncated_fraction, label_pits, pit_pour_points,
                           pit_records, priority_flood_fill, route_with_collar)
 
@@ -125,7 +126,7 @@ def test_d8_uniform_rain_conservation():
 
 
 def test_collar_c0_matches_plain_routing():
-    # collar=0 は素の d8_flow_direction + d8_accumulation と一致する
+    # collar=0, method=d8 は素の d8_flow_direction + d8_accumulation と一致する
     rng = np.random.default_rng(7)
     dem = rng.random((18, 22)) * 6.0
     dem[3:6, 8:11] = np.nan
@@ -134,10 +135,85 @@ def test_collar_c0_matches_plain_routing():
     d8 = d8_flow_direction(filled)
     accum0, term0 = d8_accumulation(d8, valid)
 
-    r = route_with_collar(dem, dem.copy(), 0)
+    r = route_with_collar(dem, dem.copy(), 0, method="d8")
     assert np.allclose(r.accum[valid], accum0[valid])
     assert np.array_equal(r.term_edge, term0)
     assert r.conservation_ok
+
+    # 既定は dinf。collar=0 は素の dinf ルーティングと一致し、保存則も満たす
+    di = dinf_flow_direction(filled)
+    accumd, termd = dinf_accumulation(di, valid)
+    rd = route_with_collar(dem, dem.copy(), 0)
+    assert np.allclose(rd.accum[valid], accumd[valid])
+    assert np.array_equal(rd.term_edge, termd)
+    assert rd.conservation_ok
+    assert rd.accum[valid].min() >= 1.0 - 1e-9
+
+
+def test_dinf_uniform_rain_conservation():
+    # 一様単位降雨の保存則が D-inf でも成り立つ（分配しても総量は不変）
+    rng = np.random.default_rng(42)
+    dem = rng.random((30, 40)) * 8.0
+    dem[5:8, 10:14] = np.nan
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+
+    di = dinf_flow_direction(filled)
+    accum, term_edge = dinf_accumulation(di, valid)
+
+    n_valid = int(valid.sum())
+    assert accum[valid].min() >= 1.0 - 1e-9
+    assert accum[~valid].sum() == 0.0
+    # 位相ソートは全有効セルを含む
+    assert di.order.size == n_valid
+    # 配分は各セルで保存する（1.0 か、終端なら 0.0）
+    p1 = di.prop1[valid]; p2 = di.prop2[valid]
+    tot = p1 + p2
+    assert np.all((np.abs(tot - 1.0) < 1e-9) | (tot == 0.0))
+    # 終端（receiver を持たないセル）に全降雨が集まる
+    rec1 = di.receiver1.reshape(-1)
+    terminal = valid.reshape(-1) & (rec1 == np.arange(rec1.size))
+    assert accum.reshape(-1)[terminal].sum() == pytest.approx(n_valid)
+
+
+def test_dinf_plane_collects_all_flow_downstream():
+    # 南へ下る平面。分配しても全量が下流端に集まる（南端の列合計 = セル数）。
+    dem = (20.0 - np.arange(5)[:, None]) + np.zeros((5, 7))
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    di = dinf_flow_direction(filled)
+    accum, term_edge = dinf_accumulation(di, valid)
+    # fall line は真南（基本方位）なので分配は起きない（e2 側は 0）
+    assert np.allclose(di.prop2[valid], 0.0)
+    assert np.allclose(di.prop1[:-1, :], 1.0)          # 南端以外は単一 receiver
+    assert accum[-1, :].sum() == pytest.approx(35.0)
+    assert term_edge.all()
+
+
+def test_dinf_splits_flow_where_d8_picks_one():
+    # アスペクトが軸に乗らない斜面（fall line が西と北西の間）。
+    # D-inf は最急降下方向を挟む 2 セルへ分配する。D8 は 1 セルだけ。
+    n = 9
+    yy, xx = np.mgrid[0:n, 0:n].astype(float)
+    dem = 100.0 - (2.0 * xx + 1.0 * yy)          # 下る向き (+x, +y): 東寄り・やや南
+    filled = priority_flood_fill(dem)
+
+    di = dinf_flow_direction(filled)
+    d8 = d8_flow_direction(filled)
+
+    c = 4 * n + 4                                 # 中央セルの flat index
+    # D8 は 1 receiver（自分自身ではない）
+    assert d8.receiver.reshape(-1)[c] != c
+    # D-inf は 2 receiver、どちらも正の割合。東（c+1）と南東（c+1+n）
+    r1 = int(di.receiver1.reshape(-1)[c])
+    r2 = int(di.receiver2.reshape(-1)[c])
+    p1 = float(di.prop1.reshape(-1)[c])
+    p2 = float(di.prop2.reshape(-1)[c])
+    assert p1 > 0.0 and p2 > 0.0
+    assert {r1, r2} == {c + 1, c + 1 + n}
+    assert p1 + p2 == pytest.approx(1.0)
+    # 内角 r = atan2(1, 2) ≈ 0.4636 rad -> e2（南東）へ r/(π/4) ≈ 0.59
+    assert p2 == pytest.approx(np.arctan2(1.0, 2.0) / (np.pi / 4), rel=1e-6)
 
 
 def test_collar_adds_upstream_catchment_at_aoi_edge():
