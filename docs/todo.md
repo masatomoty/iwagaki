@@ -72,7 +72,7 @@
 
 | # | 要望 | 状態 |
 |---|---|---|
-| ③ | **浸水建物を国勢調査の小地域（町丁・字等）ごとに集計して地域比較できるようにする** | **入れた（ファイルのみ／viewer 表示は別 PR）。** `scripts/13_fetch_census_boundaries.py` が e-Stat 統計GIS の 2020年国勢調査 小地域境界を取り（`docs/data.md` §5）、`scripts/92_area_aggregate.py` が建物の重心で空間結合して潮位別・モデル別に `data/out/{aoi}/area_flood_H*.{csv,geojson}` ＋ `area_flood_summary.json` を出す。合計は `web/src/domain/flood.ts` の `floorCounts` と一致（`docs/results.md`「小地域ごとの浸水建物」）。既往最高潮位 0.93 m で床上は西舞鶴の旧舞鶴東吉原一に集中、東舞鶴は市街の町丁で `simple`↔`connected` が大きく割れる。**viewer のコロプレス表示・catalog 配線・areas.json 追加は別 PR** |
+| ③ | **浸水建物を国勢調査の小地域（町丁・字等）ごとに集計して地域比較できるようにする** | **入れた（viewer 表示も入れた）。** `scripts/13_fetch_census_boundaries.py` が e-Stat 統計GIS の 2020年国勢調査 小地域境界を取り（`docs/data.md` §5）、`scripts/92_area_aggregate.py` が建物の重心で空間結合して潮位別・モデル別に `data/out/{aoi}/area_flood_H*.{csv,geojson}` ＋ `area_flood_summary.json` を出す。合計は `web/src/domain/flood.ts` の `floorCounts` と一致（`docs/results.md`「小地域ごとの浸水建物」）。既往最高潮位 0.93 m で床上は西舞鶴の旧舞鶴東吉原一に集中、東舞鶴は市街の町丁で `simple`↔`connected` が大きく割れる。<br>**viewer には潮位別の値を焼かず、`scripts/83` が `scripts/92` と同一結合で建物ごとに `area_code` を `objects.geojson` へ焼き、潮位再生パネル下の地域別ランキング表がその場で集計する**（`docs/web_design.md`「小地域ごとの棟数はどう出したか」）。**コロプレスは色予算で見送り**、`small_areas.geojson` は `catalog.small_areas` に optional 配信のみ（follow-up は viewer 側だけ）。 |
 
 （同じ 2026-08 のやり取りから派生した「交通規制が必要な道路の可視化」は上の
 `scripts/91`、「次の高潮時に見るべき地物のリスト」は `scripts/88`。）

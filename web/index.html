@@ -133,7 +133,18 @@
   /* いま何を見ているか。**これが主張そのもの**なので muted の注記にしない */
   .nowline { margin-top: 10px; padding-top: 9px; font-size: 13px; line-height: 1.45;
     border-top: 1px dashed rgba(148,163,184,.22); }
-  
+
+  /* 地域別の浸水建物（要望③）。表を主にする。潮位再生パネルのすぐ下に置く。
+     幅が狭いので数値列は詰め、小地域名だけ折り返しを許す */
+  .areatab { table-layout: fixed; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .areatab thead td { color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--line);
+    padding-bottom: 2px; }
+  .areatab td { padding: 2px 0; font-size: 12px; }
+  .areatab td.num { width: 14%; padding-left: 3px; }
+  .areatab td.an { color: var(--fg); white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  .areatab tr.ar td { color: var(--muted); }
+  .areatab tr.at td { border-top: 1px solid var(--line); color: var(--fg); font-weight: 600; }
+
 
   /* 地形データは 1 つ選ぶだけなので select。ボタン 4 つを 2 行に折り返すより、
      頭が 1 行分空く。判定差は「差分タイルが無い条件では押せない」を見せたいので

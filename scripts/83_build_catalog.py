@@ -12,11 +12,16 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import geopandas as gpd
 import pyproj
+from shapely.geometry import shape
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, AOI_LABELS, AOIS, ATTRIBUTION_RAILWAY, asset_name, catalog_name,
+from iwagaki.areas import (BOUNDARY_PATH, assign_centroids, boundary_metadata,
+                           load_boundaries)
+from iwagaki.config import (AOI, AOI_LABELS, AOIS, ATTRIBUTION_CENSUS,
+                            ATTRIBUTION_RAILWAY, asset_name, catalog_name,
                             CRS_ANALYSIS, DEFAULT_AOI, H_MAX, H_MIN, H_STEP, OUT, RAW,
                             FLOOR_ABOVE_DEPTH, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
                             TP_OF_MSL,
@@ -154,6 +159,114 @@ def railway() -> dict:
             "source": props["source"]}
 
 
+def _round_coords(obj, nd: int = 6):
+    if isinstance(obj, (list, tuple)):
+        return [_round_coords(x, nd) for x in obj]
+    if isinstance(obj, float):
+        return round(obj, nd)
+    return obj
+
+
+def area_join(src: dict) -> tuple[dict[str, str], dict[str, str], dict[str, int]]:
+    """objects.geojson の建物重心を国勢調査の小地域へ寄せる。
+
+    結合は `iwagaki.areas.assign_centroids`（`scripts/92_area_aggregate.py` と共有）。
+    **潮位別の集計値は焼かない。** viewer が現在の水位・モデルで棟数をその場で数える
+    ため、建物ごとに `area_code` を付けておくだけ（`docs/design.md`「水位を動かしても
+    サーバ往復も再計算もしない」）。
+
+    返り値: ``gml_id -> area_code`` / ``gml_id -> area_name`` /
+    ``area_code -> 総棟数``（``unreliable`` を除いた ``bldg:Building``。
+    `scripts/92` の母数・`web/src/domain/flood.ts` の `floorCounts` と同じ）。
+    境界データ（`scripts/13`）が無ければ 3 つとも空で返す。
+    """
+    if not BOUNDARY_PATH.exists():
+        print("  ! census_boundary が無い。area_code は付けない（scripts/13 未実行）")
+        return {}, {}, {}
+    rows = []
+    for f in src["features"]:
+        p = f["properties"]
+        if str(p.get("feature_type", "")) != "bldg:Building":
+            continue
+        rows.append({
+            "gml_id": p.get("gml_id"),
+            "unreliable": str(p.get("unreliable", "")).lower() == "true",
+            "geometry": shape(f["geometry"]).centroid,
+        })
+    if not rows:
+        return {}, {}, {}
+    gdf = gpd.GeoDataFrame(rows, crs=CRS_ANALYSIS)
+    codes = assign_centroids(gdf, load_boundaries(CRS_ANALYSIS))
+    unreliable = dict(zip(gdf["gml_id"], gdf["unreliable"]))
+    code_of: dict[str, str] = {}
+    name_of: dict[str, str] = {}
+    total: dict[str, int] = {}
+    for gml_id, row in codes.iterrows():
+        key = row["key_code"]
+        if not key:                      # (小地域外)。area_code は付けない
+            continue
+        code_of[gml_id] = key
+        name_of[gml_id] = row["s_name"]
+        if not unreliable.get(gml_id):
+            total[key] = total.get(key, 0) + 1
+    inside = len(code_of)
+    print(f"  area_code: {inside}/{len(rows)} 棟を {len(total)} 小地域へ結合"
+          f"（(小地域外) {len(rows) - inside} 棟）")
+    return code_of, name_of, total
+
+
+def small_areas(area_total: dict[str, int]) -> dict:
+    """小地域ポリゴンの軽量 GeoJSON を配信物に加える（コロプレス用・optional）。
+
+    - 属性は ``area_code`` / ``area_name`` / ``total_bldg`` だけ。潮位別の集計値は焼かない
+    - この AOI に建物が乗る小地域だけ（`scripts/92` の `area_flood_*.geojson` と同じ絞り）
+    - ジオメトリは 8 m 許容で単純化（面積・端の一致は要らない。表示用）
+    - 境界データが無ければ空で返す（catalog から鍵ごと落ちる。areas.json と同じ扱い）
+    """
+    if not BOUNDARY_PATH.exists() or not area_total:
+        return {}
+    areas = load_boundaries(CRS_ANALYSIS)
+    areas = areas[areas["KEY_CODE"].isin(area_total)].copy()
+    if areas.empty:
+        return {}
+    areas["geometry"] = areas.geometry.simplify(8.0, preserve_topology=True)
+    areas = areas.to_crs("EPSG:4326")
+    feats = []
+    for rec in areas.itertuples(index=False):
+        geom = rec.geometry.__geo_interface__
+        geom = {**geom, "coordinates": _round_coords(geom["coordinates"], 6)}
+        feats.append({
+            "type": "Feature",
+            "geometry": geom,
+            "properties": {
+                "area_code": rec.KEY_CODE,
+                "area_name": rec.S_NAME,
+                "total_bldg": int(area_total.get(rec.KEY_CODE, 0)),
+            },
+        })
+    fc = {
+        "type": "FeatureCollection",
+        "name": "small_areas",
+        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+        "metadata": {
+            "unit": "町丁・字等（小地域）。行政界であり図郭ではない",
+            "simplified_m": 8.0,
+            "total_bldg_kind":
+                "objects.geojson の bldg:Building（unreliable 除く）。"
+                "潮位別の浸水棟数は焼いていない（viewer が現在の水位で数える）",
+            **boundary_metadata(),
+        },
+        "features": feats,
+    }
+    p = WEB_DATA / asset_name("small_areas.geojson")
+    p.write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")))
+    name = publish_file(p)
+    q = WEB_DATA / name
+    print(f"{name}: {len(feats)} 小地域, {q.stat().st_size / 1e3:.1f} kB")
+    return {"url": f"data/{name}", "bytes": q.stat().st_size,
+            "count": len(feats), "boundary": boundary_metadata()}
+
+
 def tide_series() -> dict:
     """`scripts/86` が取得できた潮位時系列だけを配信物に載せる。
 
@@ -257,10 +370,17 @@ def main() -> int:
 
     # --- objects.geojson: EPSG:6674 -> WGS84, 属性を絞る -------------------
     src = json.loads((OUT / "objects.geojson").read_text())
+    # 建物 -> 国勢調査の小地域（重心で空間結合。scripts/92 と同一ロジック）。
+    # viewer の「地域別の浸水建物」表がこの area_code でグループ分けする
+    area_code_of, area_name_of, area_total = area_join(src)
     feats = []
     for f in src["features"]:
         p = f["properties"]
         props = {k: p.get(k) for k in KEEP_PROPS if p.get(k) not in (None, "")}
+        gid = p.get("gml_id")
+        if gid in area_code_of:
+            props["area_code"] = area_code_of[gid]
+            props["area_name"] = area_name_of[gid]
         g = f["geometry"]
 
         def conv(ring):
@@ -336,6 +456,8 @@ def main() -> int:
     pc = load(asset_name("pointcloud_report.json"))
     # 内容ハッシュを URL に入れる（immutable キャッシュを差し替えられるように）
     versioned_urls(tiles, tiles3d)
+    # 小地域ポリゴン（コロプレス用・optional）。境界が無ければ空 dict で鍵ごと落ちる
+    small_areas_asset = small_areas(area_total)
     summary = json.loads((OUT / "summary.json").read_text())
     tide_path = OUT / "tide_levels.json"
     tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
@@ -429,6 +551,10 @@ def main() -> int:
         # 市が「東側をここまで」と指した基準線そのもの（`docs/todo.md`）。
         # 線路が AOI に掛からない範囲では鍵ごと落とす
         **({"railway": railway()} if railway() else {}),
+        # 国勢調査 小地域のポリゴン（軽量・簡略化済み）。**潮位別の集計値は焼かない**
+        # （建物側の area_code から viewer が現在の水位で数える）。
+        # 境界データが無い配信物では鍵ごと無い（areas.json / tide_series と同じ扱い）
+        **({"small_areas": small_areas_asset} if small_areas_asset else {}),
         # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）。
         # **空なら鍵ごと落とす。** `{}` を置くと読み側で truthy になり、
         # `default_section.from[0]` で落ちる（面的表示用の範囲で実際に落ちた）
@@ -448,7 +574,8 @@ def main() -> int:
             "go_no_go": summary["go_no_go"]["result"],
         },
         # **使ったデータの出典だけを並べる。** 線路が掛からない範囲では N02 を足さない
-        "attribution": ATTRIBUTION + ([ATTRIBUTION_RAILWAY] if railway() else []),
+        "attribution": ATTRIBUTION + ([ATTRIBUTION_RAILWAY] if railway() else [])
+        + ([ATTRIBUTION_CENSUS] if small_areas_asset else []),
     }
     catalog["totals_bytes"]["all"] = sum(
         v for k, v in catalog["totals_bytes"].items() if k != "all")

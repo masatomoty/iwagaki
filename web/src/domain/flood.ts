@@ -185,6 +185,65 @@ export function floorCounts(
   return { under, above }
 }
 
+export interface AreaFloodRow {
+  /** 国勢調査の小地域コード。undefined = (小地域外) */
+  areaCode: string | undefined
+  areaName: string
+  total: number
+  under: number
+  above: number
+  /** under + above */
+  flooded: number
+  /** flooded / total（total 0 なら 0） */
+  floodRate: number
+}
+
+/**
+ * **小地域ごとの浸水建物**（上田氏の要望③）。
+ *
+ * 潮位別の集計値を焼かず、`floorCounts` を建物の `areaCode` でグループ分けして
+ * **現在の水位・モデルでその場で数える**（`docs/design.md`「水位を動かしても
+ * サーバ往復も再計算もしない」）。全行の合計は `floorCounts` と一致する。
+ *
+ * `areaCode` を持たない建物（小地域外・境界データが無い配信物）は 1 行にまとめる。
+ * `scripts/92_area_aggregate.py` の `aggregate()` と同じ数え方
+ * （`unreliable` は除外、床上 = 浸水深 ≥ floor、床下 = 0 < 浸水深 < floor）。
+ *
+ * 既定の並びは浸水棟数の多い順（同数なら総棟数の多い順、最後に (小地域外)）。
+ */
+export function perAreaFloodCounts(
+  assertions: Iterable<FeatureAssertion>,
+  condition: TerrainCondition, H: MTP, floor: number, model: FloodModel,
+): AreaFloodRow[] {
+  const OUTSIDE = ' '   // undefined を Map のキーにするための番兵
+  const byKey = new Map<string, AreaFloodRow>()
+  for (const a of assertions) {
+    if (a.featureType !== 'bldg:Building' || a.unreliable) continue
+    const key = a.areaCode ?? OUTSIDE
+    let row = byKey.get(key)
+    if (!row) {
+      row = {
+        areaCode: a.areaCode,
+        areaName: a.areaName ?? (a.areaCode ?? '(小地域外)'),
+        total: 0, under: 0, above: 0, flooded: 0, floodRate: 0,
+      }
+      byKey.set(key, row)
+    }
+    row.total++
+    const d = featureDepth(a, condition, H, model)
+    if (d >= floor) { row.above++; row.flooded++ }
+    else if (d > 0) { row.under++; row.flooded++ }
+  }
+  const rows = [...byKey.values()]
+  for (const r of rows) r.floodRate = r.total ? r.flooded / r.total : 0
+  rows.sort((x, y) =>
+    (x.areaCode === undefined ? 1 : 0) - (y.areaCode === undefined ? 1 : 0)
+    || y.flooded - x.flooded
+    || y.total - x.total
+    || (x.areaCode ?? '').localeCompare(y.areaCode ?? ''))
+  return rows
+}
+
 /** 再生中に常に見せる「いまの水位で規制対象になる道路」本数。 */
 export function regulatedRoadCount(
   assertions: Iterable<FeatureAssertion>, H: MTP,

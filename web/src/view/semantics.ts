@@ -30,6 +30,8 @@ export function toAssertion(p: Record<string, unknown>): FeatureAssertion {
       control: num('h_conn_control'), pointcloud: num('h_conn_pointcloud'),
       drainage: num('h_conn_drainage'),
     },
+    areaCode: p.area_code ? String(p.area_code) : undefined,
+    areaName: p.area_name ? String(p.area_name) : undefined,
     nearestBuildingM: num('nearest_building_m'),
     frontageBuildingCount2m: num('frontage_building_count_2m'),
     frontageBuildingCount5m: num('frontage_building_count_5m'),

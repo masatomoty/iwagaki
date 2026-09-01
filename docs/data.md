@@ -632,6 +632,7 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
 | ライセンス | 政府統計の総合窓口（e-Stat）利用規約。**出典表記を条件に加工・再配布可（商用含む）。編集・加工した場合はその旨を明記** |
 | 属性 | `KEY_CODE` / `S_NAME`（町丁・字等名）/ `CITY_NAME` などを保持。**人口・世帯数（`JINKO` / `SETAI`）は落とす**（この成果物は建物カウントの受け皿であって統計値の取り込みではない。`docs/design.md`「やらないこと」の「全舞鶴市の処理」「統計値取り込み」に踏み込まない） |
 | 中間物 | `data/interim/census_boundary_maizuru_2020.geojson`（AOI 3 範囲のいずれかに交差する小地域だけ。KEY_CODE で dissolve 済み。EPSG:6674。162 小地域） |
+| 配信物 | `scripts/83` が AOI ごとに **`small_areas.geojson`**（WGS84、**8 m 許容で単純化**、属性は `area_code` / `area_name` / `total_bldg` だけ。潮位別の集計値は焼かない）を配信し、`catalog.small_areas` に版・出典を optional で載せる（西舞鶴 59 / 東舞鶴 78 / 吉原 17 小地域、各 37〜88 kB）。あわせて `objects.geojson` の各建物に重心が入る小地域の `area_code` / `area_name` を焼く（`scripts/92` と同一結合、`iwagaki.areas`）。**単純化しているので面積・境界の一致は保証しない**（表示用）。出典表記は §6 のとおり catalog の `attribution` に足す |
 | 注意 | e-Stat の境界データ URL は API 仕様として公表されたものではない。404 になったら手動ダウンロードして `data/raw/estat/` に置く（手順は `scripts/13` の docstring） |
 
 ---
