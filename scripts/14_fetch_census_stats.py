@@ -108,6 +108,10 @@ COLS = {
 SUPPRESSED = "X"
 NOT_APPLICABLE = "-"
 
+#: 「この行は使えない」と判定する主要列（`age_75_plus` は 65+ の再掲なので含めない。
+#: 75歳以上だけ秘匿でも人口総数・3 区分が生きていれば按分に使える）
+PRIMARY_FIELDS = ("pop_total", "age_0_14", "age_15_64", "age_65_plus")
+
 OUT_FIELDS = [
     "key_code", "hyosyo", "s_name",
     "pop_total", "age_0_14", "age_15_64", "age_65_plus", "age_unknown",
@@ -147,34 +151,43 @@ def fetch_csv_bytes(force: bool = False) -> bytes:
 def parse(raw: bytes) -> tuple[list[dict], dict[str, str]]:
     """(舞鶴市の小地域行, 列コード->日本語列名)。"""
     rows = list(csv.reader(io.StringIO(raw.decode("cp932"))))
-    header, labels = rows[0], rows[1]
+    if len(rows) < 3:
+        raise SystemExit(f"CSV の行数が {len(rows)}。ヘッダー 2 行 + データを想定")
+    header = [c.lstrip("﻿").strip() for c in rows[0]]  # BOM・前後空白を除く
+    labels = rows[1]
     idx = {code: i for i, code in enumerate(header)}
-    missing = [c for c in COLS if c not in idx]
+    need = ["KEY_CODE", "HYOSYO", "NAME", *COLS]
+    missing = [c for c in need if c not in idx]
     if missing:
         raise SystemExit(f"想定した列が無い: {missing}（実際の先頭: {header[:10]}）")
     col_labels = {code: labels[idx[code]] for code in COLS}
+    ncols = len(header)
+
+    def num(v: str) -> int | None:
+        v = v.strip()
+        if v == NOT_APPLICABLE:
+            return 0
+        if v in (SUPPRESSED, ""):
+            return None
+        try:
+            return int(v)
+        except ValueError:
+            raise SystemExit(f"数値でも X/- でもない値: {v!r}")
 
     out: list[dict] = []
     for r in rows[2:]:
+        if len(r) < ncols:
+            continue  # 末尾の空行・壊れた行
         key = r[idx["KEY_CODE"]]
         if not key.startswith(CITY_PREFIX) or key == CITY_PREFIX:
             continue  # 府・市の合計行は落とす（小地域だけ残す）
         raw_vals = {name: r[idx[code]] for code, name in COLS.items()}
-        suppressed = any(v == SUPPRESSED for v in raw_vals.values())
-
-        def num(v: str) -> int | None:
-            if v == NOT_APPLICABLE:
-                return 0
-            if v in (SUPPRESSED, ""):
-                return None
-            return int(v)
-
         vals = {name: num(v) for name, v in raw_vals.items()}
-        unknown = None
-        if all(vals[k] is not None for k in
-               ("pop_total", "age_0_14", "age_15_64", "age_65_plus")):
-            unknown = (vals["pop_total"] - vals["age_0_14"]
-                       - vals["age_15_64"] - vals["age_65_plus"])
+        # 「使えない行」= 主要列（総数・3 区分）のどれかが秘匿・欠損
+        suppressed = any(vals[k] is None for k in PRIMARY_FIELDS)
+        unknown = None if suppressed else (
+            vals["pop_total"] - vals["age_0_14"]
+            - vals["age_15_64"] - vals["age_65_plus"])
         out.append({
             "key_code": key,
             "hyosyo": r[idx["HYOSYO"]],
@@ -228,7 +241,10 @@ def main() -> int:
         },
         "suppression": {
             "token": SUPPRESSED,
-            "meaning": "対象数が少なく秘匿。復元しない（suppressed=True, 値は空欄）",
+            "meaning": "対象数が少なく秘匿。復元しない（値は空欄）。"
+                       "suppressed=True は主要列（総数・年齢3区分）のいずれかが秘匿の行。"
+                       "age_75_plus（再掲）だけが秘匿の行は suppressed=False で値だけ空欄",
+            "primary_fields": list(PRIMARY_FIELDS),
             "n_small_areas_suppressed": n_suppressed,
         },
         "license": "政府統計の総合窓口（e-Stat）利用規約。出典表記を条件に加工・再配布可",

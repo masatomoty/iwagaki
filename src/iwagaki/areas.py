@@ -128,6 +128,20 @@ def point_to_analysis(lon: float, lat: float) -> tuple[float, float]:
     return float(x), float(y)
 
 
+def _as_analysis_crs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """`gdf` を `CRS_ANALYSIS`（EPSG:6674, メートル）で返す。
+
+    CRS 未設定は `CRS_ANALYSIS` とみなす（このリポジトリの `objects.geojson` /
+    境界中間物は crs メンバー付きだが、素の GeoDataFrame も許す）。違う CRS なら変換する
+    （経緯度をメートルとして円と比べる事故を防ぐ）。
+    """
+    if gdf.crs is None:
+        return gdf.set_crs(CRS_ANALYSIS)
+    if gdf.crs.to_epsg() != 6674:
+        return gdf.to_crs(CRS_ANALYSIS)
+    return gdf
+
+
 def circle_geom(lon: float, lat: float, radius_m: float):
     """中心（経緯度）と半径 [m] から、解析 CRS の円ポリゴンを返す。
 
@@ -154,8 +168,7 @@ def areas_in_circle(
     重心内包（centroid containment）でやりたい呼び出し側は ``circle_frac`` を
     無視して geometry の重心が円内かを見ればよい。
     """
-    if areas.crs is None:
-        areas = areas.set_crs(CRS_ANALYSIS)
+    areas = _as_analysis_crs(areas)
     circle = circle_geom(lon, lat, radius_m)
     hit = areas[areas.intersects(circle)].copy()
     hit["area_m2"] = hit.geometry.area
@@ -173,5 +186,6 @@ def features_in_circle(
     ``predicate`` は shapely の述語名。建物を重心で数えたいときは、呼び出し側で
     ``features.set_geometry(features.geometry.centroid)`` を渡して ``"within"``。
     """
+    features = _as_analysis_crs(features)
     circle = circle_geom(lon, lat, radius_m)
     return features[getattr(features.geometry, predicate)(circle)].copy()

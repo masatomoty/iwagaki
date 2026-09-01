@@ -114,14 +114,14 @@ def test_population_shares_sum_to_one():
 # --- building_usage_section -----------------------------------------
 
 def _buildings(items):
-    # items: (dx, dy, usage)
+    # items: (dx, dy, usage) or (dx, dy, usage, unreliable)
     return gpd.GeoDataFrame(
         {
             "gml_id": [f"b{i}" for i in range(len(items))],
             "feature_type": ["bldg:Building"] * len(items),
-            "usage": [u for *_, u in items],
-            "unreliable": [False] * len(items),
-            "geometry": [Point(CX + dx, CY + dy) for dx, dy, _ in items],
+            "usage": [it[2] for it in items],
+            "unreliable": [it[3] if len(it) > 3 else False for it in items],
+            "geometry": [Point(CX + it[0], CY + it[1]) for it in items],
         },
         crs=CRS_ANALYSIS,
     )
@@ -166,3 +166,67 @@ def test_pick_aoi_prefers_larger_on_overlap():
     name, edge = agg.pick_aoi(x, y)
     assert name == "nishi_maizuru"   # 両方に入るが広い方
     assert edge == 0.0
+
+
+# --- codex レビューで挙がったエッジケース --------------------------------
+
+def test_building_usage_excludes_unreliable():
+    objs = _buildings([
+        (0, 0, "411"),
+        (10, 0, "411", True),          # unreliable -> 除外
+        (-10, 0, "402", True),         # unreliable -> 除外
+    ])
+    sec, _ = agg.building_usage_section(objs, CENTER_LON, CENTER_LAT, 500.0, {})
+    assert sec["total_buildings"] == 1
+    assert {d["code"] for d in sec["by_usage"]} == {"411"}
+
+
+def test_population_coverage_fraction_flags_gap():
+    # 円の半分しか小地域が無い（A だけ、B/C/D を外す）-> 被覆 ~0.5
+    areas = _areas().iloc[[0]].copy()
+    sec, _ = agg.population_section(
+        areas, _stats(), CENTER_LON, CENTER_LAT, 500.0, "areal")
+    assert sec["boundary_coverage_fraction"] == pytest.approx(0.5, abs=0.02)
+    assert sec["coverage_complete"] is False
+
+
+def test_population_full_coverage_is_complete():
+    sec, _ = agg.population_section(
+        _areas(), _stats(), CENTER_LON, CENTER_LAT, 400.0, "areal")
+    assert sec["coverage_complete"] is True
+    assert sec["boundary_coverage_fraction"] == pytest.approx(1.0, abs=1e-3)
+
+
+def test_population_key_not_in_stats_is_missing_not_crash():
+    areas = _areas()
+    stats = _stats().drop(index="A")      # A の統計を消す
+    sec, rows = agg.population_section(
+        areas, stats, CENTER_LON, CENTER_LAT, 500.0, "areal")
+    a_row = next(r for r in rows if r["key_code"] == "A")
+    assert a_row["pop_total"] is None
+    assert sec["n_small_areas_missing_stats_in_circle"] == 2  # A（統計なし）+ D（秘匿）
+    # B だけ計上される
+    frac = math.pi * 500**2 / 2 / 1e6
+    assert sec["population_estimate"] == pytest.approx(frac * 2000, rel=1e-3)
+
+
+def test_population_zero_pop_no_aging_rate():
+    areas = _areas()
+    stats = _stats()
+    for c in areas_mod.STATS_COUNT_FIELDS:
+        stats.loc["A", c] = 0
+        stats.loc["B", c] = 0
+    sec, _ = agg.population_section(
+        areas, stats, CENTER_LON, CENTER_LAT, 500.0, "areal")
+    assert sec["population_estimate"] == 0.0
+    assert sec["aging_rate_65plus"] is None
+
+
+def test_areas_in_circle_reprojects_wgs84_input():
+    # EPSG:4326 の areas を渡しても内部で 6674 に変換される
+    ll = _areas().to_crs("EPSG:4326")
+    hit = areas_mod.areas_in_circle(ll, CENTER_LON, CENTER_LAT, 500.0)
+    assert set(hit["KEY_CODE"]) == {"A", "B", "D"}
+    half_disk = math.pi * 500**2 / 2
+    by = {r.KEY_CODE: r for r in hit.itertuples(index=False)}
+    assert by["A"].overlap_m2 == pytest.approx(half_disk, rel=2e-3)

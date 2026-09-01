@@ -33,6 +33,11 @@
 小地域の重心が円内なら全人口を足す（`scripts/92` の建物の寄せ方と揃う）。
 **秘匿（`suppressed`）の小地域は人口が欠損**なので按分の分母から外し、
 「圏内に秘匿 N 地域」と出力に添える（人口は過小評価側）。
+境界データは AOI 3 範囲に交差する 162 小地域だけなので、円がその外（湾・海面・AOI 外）へ
+出た割合を `boundary_coverage_fraction` に出す（0.98 未満で `coverage_complete: false`）。
+
+**建物・道路は AOI の `objects.geojson` が母数**（`scripts/92` と同じく `unreliable` は除く）。
+その AOI に `objects.geojson` が無ければ ②⑤ は `status: データなし`、① 人口だけ出す。
 
 出力（`data/out/point_buffer/` 直下）
 ----
@@ -93,6 +98,14 @@ def usage_codelist() -> dict[str, str]:
     return out
 
 
+def _aoi_edge_dist(name: str, x: float, y: float) -> float:
+    """点（解析 CRS）から AOI 矩形までの距離 [m]（内側なら 0）。"""
+    a = AOIS[name]
+    dx = max(a.xmin - x, 0.0, x - a.xmax)
+    dy = max(a.ymin - y, 0.0, y - a.ymax)
+    return math.hypot(dx, dy)
+
+
 def pick_aoi(x: float, y: float) -> tuple[str, float]:
     """点（解析 CRS）に最も近い AOI 名と、点から AOI 矩形までの距離 [m]（内側なら 0）。
 
@@ -101,19 +114,17 @@ def pick_aoi(x: float, y: float) -> tuple[str, float]:
     """
     scored = []
     for name, a in AOIS.items():
-        dx = max(a.xmin - x, 0.0, x - a.xmax)
-        dy = max(a.ymin - y, 0.0, y - a.ymax)
-        d = math.hypot(dx, dy)
         area = (a.xmax - a.xmin) * (a.ymax - a.ymin)
-        scored.append((d, -area, name))
+        scored.append((_aoi_edge_dist(name, x, y), -area, name))
     scored.sort()
     return scored[0][2], scored[0][0]
 
 
-def load_objects(aoi: str) -> gpd.GeoDataFrame:
+def load_objects(aoi: str) -> gpd.GeoDataFrame | None:
+    """AOI の地物。**objects.geojson が無ければ None**（人口だけは出せるように）。"""
     path = ROOT / "data" / "out" / aoi / "objects.geojson"
     if not path.exists():
-        raise SystemExit(f"入力がありません: {path}（先に IWAGAKI_AOI={aoi} scripts/50）")
+        return None
     data = json.loads(path.read_text())
     if data.get("crs", {}).get("properties", {}).get("name") != CRS_ANALYSIS:
         raise SystemExit(f"{path}: CRS が {CRS_ANALYSIS} ではありません")
@@ -135,6 +146,11 @@ def population_section(
     radius_m: float, method: str,
 ) -> tuple[dict, list[dict]]:
     hit = areas_in_circle(areas, lon, lat, radius_m)
+    # 境界データは AOI 3 範囲に交差する 162 小地域だけ。小地域は空間を分割するので、
+    # 円が全部覆われていれば overlap の和 ≒ 円の面積。足りなければ円が境界データの
+    # 外に出ている（人口が欠落する）
+    circle_area = math.pi * radius_m * radius_m
+    coverage = round(float(hit["overlap_m2"].sum()) / circle_area, 4)
     if method == "centroid":
         cent = hit.geometry.centroid
         circle = circle_geom(lon, lat, radius_m)
@@ -192,6 +208,10 @@ def population_section(
         "n_small_areas_missing_stats_in_circle": n_missing,
         "n_small_areas_suppressed_in_circle": int(sum(
             1 for r in rows if r["weight"] > 0 and r["suppressed"])),
+        # 円のうち境界データで覆われている割合。< 1 なら円が 162 小地域の外へ出て
+        # 人口が欠落している（AOI 中心部では 1.0）。0.98 未満で incomplete
+        "boundary_coverage_fraction": coverage,
+        "coverage_complete": coverage >= 0.98,
         "value_kind": "国勢調査 小地域の公式集計を面按分した推計値（棟数モデルではない）",
     }
     return section, rows
@@ -201,7 +221,10 @@ def building_usage_section(
     objects: gpd.GeoDataFrame, lon: float, lat: float, radius_m: float,
     codes: dict[str, str],
 ) -> tuple[dict, list[dict]]:
-    bldg = objects[objects["feature_type"] == "bldg:Building"].copy()
+    # scripts/92 / scripts/83 / viewer と母数を揃える（unreliable = 橋・
+    # 高架・大半が開放水面 を除く）
+    bldg = objects[(objects["feature_type"] == "bldg:Building")
+                   & ~objects["unreliable"].astype(bool)].copy()
     bldg = bldg.set_geometry(bldg.geometry.centroid)
     inside = features_in_circle(bldg, lon, lat, radius_m, predicate="within")
 
@@ -220,7 +243,8 @@ def building_usage_section(
         "total_buildings": int(len(inside)),
         "by_usage": [{"code": r["usage_code"], "label": r["usage_label"],
                       "count": r["count"]} for r in rows],
-        "value_kind": "PLATEAU bldg:usage（LOD1、2024年測量）。重心が円内の棟",
+        "value_kind": "PLATEAU bldg:usage（LOD1、2024年測量）。重心が円内の棟。"
+                      "unreliable（橋・高架・大半が開放水面）は除く（scripts/92 と同じ母数）",
     }, rows
 
 
@@ -247,14 +271,22 @@ def run_point(
     aoi_override: str | None, out_dir: Path,
 ) -> dict:
     x, y = point_to_analysis(lon, lat)
-    aoi, edge_m = (aoi_override, None) if aoi_override else (None, None)
-    if aoi is None:
-        aoi, edge_m = pick_aoi(x, y)
-
     areas = load_boundaries(CRS_ANALYSIS)
     stats = load_area_stats()
-    objects = load_objects(aoi)
     codes = usage_codelist()
+
+    if aoi_override:
+        aoi, edge_m = aoi_override, None
+    else:
+        aoi, edge_m = pick_aoi(x, y)
+        # 建物・道路は AOI の objects.geojson が母数。自動選択なら、それを持つ
+        # AOI を点に近い順に選び直す（人口は AOI 非依存なので影響しない）
+        if not (ROOT / "data" / "out" / aoi / "objects.geojson").exists():
+            for name in sorted(AOIS, key=lambda n: _aoi_edge_dist(n, x, y)):
+                if (ROOT / "data" / "out" / name / "objects.geojson").exists():
+                    aoi, edge_m = name, _aoi_edge_dist(name, x, y)
+                    break
+    objects = load_objects(aoi)
 
     max_r = max(radii)
     aoi_a = AOIS[aoi]
@@ -264,12 +296,18 @@ def run_point(
     per_radius: dict[str, dict] = {}
     pop_rows: list[dict] = []
     usage_rows: list[dict] = []
+    no_objects = {"status": "データなし",
+                  "note": f"AOI '{aoi}' に objects.geojson が無い（scripts/50 未実行）。"
+                          "① 人口は AOI 非依存なので計算している"}
     for r in radii:
         pop_sec, prows = population_section(areas, stats, lon, lat, r, method)
-        use_sec, urows = building_usage_section(objects, lon, lat, r, codes)
-        trans_sec = transport_section(objects, lon, lat, r)
         pop_rows += prows
-        usage_rows += urows
+        if objects is None:
+            use_sec, trans_sec = dict(no_objects), dict(no_objects)
+        else:
+            use_sec, urows = building_usage_section(objects, lon, lat, r, codes)
+            trans_sec = transport_section(objects, lon, lat, r)
+            usage_rows += urows
         per_radius[str(r)] = {
             "1_population_and_age": pop_sec,
             "2_building_usage": use_sec,
@@ -311,7 +349,19 @@ def run_point(
             "道路ネットワーク距離・等時線は T2（別 PR）",
         ],
     }
-    if not circle_in_aoi:
+    worst_cov = min(s["1_population_and_age"]["boundary_coverage_fraction"]
+                    for s in per_radius.values())
+    if worst_cov < 0.98:
+        result["caveats"].insert(0,
+            f"① 円のうち境界データで覆われているのは最小 {worst_cov:.0%}。"
+            "残り（湾・海面や AOI 外）には小地域ポリゴンが無く人口は計上されない。"
+            "水域なら実害は小さいが、陸地が欠けていれば過小評価"
+            "（boundary_coverage_fraction / coverage_complete 参照）")
+    if objects is None:
+        result["caveats"].insert(0,
+            f"② ⑤ は AOI '{aoi}' の objects.geojson が無く計算していない"
+            "（status: データなし）。① 人口は影響なし")
+    elif not circle_in_aoi:
         result["caveats"].insert(0,
             f"② ⑤ の建物・道路は AOI '{aoi}' の objects.geojson が母数。"
             f"半径 {max_r} m の円が AOI 矩形からはみ出しており、"
@@ -327,11 +377,12 @@ def run_point(
     _write_csv(out_dir / f"point_buffer_{slug}_bldg_usage.csv", usage_rows,
                ["radius_m", "usage_code", "usage_label", "count"])
     for r in radii:
-        s = per_radius[str(r)]
-        print(f"  r={r:>4} m: 人口 {s['1_population_and_age']['population_estimate']:>8.0f}"
-              f"（高齢化率 {s['1_population_and_age']['aging_rate_65plus']}）"
-              f" / 建物 {s['2_building_usage']['total_buildings']:>5}"
-              f" / 道路 {s['5_transport']['plateau_road_segments']:>4} 本")
+        p = per_radius[str(r)]["1_population_and_age"]
+        b = per_radius[str(r)]["2_building_usage"].get("total_buildings", "—")
+        rd = per_radius[str(r)]["5_transport"].get("plateau_road_segments", "—")
+        print(f"  r={r:>4} m: 人口 {p['population_estimate']:>8.0f}"
+              f"（高齢化率 {p['aging_rate_65plus']}, 被覆 {p['boundary_coverage_fraction']:.0%}）"
+              f" / 建物 {b} / 道路 {rd} 本")
     print(f"  wrote {out_dir}/point_buffer_{slug}.json ほか 2 CSV")
     return result
 
