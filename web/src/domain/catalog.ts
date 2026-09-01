@@ -46,6 +46,23 @@ export interface FlowBasinsAsset {
   condition: string
 }
 
+/**
+ * 徒歩圏（等時線）ひとつぶん（`catalog.walk_isochrones[]`）。
+ * `scripts/94_walk_isochrone.py` が起点＋所要時間の組ごとに 1 GeoJSON を焼く
+ * （`network_isochrone` / `simple_buffer` の 2 面、`domain/walkIsochrone.ts`）。
+ * **T1（任意地点＋半径）の中心点 UI とは未統合**なので起点は解析側の固定点。
+ * 複数起点を並べられるよう配列にしてある。
+ */
+export interface WalkIsochroneAsset {
+  url: string
+  bytes: number
+  origin_lon: number
+  origin_lat: number
+  minutes: number
+  /** 一覧に出す短い見出し（例: 「西舞鶴駅 10分」）。無ければ url から起こす */
+  label?: string
+}
+
 export interface Catalog {
   version: number
   aoi: {
@@ -150,6 +167,12 @@ export interface Catalog {
     count: number
     boundary?: Record<string, unknown>
   }
+  /**
+   * 徒歩圏（道路ネットワーク等時線 ＋ 単純バッファ）。`scripts/94_walk_isochrone.py`
+   * が起点ごとに焼く。**公式歩行者網ではない**（各 asset の中身にも properties/
+   * metadata として明記）。焼いていない配信物では鍵ごと無い。
+   */
+  walk_isochrones?: WalkIsochroneAsset[]
   /** 点群が地表面として効いている範囲の輪郭。無い配信物もあるので optional */
   pointcloud_coverage?: { url: string; bytes: number
                           area_ha_cells: number; area_ha_outline: number
