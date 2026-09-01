@@ -669,6 +669,22 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
 | 中間物 | `data/interim/census_stats_maizuru_2020.csv`（KEY_CODE で境界に結合）＋ `.json`（版・列定義・秘匿件数） |
 | 注意 | この URL も API 仕様として公表されたものではない。404 なら CSV を手動 DL して `data/raw/estat/tblT001082C26.zip` に置く（手順は `scripts/14` の docstring） |
 
+### T1 の viewer への配信（地点＋徒歩圏）**[実測]**（2026-09-02）
+
+`scripts/93_point_buffer_agg.py` は範囲を跨いだ共通の 1 ディレクトリ
+`data/out/point_buffer/` に地点ごとの集計 JSON と索引 `index.json` を積む
+（`--out-dir` の既定）。`scripts/83_build_catalog.py` の `point_buffer()` が
+**その AOI の地点（`index.json` の `aoi` フィールドが一致するものだけ）**を選び、
+内容ハッシュ付きの名前で `web/public/data/` へコピーし直して `catalog.point_buffer`
+として配信する。
+
+| | |
+|---|---|
+| 配信物 | `catalog.point_buffer = {url, bytes, count}`。`url` の指す先が絞り込み済みの索引（元の `index.json` と同じ形。各エントリの `url` は配信名に書き換え済み） |
+| 絞り込みの理由 | 索引は範囲を跨ぐ 1 ファイルだが、viewer の `PointPickTool` はいま開いている AOI の地図でしかクリックできない。他範囲の地点を載せても引けないので、配信量を増やすだけ |
+| 鍵ごと落ちる条件 | `index.json` が無い（`scripts/93` を一度も実行していない）、またはその AOI の地点が 0 件 |
+| viewer 側 | `web/src/domain/pointBuffer.ts` の `parsePointBufferIndex` / `nearestIndexEntry`。**地図をクリックしても新しい地点は作れない**（新しい外部 API・サーバ計算は足さない方針、本節冒頭 T1）ので、索引に無い地点をクリックすると「まだ生成されていない」と明確に返す |
+
 ---
 
 ## 6. 出典表記（成果物に必ず含めること）

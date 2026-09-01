@@ -94,8 +94,8 @@ CITY GAP / plateau-city-gap 側のやり取りだが本リポジトリの `scrip
 
 | # | 要望 | 状態・進め方 |
 |---|---|---|
-| T1 | **任意地点を中心にした範囲集計。** 500m メッシュ起点をやめ、地図上の任意点（駅に限らない）を中心に半径 **500 / 800 / 1000m 切替**＋**町丁・字単位**で集計する。表示順は 山本氏の回答どおり ① 人口と年齢分布 ② 建物用途分布 ③ 事業所数 ④ 用途地域等の都市計画制限 ⑤ 交通。800m は国交省『都市構造評価ハンドブック』の徒歩圏、500m は高齢者徒歩圏 **[実測: 要望]** | **骨格入れた（①②⑤。③④は別 PR）。** `scripts/14_fetch_census_stats.py` が国勢調査 小地域の人口・年齢（統計表 `T001082`）を取り（`docs/data.md` §5）、`scripts/93_point_buffer_agg.py` が「円 ∩ 小地域」の**面按分**（`--method centroid` で重心内包に切替）で ① 人口・年齢分布、`objects.geojson` の `bldg:usage` で ② 建物用途分布、`tran:Road` で ⑤ 交通（道路量）を `data/out/point_buffer/*.json` ＋ CSV に出す。`iwagaki.areas` に `areas_in_circle` / `features_in_circle` / `circle_geom` を追加（`scripts/92` と結合ロジックを共有）。サンプル: 西舞鶴駅前 800 m で人口 4,110（高齢化率 34 %、`docs/results.md`「任意地点＋徒歩圏の小地域集計」）。**③ 事業所数（経済センサス）・④ 用途地域（都市計画 GIS）は未取得の枠だけ**。viewer 配線は別 PR、道路ネットワーク上の徒歩圏は T2。 |
-| T2 | **徒歩圏（道路ネットワーク等時線）。** T1 の中心から道路ネットワーク上で 10 分圏を面で出し、単純バッファと別レイヤーで併置して乖離を見せる **[実測: 要望]** ／ ネットワークの妥当性は **[仮説]** | **ファイル側は入れた（`scripts/94_walk_isochrone.py` / `src/iwagaki/road_graph.py`、`docs/data.md` §8・`docs/results.md`「徒歩10分圏」）。** `--lon --lat --minutes` で (a) ネットワーク等時線 (b) 同距離の単純バッファ を 1 GeoJSON に。**PLATEAU `tran` に道路中心線ネットワークは無かった**（`lod1MultiSurface` の面だけ、`tran:Railway`/`lod0Network` は 0 件）ので道路面の隣接からグラフを起こした。交差点が塗られておらず 6 m 橋渡しが要る／橋・トンネルも歩行者は通るので入れる。東舞鶴サンプルで圏/バッファ比 ≈ 0.2（単純な円は徒歩到達を大きく過大評価）。「公式歩行者網ではない」を properties と docs に明記。<br>**残: OSM 照合（妥当性検証）は未実施＝[仮説]のまま。viewer 表示は別 PR。T1 の中心点 UI と統合。** |
+| T1 | **任意地点を中心にした範囲集計。** 500m メッシュ起点をやめ、地図上の任意点（駅に限らない）を中心に半径 **500 / 800 / 1000m 切替**＋**町丁・字単位**で集計する。表示順は 山本氏の回答どおり ① 人口と年齢分布 ② 建物用途分布 ③ 事業所数 ④ 用途地域等の都市計画制限 ⑤ 交通。800m は国交省『都市構造評価ハンドブック』の徒歩圏、500m は高齢者徒歩圏 **[実測: 要望]** | **viewer まで入れた（①②⑤。③④は未取得のまま）。** `scripts/14_fetch_census_stats.py` が国勢調査 小地域の人口・年齢（統計表 `T001082`）を取り（`docs/data.md` §5）、`scripts/93_point_buffer_agg.py` が「円 ∩ 小地域」の**面按分**（`--method centroid` で重心内包に切替）で ① 人口・年齢分布、`objects.geojson` の `bldg:usage` で ② 建物用途分布、`tran:Road` で ⑤ 交通（道路量）を `data/out/point_buffer/*.json` ＋ CSV ＋ 索引 `index.json` に出す。`iwagaki.areas` に `areas_in_circle` / `features_in_circle` / `circle_geom` を追加（`scripts/92` と結合ロジックを共有）。サンプル: 西舞鶴駅前 800 m で人口 4,110（高齢化率 34 %、`docs/results.md`「任意地点＋徒歩圏の小地域集計」）。**③ 事業所数（経済センサス）・④ 用途地域（都市計画 GIS）は未取得の枠だけ**。<br>**viewer 配線を統合PRで足した**（`web/src/view/pointPickTool.ts` が地図を 1 点クリックする操作、`ui/pointBufferPanel.ts` が半径切替・結果表示、`domain/pointBuffer.ts` が索引と結果のパース）。`scripts/83_build_catalog.py` の `point_buffer()` が**この範囲の地点だけ**を `catalog.point_buffer` として配信する（索引は範囲を跨いだ共通ディレクトリ `data/out/point_buffer/` だが、他範囲の地点は積んでも引けないので絞る）。**新しい外部 API・サーバ計算は足していない** — 任意点をクリックしても、事前生成済みの索引にある地点だけを引く。断面ツール（2 点クリック）とは `sectionTool`/`pointPickTool` の相互排他で取り合わない。道路ネットワーク上の徒歩圏は T2。 |
+| T2 | **徒歩圏（道路ネットワーク等時線）。** T1 の中心から道路ネットワーク上で 10 分圏を面で出し、単純バッファと別レイヤーで併置して乖離を見せる **[実測: 要望]** ／ ネットワークの妥当性は **[仮説]** | **ファイル側は入れた（`scripts/94_walk_isochrone.py` / `src/iwagaki/road_graph.py`、`docs/data.md` §8・`docs/results.md`「徒歩10分圏」）。** `--lon --lat --minutes` で (a) ネットワーク等時線 (b) 同距離の単純バッファ を 1 GeoJSON に。**PLATEAU `tran` に道路中心線ネットワークは無かった**（`lod1MultiSurface` の面だけ、`tran:Railway`/`lod0Network` は 0 件）ので道路面の隣接からグラフを起こした。交差点が塗られておらず 6 m 橋渡しが要る／橋・トンネルも歩行者は通るので入れる。東舞鶴サンプルで圏/バッファ比 ≈ 0.2（単純な円は徒歩到達を大きく過大評価）。「公式歩行者網ではない」を properties と docs に明記。<br>**残: OSM 照合（妥当性検証）は未実施＝[仮説]のまま。viewer 表示（domain/three/ui 配線と `scripts/83` の catalog 化）はまだ統合できていない。** `catalog.ts` に `WalkIsochroneAsset` / `catalog.walk_isochrones[]` の型だけは用意した（起点は解析側の固定点の一覧から選ぶ設計に決めてある。T1 の中心点 UI とは別物 — 地図クリックでは新しい等時線を作らない）。実装が並行で作り直し中のため今回の統合PRでは見送った。 |
 | T3 | **潮位・測地成果まわりの記録更新**（上田氏の回答, 2026-08-29） **[実測: 市回答]** | **反映済み（`docs/data.md`「市の潮位・浸水記録の扱い」）。** 市内潮位は験潮所の値を一律採用／気象庁値は元から T.P.／今年度から測地成果2024（市資料は旧成果、変換は地点ごと）／浸水位は消防の目視で厳密比較しない／西舞鶴冠水箇所は原因帰属しない。`scripts/13` は `datum=2011` 取得で現行の地形世代と整合、**コード変更なし**。測地成果2024 への移行は地形データ更新と揃えて判断。 |
 
 **FARR（Flow Accumulation Realtime Renderer, mite-shiru 社 https://mite-shiru.co.jp/farr/ ）の
@@ -179,10 +179,16 @@ D8 を回し、AOI 矩形に clip する。**collar はルーティング専用*
 「部分流域への分割」、画面は `docs/web_design.md`「クリックで集水域を抽出する」、
 数値は `docs/results.md`。
 
-**これで FARR ブロックは残タスクなし。** 断面ツールへの主流路接続（流域の主流路に
-沿って測線を自動で引く）だけ**別 PR に切り出し**た — 主流路ポリライン抽出が
-`scripts/33` の追加作業になるため。
+**これで FARR ブロックは残タスクなし。**
 
+- ~~**断面ツールへの主流路接続**（流域の主流路に沿って測線を自動で引く）。~~ →
+  **入れた**（2026-09-01、別 PR）。`main_channel_from_outlet`（`src/iwagaki/flow.py`）が
+  D-infinity の主 receiver 木から合流点で集水セル数の大きい方だけを選んで遡る。
+  `scripts/33` が `flow_channels_<条件>.geojson` を書き出し、`scripts/83` が
+  `catalog.flow.channels` として配信。viewer は流域を選んだとき断面パネルが
+  開いていれば主流路の頂点を `sampleLine` で区間ごとに辿って距離を積み上げる
+  （手動の 2 点断面はそのまま）。collar クリップで端が切れたら `channel_truncated`
+  を立てる。高潮 AOI（40M セル）で性能に問題無いことを確認済み。
 - ~~**クリックで集水域抽出。**~~ → **入れた**（2026-09-01、第 5 段。上記）。
 - ~~**`scripts/32` の仮想吐口を越流点ベースに置く。**~~ → **入れた**（2026-09-01）。
   `scripts/33` の窪地（面積 1000 m² 以上）の越流点セルを陸側端にして `spill_elev`

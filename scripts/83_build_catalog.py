@@ -399,6 +399,44 @@ def small_areas(area_total: dict[str, int]) -> dict:
             "count": len(feats), "boundary": boundary_metadata()}
 
 
+def point_buffer() -> dict:
+    """任意地点＋徒歩圏の集計索引を配信物に加える（`catalog.point_buffer`、複数自治体
+    からの要望 T1）。
+
+    `scripts/93_point_buffer_agg.py` は範囲を跨いだ共通の 1 ディレクトリ
+    （`data/out/point_buffer/`）に `index.json` を積む。**この範囲（AOI）の地点だけ**
+    を配信する — viewer の `PointPickTool` はいま開いている範囲の地図でしかクリック
+    できないので、他範囲の地点を積んでも引けない。索引が無い、またはこの範囲の
+    地点が 0 件なら鍵ごと落ちる（`railway` / `small_areas` と同じ扱い）。
+    """
+    src_dir = OUT.parent / "point_buffer"
+    index_path = src_dir / "index.json"
+    if not index_path.exists():
+        return {}
+    index = json.loads(index_path.read_text())
+    points = [p for p in index.get("points", []) if p.get("aoi") == AOI.name]
+    if not points:
+        return {}
+    out_points = []
+    for p in points:
+        src = src_dir / p["url"]
+        if not src.exists():
+            continue
+        dst = WEB_DATA / asset_name(src.name)
+        dst.write_bytes(src.read_bytes())
+        name = publish_file(dst)
+        out_points.append({**p, "url": f"data/{name}"})
+    if not out_points:
+        return {}
+    idx = {"version": 1, "points": out_points}
+    ip = WEB_DATA / asset_name("point_buffer_index.json")
+    ip.write_text(json.dumps(idx, ensure_ascii=False, separators=(",", ":")))
+    name = publish_file(ip)
+    q = WEB_DATA / name
+    print(f"{name}: {len(out_points)} 地点, {q.stat().st_size / 1e3:.1f} kB")
+    return {"url": f"data/{name}", "bytes": q.stat().st_size, "count": len(out_points)}
+
+
 def tide_series() -> dict:
     """`scripts/86` が取得できた潮位時系列だけを配信物に載せる。
 
@@ -592,6 +630,8 @@ def main() -> int:
     small_areas_asset = small_areas(area_total)
     # 水みち／窪地タイル（潮位非依存の別オーバーレイ・optional）
     flow_asset = flow(tiles, to_wgs)
+    # 任意地点＋徒歩圏の集計索引（複数自治体からの要望 T1・optional）
+    point_buffer_asset = point_buffer()
     summary = json.loads((OUT / "summary.json").read_text())
     tide_path = OUT / "tide_levels.json"
     tide = json.loads(tide_path.read_text()) if tide_path.exists() else None
@@ -694,6 +734,10 @@ def main() -> int:
         # （建物側の area_code から viewer が現在の水位で数える）。
         # 境界データが無い配信物では鍵ごと無い（areas.json / tide_series と同じ扱い）
         **({"small_areas": small_areas_asset} if small_areas_asset else {}),
+        # 任意地点＋徒歩圏の集計索引（複数自治体からの要望 T1）。この範囲の地点が
+        # 無い配信物では鍵ごと落ちる。地図をクリックしても新規計算はしない
+        # （新しい外部 API・サーバ計算は足さない方針、`docs/todo.md` T1）
+        **({"point_buffer": point_buffer_asset} if point_buffer_asset else {}),
         # 起動時に出す断面。天端を横切る線を解析側で決める（scripts/87）。
         # **空なら鍵ごと落とす。** `{}` を置くと読み側で truthy になり、
         # `default_section.from[0]` で落ちる（面的表示用の範囲で実際に落ちた）

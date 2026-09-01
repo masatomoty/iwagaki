@@ -20,6 +20,7 @@ import {
   basinAt, catchmentOf, catchmentSummary, indexFlowBasins, resolveFlow,
   resolveFlowBasins, type FlowBasins,
 } from './domain/flow'
+import { parsePointBufferIndex, type PointBufferIndex } from './domain/pointBuffer'
 import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
               TerrainCondition } from './domain/types'
 import { Scheduler } from './net/scheduler'
@@ -43,12 +44,17 @@ import { FOV_Y_DEG, type Viewer } from './three/viewer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
 import { renderPerf } from './ui/perfPanel'
+import {
+  initialPointBufferState, loadPointBufferResult, mountPointBufferPanel,
+  updatePointBufferPanel, type PointBufferPanelState,
+} from './ui/pointBufferPanel'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
 import {
   createColorScheme, depthLegend, FLOOR_ABOVE_DEPTH_M, legendOf, type ColorScheme,
 } from './view/buildingColor'
 import { applyPreset, attachViewCube, bindCameraKeys, createViewer, initialZoom,
          showSectionLine } from './view/map'
+import { PointPickTool } from './view/pointPickTool'
 import { SectionTool, type LonLat } from './view/sectionTool'
 import { toAssertion, type RawFeature } from './view/semantics'
 
@@ -715,9 +721,70 @@ async function boot() {
       }
     },
   })
+  // ---- 地点＋徒歩圏（複数自治体からの要望 T1） -----------------------------
+  //
+  // 地図を 1 点クリックして中心を指定し、事前生成済みの索引（`catalog.point_buffer`）
+  // から最寄りの集計を引く。**新しい外部 API・サーバ計算は足さない**
+  // （`docs/todo.md` T1）ので、任意点をクリックしても新規に計算はしない。
+  // パネル自体は `ui/pointBufferPanel.ts` が状態・DOM 更新を完結して持つ
+  // （main.ts は「クリック -> lon/lat」と「索引の取得」の 2 つだけを担う）。
+  let pointBufferIndex: PointBufferIndex | undefined
+  let pbState: PointBufferPanelState = initialPointBufferState()
+  const pbEl = document.getElementById('point-buffer') as HTMLElement | null
+  const refreshPbPanel = () => { if (pbEl?.dataset.built === '1') updatePointBufferPanel(pbEl, pbState) }
+  /** 地点を確定したクリックが、そのまま地物選択・集水域クリックへ落ちないようにする一回限りの蓋 */
+  let ignoreNextClick = false
+
+  const pointPickTool = new PointPickTool({
+    viewer, planeZ: geoid,
+    onPick: (p) => {
+      ignoreNextClick = true
+      pbState = { ...pbState, picked: p, loading: true, error: undefined, match: undefined, result: undefined }
+      refreshPbPanel()
+      const idxUrl = catalog.point_buffer?.url
+      if (!pointBufferIndex || !idxUrl) { pbState = { ...pbState, loading: false }; refreshPbPanel(); return }
+      void loadPointBufferResult(pointBufferIndex, idxUrl, p, {
+        fetchJson: async (url) => JSON.parse(new TextDecoder().decode(
+          await scheduler.submit({ key: `pb-${url}`, url, cls: 'prefetch' }))),
+      }).then((res) => {
+        pbState = { ...pbState, loading: false, ...res }
+        refreshPbPanel()
+      })
+    },
+    onState: ({ active }) => {
+      pbState = { ...pbState, pickActive: active }
+      refreshPbPanel()
+    },
+  })
+
+  async function loadPointBufferIndex() {
+    const a = catalog.point_buffer
+    if (!a?.url || pointBufferIndex) return
+    try {
+      const b = await scheduler.submit({ key: 'point-buffer-index', url: a.url, cls: 'prefetch' })
+      pointBufferIndex = parsePointBufferIndex(JSON.parse(new TextDecoder().decode(b)))
+      if (pbEl && pointBufferIndex.entries.length) {
+        pbEl.style.display = 'block'
+        mountPointBufferPanel(pbEl, pbState, {
+          onTogglePick: () => {
+            if (sectionTool.isActive) sectionTool.stop()
+            pointPickTool.toggle()
+          },
+          onSelectRadius: (r) => { pbState = { ...pbState, radius: r }; refreshPbPanel() },
+        })
+      }
+    } catch {
+      // 表示の補助。取れなくても地図は動かす
+    }
+  }
+  void loadPointBufferIndex()
+
   document.addEventListener('click', (e) => {
     const t = e.target as HTMLElement
-    if (t.id === 'secbtn') sectionTool.toggle()
+    if (t.id === 'secbtn') {
+      if (pointPickTool.isActive) pointPickTool.stop()
+      sectionTool.toggle()
+    }
     if (t.id === 'sec-close') {
       secEl.style.display = 'none'
       document.body.classList.remove('section-open')
@@ -980,7 +1047,11 @@ async function boot() {
   // 地物のクリック選択（deck.gl の pickable の置き換え）。
   // 断面の作図中は測線の端点を取りに来ているので、選択には使わない
   viewer.canvas.addEventListener('click', (e) => {
-    if (sectionTool.isActive) return
+    if (sectionTool.isActive || pointPickTool.isActive) return
+    // **地点を確定したその同じクリックを、続けて地物選択に使わない。**
+    // `PointPickTool` は 1 クリックで完了するので、`click` が届く時点では
+    // 既に `isActive` が false に戻っている（`sectionTool` の 2 点目と同じ構造）
+    if (ignoreNextClick) { ignoreNextClick = false; return }
     // 「水みち」モードのクリックは集水域の抽出に寄せる（`catalog.flow.basins` が
     // 当たれば）。当たらなかった場合だけ地物選択にフォールバックする
     if (store.state.terrainPaint === 'catchment' && pickCatchment(e.clientX, e.clientY)) {
@@ -1021,7 +1092,8 @@ async function boot() {
     hoverQueued = false
     const pt = hoverPending
     hoverPending = null
-    if (!pt || !semantics || !store.state.layers.semantics || sectionTool.isActive) return
+    if (!pt || !semantics || !store.state.layers.semantics
+        || sectionTool.isActive || pointPickTool.isActive) return
     const r = viewer.canvas.getBoundingClientRect()
     const ndc = new Vector2(
       ((pt.x - r.left) / r.width) * 2 - 1,
