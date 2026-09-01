@@ -532,6 +532,12 @@ async function boot() {
                    geometry: { coordinates: LonLat[] } }[]
       }
       flowChannels = new Map(fc.features.map((f) => [f.properties.basin_id, f.geometry.coordinates]))
+      // 読み込みが終わる前に流域を選んでいた場合はここで追いつく（`applyCatchment`
+      // と同じ「復帰時に描き直す」流儀）。断面パネルが閉じていれば何もしない
+      const sel = store.state.selectedCatchment?.basinId
+      if (sel !== undefined && document.body.classList.contains('section-open')) {
+        void buildSectionAlongChannel(sel)
+      }
     } catch {
       // 主流路が無くても手動の 2 点断面は変わらず使える
     } finally {
@@ -654,10 +660,18 @@ async function boot() {
    *
    * 手動の 2 点断面（`sectionTool` の `onLine` → `buildSection`）はこの関数を
    * 経由しないので、既存の操作はそのまま動く（`pickCatchment` から呼ぶだけ）。
+   *
+   * **流域を続けて選んだときは新しい方を勝たせる。** 折れ線の頂点ごとに何度も
+   * `sampleLine` を待つので、前の選択の取得が終わる前に次の流域を選べる。
+   * 素直に await するだけだと後から解決した方が勝ち、`secLine`（新しい流域）に
+   * `secSeries`（古い流域の断面）が乗ってしまう。呼ぶたびに発行する通し番号で
+   * 自分が最新か確認し、追い越されていたら結果を捨てる。
    */
+  let channelSectionSeq = 0
   async function buildSectionAlongChannel(basinId: number) {
     const line = flowChannels?.get(basinId)
     if (!line || line.length < 2) return
+    const seq = ++channelSectionSeq
     const from = line[0]
     const to = line[line.length - 1]
     secLine = [from, to]
@@ -685,6 +699,7 @@ async function boot() {
       }
       return { ...s, points } as SectionSeries
     }))
+    if (seq !== channelSectionSeq) return   // 待っている間に別の流域が選ばれた
     secSeries = got.filter((x): x is SectionSeries => x !== null)
     redrawSection()
   }
