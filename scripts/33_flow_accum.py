@@ -27,9 +27,11 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import AOI, OUT, RES_COARSE, RES_HIGHRES, ROOT, asset_name
+from iwagaki.config import (AOI, CRS_ANALYSIS, FLOW_POUR_POINT_MAX_COUNT,
+                            FLOW_POUR_POINT_MIN_AREA_M2, OUT, RES_COARSE,
+                            RES_HIGHRES, ROOT, asset_name)
 from iwagaki.flow import (d8_accumulation, d8_flow_direction, label_pits,
-                          pit_records, priority_flood_fill)
+                          pit_records, priority_flood_fill, top_pits_by_area)
 from iwagaki.raster import read, write
 
 # scripts/30_flood.py の CONDITIONS と同じ（同一グリッド思想）。
@@ -87,7 +89,11 @@ def _process(name: str, fname: str, res: float) -> dict:
         raise SystemExit(f"{name}: flow_accum 保存則が破れている（{term_sum} != {n_valid}）")
 
     pit_id, n_pits = label_pits(fill_depth, MIN_PIT_DEPTH_M)
-    pits = pit_records(pit_id, fill_depth, filled, arr, cell_area)
+    # 越流点セルは viewer が出す上位の窪地だけ計算する（highres で 5〜7 万個あり、
+    # 全部回すと遅い）。`_write_pour_points` と同じ絞り
+    pour_for = top_pits_by_area(pit_id, FLOW_POUR_POINT_MIN_AREA_M2, cell_area,
+                                FLOW_POUR_POINT_MAX_COUNT) if n_pits else None
+    pits = pit_records(pit_id, fill_depth, filled, arr, cell_area, pour_for=pour_for)
     for p in pits:
         if p.spill_elev_m_tp + 1e-3 < p.max_ground_elev_m_tp:
             raise SystemExit(
@@ -111,6 +117,7 @@ def _process(name: str, fname: str, res: float) -> dict:
 
     (OUT / f"flow_accum_pits_{name}.json").write_text(json.dumps(
         [p.__dict__ for p in pits], indent=2, ensure_ascii=False), encoding="utf-8")
+    n_markers = _write_pour_points(name, grid, pits, term_edge)
 
     return {
         "dtm": fname, "res_m": res, "cells": int(arr.size),
@@ -127,7 +134,53 @@ def _process(name: str, fname: str, res: float) -> dict:
         "sink_outlet_cells": int(d8.sink_outlet.sum()),
         "edge_outlet_cells": int(d8.edge_outlet.sum()),
         "accum_conservation_ok": abs(term_sum - n_valid) <= 0.5,
+        "pour_point_markers": n_markers,
     }
+
+
+def _write_pour_points(name: str, grid, pits: list, term_edge: np.ndarray) -> int:
+    """越流点マーカーの GeoJSON（EPSG:6674, Point）。**面積上位の窪地だけ**。
+
+    viewer の「窪地の越流点」レイヤ用（`scripts/83` が WGS84 に起こす）。
+    座標は Z に越流点標高を入れて `three/pourPoints.ts` が地形を待たずに置ける
+    ようにする（`three/railwayLine.ts` と同じ）。**潮位判定には一切使わない。**
+    """
+    big = sorted(
+        (p for p in pits
+         if p.area_m2 >= FLOW_POUR_POINT_MIN_AREA_M2 and p.pour_row >= 0),
+        key=lambda p: p.area_m2, reverse=True)[:FLOW_POUR_POINT_MAX_COUNT]
+    feats = []
+    for p in big:
+        x, y = grid.transform * (p.pour_col + 0.5, p.pour_row + 0.5)
+        feats.append({
+            "type": "Feature",
+            "geometry": {"type": "Point",
+                         "coordinates": [round(x, 3), round(y, 3),
+                                         round(p.spill_elev_m_tp, 3)]},
+            "properties": {
+                "pit_id": p.pit_id,
+                "area_ha": round(p.area_m2 / 1e4, 4),
+                "max_fill_depth_m": p.max_fill_depth_m,
+                "volume_m3": p.volume_m3,
+                "spill_elev_m_tp": p.spill_elev_m_tp,
+                "edge_truncated": bool(term_edge[p.pour_row, p.pour_col]),
+            },
+        })
+    fc = {
+        "type": "FeatureCollection",
+        "crs": {"type": "name", "properties": {"name": CRS_ANALYSIS}},
+        "properties": {
+            "condition": name,
+            "what": "海に通じない窪地の越流点（鞍部）。潮位非依存の原理版",
+            "selection": (f"面積 >= {FLOW_POUR_POINT_MIN_AREA_M2:.0f} m² の窪地を"
+                          f"面積上位 {FLOW_POUR_POINT_MAX_COUNT} 件まで"),
+            "total_pits": len(pits),
+        },
+        "features": feats,
+    }
+    (OUT / f"flow_accum_pits_{name}.geojson").write_text(
+        json.dumps(fc, ensure_ascii=False), encoding="utf-8")
+    return len(feats)
 
 
 def _load(name: str) -> np.ndarray | None:

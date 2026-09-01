@@ -28,8 +28,8 @@ from rasterio.warp import reproject
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, asset_name, CRS_ANALYSIS, H_STEP, OUT, WEB_DATA,
-                            WEB_CONDITIONS, WEB_DIFFS)
+from iwagaki.config import (AOI, asset_name, CRS_ANALYSIS, DEFAULT_AOI, H_STEP, OUT,
+                            WEB_DATA, WEB_CONDITIONS, WEB_DIFFS, WEB_FLOW_CONDITIONS)
 TILE = 256
 R_EARTH = 6378137.0
 ORIGIN = math.pi * R_EARTH        # 20037508.342789244
@@ -202,10 +202,71 @@ def decode(rgba: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return elev, hconn
 
 
+# --- 「水みち／窪地」ピラミッド（flow accumulation, docs/todo.md）-----------
+#
+# 1 タイル = 1 地形条件。**潮位に依存しない静的ラスタ**なので `h_conn` タイルとは
+# 別ピラミッドにする（`config.WEB_FLOW_CONDITIONS`。`drainage` は highres と同じ
+# 地形なので焼かない）。
+#
+#   R    水みち = log スケールの flow accumulation を 8bit に詰めたもの
+#        R = round( log(1+accum) / log(1+accum_max) * 255 )
+#        **8bit で足りる**（色ランプ 1 本ぶんの分解能。16bit（R=hi/G=lo）にすると
+#        R,G が高エントロピなノイズ場になり PNG がほぼ 2 倍に膨らむ [実測: z18
+#        highres で 4.1 → 7.5 MB]）。
+#        **accum_max はタイルに入らない**ので catalog.flow.<cond>.accum_max_cells に載せる
+#   G    予備（0）
+#   B    充填深コード（`elev_code` と同型。0 = 窪地でない、1..255 = 0.00..12.70 m）
+#   A    0 = データ無し（nodata）、255 = あり（`h_conn` の A と同じ規約）
+#
+# **一様降雨・地形のみ**の但し書きが付く（`src/iwagaki/flow.py`）。
+FLOW_CONDITIONS = {
+    "baseline": ("flow_accum_baseline.tif", "fill_depth_baseline.tif"),
+    "control": ("flow_accum_control.tif", "fill_depth_control.tif"),
+    "highres": ("flow_accum_highres.tif", "fill_depth_highres.tif"),
+    "pointcloud": ("flow_accum_pointcloud.tif", "fill_depth_pointcloud.tif"),
+}
+#: 充填深がこれ以下のセルは窪地に数えない（`scripts/33` の MIN_PIT_DEPTH_M と同値）
+FLOW_FILL_MIN_DEPTH_M = 0.01
+
+
+def _flow_r8(accum: np.ndarray, accum_max: float) -> np.ndarray:
+    denom = np.log1p(max(accum_max, 1.0))
+    t = np.log1p(np.clip(np.nan_to_num(accum, nan=0.0), 0.0, None)) / denom
+    return np.clip(np.round(t * 255.0), 0.0, 255.0).astype(np.uint8)
+
+
+def encode_flow(accum: np.ndarray, fill_depth: np.ndarray, accum_max: float) -> np.ndarray:
+    rgba = np.zeros((*accum.shape[:2], 4), dtype=np.uint8)
+    ok = np.isfinite(accum)
+    rgba[..., 0] = np.where(ok, _flow_r8(accum, accum_max), 0)
+    is_pit = np.isfinite(fill_depth) & (fill_depth > FLOW_FILL_MIN_DEPTH_M)
+    code = np.clip(
+        np.round(np.nan_to_num(fill_depth, nan=0.0) / H_STEP).astype(np.int32) + 1, 1, 255)
+    rgba[..., 2] = np.where(is_pit, code, 0)
+    rgba[..., 3] = np.where(ok, 255, 0)
+    return rgba
+
+
+def decode_flow(rgba: np.ndarray, accum_max: float) -> tuple[np.ndarray, np.ndarray]:
+    """検証用。encode_flow の逆。8bit 量子化ぶんの往復誤差が出る。"""
+    r, _g, b, a = (rgba[..., i].astype(np.float64) for i in range(4))
+    accum = np.expm1((r / 255.0) * np.log1p(max(accum_max, 1.0)))
+    accum[a == 0] = np.nan
+    fill = np.where(b == 0, 0.0, (b - 1.0) * H_STEP)
+    return accum, fill
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-zoom", type=int, default=14)
     ap.add_argument("--max-zoom", type=int, default=18)
+    # 水みちは**定性的なオーバーレイ**（色ランプ 1 本）なので浅く焼く。
+    # z18 まで焼くと 8bit log のノイズ場が支配して highres で 4 MB になる [実測]。
+    # **面的表示用の広い範囲（西/東舞鶴）は z16 まで**（z17 だと highres で 8〜12 MB。
+    # 625〜1000 ha を俯瞰で見る範囲なので 1 段の解像度より枚数を優先）。
+    # 100 ha の吉原だけ z17（1.3 MB。路地・水路沿いの線状の集水が読める）。
+    ap.add_argument("--flow-max-zoom", type=int,
+                    default=17 if AOI.name == DEFAULT_AOI else 16)
     args = ap.parse_args()
 
     # AOI を 3857 に
@@ -300,6 +361,53 @@ def main() -> int:
                         f"B=elev({GEOMETRY_FROM_DIFF[name][4:-4]}) code, A=255"),
         }
         print(f"{name}: {n_tiles} tiles, {total/1e6:.2f} MB")
+
+    # --- 水みち／窪地ピラミッド -----------------------------------------
+    for cond in WEB_FLOW_CONDITIONS:
+        accum_f, fill_f = FLOW_CONDITIONS[cond]
+        missing = [p for p in (OUT / accum_f, OUT / fill_f) if not p.exists()]
+        if missing:
+            print(f"  flow_{cond}: skip (missing {', '.join(p.name for p in missing)})")
+            continue
+        with rasterio.open(OUT / accum_f) as src:
+            a = src.read(1).astype("float64")
+            nd = src.nodata
+        if nd is not None:
+            a[a == nd] = np.nan
+        accum_max = float(np.nanmax(a)) if np.isfinite(a).any() else 1.0
+
+        name = f"flow_{cond}"
+        flow_max_zoom = min(args.flow_max_zoom, args.max_zoom)
+        outdir = WEB_DATA / "tiles" / asset_name(name)
+        n_tiles = total = 0
+        per_zoom = {}
+        for z in range(args.min_zoom, flow_max_zoom + 1):
+            zn = zt = 0
+            for _, x, y in tiles_for_bounds(b3857, z):
+                accum, _ = sample(OUT / accum_f, z, x, y, Resampling.nearest)
+                fill, _ = sample(OUT / fill_f, z, x, y, Resampling.nearest)
+                if not np.isfinite(accum).any() and not np.isfinite(fill).any():
+                    continue
+                rgba = encode_flow(accum, fill, accum_max)
+                p = outdir / str(z) / str(x) / f"{y}.png"
+                p.parent.mkdir(parents=True, exist_ok=True)
+                Image.fromarray(rgba, "RGBA").save(p, "PNG", optimize=True)
+                zn += 1
+                zt += p.stat().st_size
+            per_zoom[z] = {"tiles": zn, "bytes": zt}
+            n_tiles += zn
+            total += zt
+            print(f"  {name} z{z}: {zn} tiles, {zt/1e3:.0f} kB")
+        report["conditions"][name] = {
+            "tiles": n_tiles, "bytes": total,
+            "min_zoom": args.min_zoom, "max_zoom": flow_max_zoom,
+            "per_zoom": per_zoom,
+            "url": f"data/tiles/{asset_name(name)}/{{z}}/{{x}}/{{y}}.png",
+            "accum_max_cells": int(round(accum_max)),
+            "packing": ("R=log(1+accum)/log(1+accum_max)*255, "
+                        "B=fill_depth code (h_step), A=255|0"),
+        }
+        print(f"{name}: {n_tiles} tiles, {total/1e6:.2f} MB  accum_max={accum_max:.0f}")
 
     rep = WEB_DATA / asset_name("tiles_report.json")
     rep.parent.mkdir(parents=True, exist_ok=True)

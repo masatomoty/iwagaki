@@ -182,11 +182,18 @@ export type FloodModel = 'simple' | 'connected' | 'drainage'
  *
  * - `flood`     … 浸水深（従来）。差分モードでは 2 条件の判定差
  * - `elevation` … **地盤高そのもの**をグラデーションで塗る
+ * - `catchment` … **水みち**。一様降雨で地表流がどこに集まるか（flow accumulation の
+ *   log）。**潮位を一切使わない**（`elevation` と同じく浸水色を出さない面）。
  *
  * `elevation` は市の
  * > 浸水深を見せる前に、どの場所の地盤が低いのか、地盤高を色のグラデーションで
  * > 見せていくのもあり
  * という提案（2026-08）。**配信物は 1 バイトも増えない**（標高はもともと
  * タイルの RGB に入っている。`assets/packing.ts`）。
+ *
+ * `catchment` は外部プロダクト FARR（mite-shiru 社）のロジック取り込み
+ * （`docs/todo.md`「FARR のロジックを取り込む」）。専用のタイルピラミッド
+ * （`catalog.flow`）を持つ。**一様降雨・地形のみ**の但し書きが付く
+ * （実際の降雨分布・浸透・管路・時間発展は含まない。`src/iwagaki/flow.py`）。
  */
-export type TerrainPaint = 'flood' | 'elevation'
+export type TerrainPaint = 'flood' | 'elevation' | 'catchment'

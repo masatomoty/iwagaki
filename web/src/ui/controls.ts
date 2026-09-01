@@ -131,6 +131,10 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
   { id: 'elevation', label: '地盤高',
     hint: 'どこの地盤が低いかを 0〜3 m のグラデーションで塗る。'
       + '浸水の色は出さず、いまの潮位の等高線だけを白い線で重ねる' },
+  { id: 'catchment', label: '水みち',
+    hint: '一様降雨で地表流がどこに集まるか（集水セル数の log）。'
+      + '潮位は使わない。地形のみで、浸透・管路・実際の降雨分布は含まない。'
+      + '窪地は水色で出る（FARR 取り込み）' },
 ]
 
 /**
@@ -140,7 +144,8 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
 function layersOf(catalog: Catalog) {
   return LAYERS.filter((l) =>
     (l.key !== 'pointcloud' || !!catalog.pointcloud?.url)
-    && (l.key !== 'railway' || !!catalog.railway?.url))
+    && (l.key !== 'railway' || !!catalog.railway?.url)
+    && (l.key !== 'pourPoints' || !!catalog.flow?.pits?.url))
 }
 
 const surfaceCondition = (s: SurfaceMode): TerrainCondition => comparisonPair(s).to
@@ -172,7 +177,8 @@ const SYNTHETIC_NOTE =
  * どちらも**配信物が増えないので既定 ON にできる**（水面は同じタイルを 2 回描くだけ、
  * 道路は前から objects.geojson に入っていて描いてもいた）。
  */
-type LayerKey = 'waterSurface' | 'ponded' | 'roads' | 'railway' | 'plateau' | 'pointcloud'
+type LayerKey = 'waterSurface' | 'ponded' | 'pourPoints' | 'roads' | 'railway'
+  | 'plateau' | 'pointcloud'
 const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'waterSurface', label: '水面',
     hint: '潮位の高さに水平な水面を張る。切ると浸水域を地面の色だけで見る' },
@@ -180,6 +186,10 @@ const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
     hint: '標高は潮位より低いが、地表面をたどると海に出ない土地。'
       + '排水路の吐口にフラップゲートが無いので、管路を逆流して浸水しうる。'
       + '逆流はモデルに含まないので、印だけを重ねている' },
+  { key: 'pourPoints', label: '窪地の越流点',
+    hint: 'DEM だけで決まる、海に通じない窪地とその鞍部（越流点）。'
+      + '潮位を使わない原理版で、上の「窪地（逆流で…）」とは別物。'
+      + '「地形の色」を水みちにすると窪地が水色で出る。面積の大きい順に上位のみ' },
   { key: 'roads', label: '道路（PLATEAU）',
     hint: '浸かると通行支障クラスで塗る。閾値は解析側の 0.1 / 0.3 / 0.5 m' },
   { key: 'railway', label: 'JR 線路',
@@ -219,6 +229,22 @@ function legendHtml(
             + '<i style="background:#5b2a86"></i>通行止め</div>'
         : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
     }
+    return `<div class="legend">${rows.join('')}</div>`
+  }
+
+  // **水みちも浸水の凡例を出さない**（潮位を使わない面。地盤高モードと同じ）。
+  if (s.terrainPaint === 'catchment') {
+    rows.push('<div><i style="width:36px;background:'
+      + 'linear-gradient(90deg,#d9dbd1,#61b0bd 40%,#174a87 75%,#081538)'
+      + '"></i>地表流の集中<span class="sub"> 少ない 〜 多い（集水セル数の log）</span></div>',
+      '<div><i style="background:#70bfcc"></i>窪地'
+      + '<span class="sub"> 海に通じない・充填深で濃くなる</span></div>')
+    if (s.layers.pourPoints && s.catalog.flow?.pits) {
+      rows.push('<div><i style="background:#70bfcc"></i>▽ 越流点'
+        + '<span class="sub"> 窪地から水が溢れ出す鞍部（面積上位のみ）</span></div>')
+    }
+    rows.push('<div class="sub">一様降雨・地形のみ。浸透・管路・実際の降雨分布は'
+      + '含まない。潮位判定には混ぜていない（FARR 取り込み）</div>')
     return `<div class="legend">${rows.join('')}</div>`
   }
 
@@ -267,6 +293,11 @@ function legendHtml(
     rows.push('<div><i style="background:'
       + 'repeating-linear-gradient(135deg,#70bfcc 0 2px,#4c6068 2px 5px)"></i>'
       + '窪地<span class="sub"> 標高は潮位より低いが海とつながらない</span></div>')
+  }
+  // 越流点マーカー。潮位非依存の別レイヤなので、どの塗りモードでも出る
+  if (s.layers.pourPoints && s.catalog.flow?.pits) {
+    rows.push('<div><i style="background:#70bfcc"></i>▽ 窪地の越流点'
+      + '<span class="sub"> DEM だけで決まる鞍部。潮位非依存</span></div>')
   }
   // 判定が変わる地物は、比較のペアが決まっているときだけ出る
   if (pair.from !== pair.to) {
@@ -394,6 +425,10 @@ function nowLine(s: Store['state']): string {
   if (s.terrainPaint === 'elevation') {
     return `<b>${c.label} の地盤高</b> <span class="sub">白線 = 潮位</span>`
       + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
+  }
+  if (s.terrainPaint === 'catchment') {
+    return `<b>${c.label} の水みち</b>`
+      + '<span class="sub">一様降雨・地形のみ。潮位は使わない</span>'
   }
   if (isAssumption(s.surface)) {
     return '<b>浸水と言うのに要る仮定の段階</b>'
@@ -670,7 +705,7 @@ export function renderControls(
       <div class="seg" id="tpaint">${TERRAIN_PAINTS.map((m) =>
         `<button data-p="${m.id}" type="button" title="${m.hint}"
                  aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
-      <div class="whyoff">「地盤高」は浸水判定を使わず、低い場所・高い場所だけを表示</div>
+      <div class="whyoff">「地盤高」「水みち」は潮位を使わず、地形だけを表示</div>
 
       <p class="subhead">絞り込む</p>
       <label class="row"><input type="checkbox" id="cb-changed"

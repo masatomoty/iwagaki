@@ -10,6 +10,28 @@ export interface TerrainAsset {
   packing?: string
 }
 
+/** 「水みち」タイル 1 条件ぶん（`catalog.flow.<condition>`）。 */
+export interface FlowAsset {
+  url: string
+  min_zoom: number
+  max_zoom: number
+  bytes: number
+  tiles: number
+  /** R チャネルの log を戻すのに要る（`three/floodMaterial.ts` の decodeFlow）*/
+  accum_max_cells: number
+  cell_area_m2?: number
+  packing?: string
+}
+
+/** 窪地の越流点マーカー（`catalog.flow.pits`）。GeoJSON Point、WGS84。 */
+export interface FlowPitsAsset {
+  url: string
+  bytes: number
+  count: number
+  /** どの地形条件の窪地か（既定 `highres`）*/
+  condition: string
+}
+
 export interface Catalog {
   version: number
   aoi: {
@@ -64,6 +86,21 @@ export interface Catalog {
   }
   packing: { scheme: string; elev: string; hconn: string; h_step: number; note: string }
   terrain: Record<string, TerrainAsset>
+  /**
+   * 「水みち／窪地」（flow accumulation）。**潮位非依存の別オーバーレイ**で、
+   * `h_conn`・浸水判定には混ぜない（`docs/todo.md`「FARR のロジックを取り込む」）。
+   *
+   * - 条件ごとにタイルピラミッド（`R` = log スケールの集水、`B` = 充填深コード）。
+   *   `accum_max_cells` は R の log を戻すのに要る（`three/floodMaterial.ts`）。
+   * - `pits` = 海に通じない窪地の**越流点マーカー**（面積上位のみ・highres 1 本）。
+   *   既存の「窪地（逆流で…）」レイヤとは別物（あちらは潮位依存）。
+   *
+   * タイルが無い配信物では鍵ごと無い。
+   */
+  flow?: {
+    pits?: FlowPitsAsset
+    [condition: string]: FlowAsset | FlowPitsAsset | undefined
+  }
   plateau: Record<string, { url: string; b3dm_count: number; bytes: number
                             region_min_height_ellipsoidal_m: number }>
   pointcloud: { url: string; synthetic: boolean; provenance: string

@@ -77,6 +77,7 @@ scripts/88_export_survey_targets.py
 | `flow_accum_{cond}.tif` | 地表流の集中（D8・一様降雨・生値 = 集水セル数）。「水みち」 |
 | `fill_depth_{cond}.tif` / `spill_elev_{cond}.tif` / `pit_id_{cond}.tif` | 窪地の充填深・越流点標高・窪地 ID（潮位非依存の原理版） |
 | `flow_accum_summary.json` / `flow_accum_pits_{cond}.json` | 窪地数・面積・容積・端で切れた集水の割合・手法・生成時刻 |
+| `flow_accum_pits_{cond}.geojson` | 窪地の越流点（面積上位のみ）。viewer の「窪地の越流点」レイヤ用（`scripts/83` が WGS84 に変換） |
 | `objects.geojson` / `objects.csv` | 地物 + 条件ごとの地盤高・`h_conn` |
 | `changed_H*.geojson` | 判定が変わった領域 |
 | `summary.json` | 設定・指標 |

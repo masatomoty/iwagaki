@@ -37,6 +37,13 @@ export interface LayerToggles {
    */
   ponded: boolean
   /**
+   * **窪地の越流点**（DEM だけで決まる、海に通じない窪地の鞍部）のマーカーを出すか。
+   * 既定 OFF。潮位非依存の原理版（`three/pourPoints.ts`、`catalog.flow.pits`）で、
+   * 上の `ponded`（潮位依存の斜線）とは別物。catalog に `flow.pits` が無い配信物では
+   * 選択肢ごと出さない。
+   */
+  pourPoints: boolean
+  /**
    * JR 線路（国土数値情報 N02）を出すか。既定 ON。
    *
    * 市の要望（2026-08）が **JR 線路を赤破線で示して「表示範囲の東側をここまで」**
@@ -114,6 +121,8 @@ export function initialState(catalog: Catalog): AppState {
       ?? catalog.water_level.representative[0] ?? 1.0,
     layers: {
       flood: true, ground: true, waterSurface: true, ponded: true,
+      // 越流点は既定 OFF（水みちモードと一緒に見るための detail オーバーレイ）
+      pourPoints: false,
       railway: true, plateau: true,
       // 点群は既定 OFF。合成データで地表面と重なり浸水色を隠すうえ、
       // GPU 44 MB / 転送 14 MB を使う（docs/web_results.md「点群の配信」）
