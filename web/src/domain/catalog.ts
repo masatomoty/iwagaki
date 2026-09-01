@@ -47,6 +47,21 @@ export interface FlowBasinsAsset {
 }
 
 /**
+ * 流域の**主流路**ポリライン（`catalog.flow.channels`）。GeoJSON LineString、WGS84。
+ * `catalog.flow.basins` のリーフごとに 1 本（`properties.basin_id` で対応）。
+ * 各座標列は吐口（先頭）から源流（末尾）の順。断面ツールの自動測線用 — 先頭と
+ * 末尾の 2 点を測線として既存の断面サンプリングに渡せば、折れ線に沿って距離を
+ * 積み上げた profile になる（`main.ts`）。**潮位非依存。浸水判定には混ぜない。**
+ */
+export interface FlowChannelsAsset {
+  url: string
+  bytes: number
+  count: number
+  /** どの地形条件の主流路か（既定 `highres`）*/
+  condition: string
+}
+
+/**
  * 徒歩圏（等時線）ひとつぶん（`catalog.walk_isochrones[]`）。
  * `scripts/94_walk_isochrone.py` が起点＋所要時間の組ごとに 1 GeoJSON を焼く
  * （`network_isochrone` / `simple_buffer` の 2 面、`domain/walkIsochrone.ts`）。
@@ -141,13 +156,16 @@ export interface Catalog {
    * - `pits` = 海に通じない窪地の**越流点マーカー**（面積上位のみ・highres 1 本）。
    *   既存の「窪地（逆流で…）」レイヤとは別物（あちらは潮位依存）。
    * - `basins` = 地表流の**部分流域**ポリゴン（highres 1 本）。「クリックで集水域抽出」用。
+   * - `channels` = 各流域の**主流路**ポリライン（highres 1 本）。断面ツールの自動測線用。
    *
    * タイルが無い配信物では鍵ごと無い。
    */
   flow?: {
     pits?: FlowPitsAsset
     basins?: FlowBasinsAsset
-    [condition: string]: FlowAsset | FlowPitsAsset | FlowBasinsAsset | undefined
+    channels?: FlowChannelsAsset
+    [condition: string]: FlowAsset | FlowPitsAsset | FlowBasinsAsset | FlowChannelsAsset
+                          | undefined
   }
   plateau: Record<string, { url: string; b3dm_count: number; bytes: number
                             region_min_height_ellipsoidal_m: number }>

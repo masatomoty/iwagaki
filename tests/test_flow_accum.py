@@ -12,11 +12,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from iwagaki.flow import (d8_accumulation, d8_flow_direction,
+from iwagaki.flow import (DinfResult, d8_accumulation, d8_flow_direction,
                           dinf_accumulation, dinf_flow_direction,
                           edge_truncated_fraction, flow_basins, label_pits,
-                          pit_pour_points, pit_records, priority_flood_fill,
-                          route_with_collar)
+                          main_channel_from_outlet, pit_pour_points,
+                          pit_records, priority_flood_fill, route_with_collar)
 
 
 def test_fill_is_monotone_and_no_pit_on_slope():
@@ -398,3 +398,139 @@ def test_d8_single_outlet_plane():
     assert accum[-1, :].sum() == pytest.approx(35.0)
     # 南端はマップ外へ抜ける -> すべて端で切れている
     assert term_edge.all()
+
+
+# --- 流域の主流路（main_channel_from_outlet / flow_basins.channel_rc）------------
+
+
+def _dinf_manual(h: int, w: int, edges: dict, *, accum: "dict | None" = None):
+    """テスト用に主 receiver（単一）だけを手で組んだ DinfResult。receiver2 は
+    使わない（prop2=0 に固定）ので `main_channel_from_outlet` は receiver1 だけを
+    主 receiver として扱う。"""
+    def idx(r, c):
+        return r * w + c
+
+    receiver1 = np.arange(h * w).reshape(h, w)
+    receiver2 = receiver1.copy()
+    prop1 = np.zeros((h, w))
+    prop2 = np.zeros((h, w))
+    for (r, c), (rr, rc) in edges.items():
+        receiver1[r, c] = idx(rr, rc)
+        prop1[r, c] = 1.0
+    dinf = DinfResult(
+        receiver1=receiver1.astype("int32"), receiver2=receiver2.astype("int32"),
+        prop1=prop1, prop2=prop2,
+        edge_outlet=np.zeros((h, w), dtype=bool),
+        sink_outlet=np.zeros((h, w), dtype=bool),
+        order=np.arange(h * w).astype("int32"),
+    )
+    valid = np.ones((h, w), dtype=bool)
+    acc = np.ones((h, w))
+    for (r, c), a in (accum or {}).items():
+        acc[r, c] = a
+    return dinf, acc, valid
+
+
+def test_main_channel_picks_the_larger_accum_branch_at_a_confluence():
+    # 3x3。(1,0) と (1,2) がどちらも (2,1) へ合流し、(2,1) が吐口。
+    # (1,2) 側の集水（9）が (1,0) 側（5）より大きいので、主流路はそちらを選ぶ。
+    # さらに (0,2) が (1,2) の上流に 1 つだけあり、そこで源流に達する。
+    h = w = 3
+    edges = {(1, 0): (2, 1), (1, 2): (2, 1), (0, 2): (1, 2)}
+    dinf, acc, valid = _dinf_manual(h, w, edges, accum={(1, 0): 5.0, (1, 2): 9.0, (0, 2): 3.0})
+
+    path = main_channel_from_outlet(dinf, acc, valid, (2, 1))
+    assert path.tolist() == [[2, 1], [1, 2], [0, 2]]
+
+
+def test_main_channel_within_mask_excludes_the_larger_branch():
+    # 同じ合流だが、集水が大きい (1,2) 側を within マスクから外すと (1,0) 側を選ぶ。
+    h = w = 3
+    edges = {(1, 0): (2, 1), (1, 2): (2, 1), (0, 2): (1, 2)}
+    dinf, acc, valid = _dinf_manual(h, w, edges, accum={(1, 0): 5.0, (1, 2): 9.0, (0, 2): 3.0})
+
+    within = np.ones((h, w), dtype=bool)
+    within[1, 2] = False
+    within[0, 2] = False
+    path = main_channel_from_outlet(dinf, acc, valid, (2, 1), within=within)
+    assert path.tolist() == [[2, 1], [1, 0]]
+
+
+def test_main_channel_rejects_outlet_outside_bounds_or_mask():
+    h = w = 3
+    dinf, acc, valid = _dinf_manual(h, w, {})
+    with pytest.raises(ValueError):
+        main_channel_from_outlet(dinf, acc, valid, (3, 0))
+    within = np.zeros((h, w), dtype=bool)
+    with pytest.raises(ValueError):
+        main_channel_from_outlet(dinf, acc, valid, (0, 0), within=within)
+
+
+def test_main_channel_stops_immediately_when_outlet_has_no_donor():
+    # donor の無い吐口は経路長 1（自分だけ）で止まる
+    h = w = 3
+    dinf, acc, valid = _dinf_manual(h, w, {})
+    path = main_channel_from_outlet(dinf, acc, valid, (1, 1))
+    assert path.tolist() == [[1, 1]]
+
+
+def test_flow_basins_channel_starts_at_outlet_and_reaches_confluence():
+    # Y 字谷: 各リーフの channel_rc が吐口で始まり、8 近傍でつながった 1 本道になる。
+    # トランクのリーフは合流点セルで遡りが止まる（合流点自身はトランク側に属し、
+    # 両支流の吐口は合流点の隣接セルだが別リーフなので mask の外）。
+    dem = _y_valley()
+    filled = priority_flood_fill(dem)
+    valid = np.isfinite(filled)
+    di = dinf_flow_direction(filled)
+    accum, term_edge = dinf_accumulation(di, valid)
+
+    b = flow_basins(di, valid, accum, channel_min_accum=50.0, term_edge=term_edge)
+    assert b.n_basins == 3
+    roots = [i for i in range(1, 4) if int(b.downstream[i]) == -1]
+    assert len(roots) == 1
+    trunk = roots[0]
+
+    for i in range(1, 4):
+        cells = b.channel_rc[i]
+        assert cells.ndim == 2 and cells.shape[1] == 2 and cells.shape[0] >= 1
+        assert tuple(int(v) for v in cells[0]) == tuple(int(v) for v in b.outlet_rc[i])
+        for (r0, c0), (r1, c1) in zip(cells[:-1].tolist(), cells[1:].tolist()):
+            assert max(abs(r1 - r0), abs(c1 - c0)) == 1
+        for r, c in cells.tolist():
+            assert b.labels[r, c] == i
+        # big グリッド段階（クリップ前）では打ち切りは起きない
+        assert not bool(b.channel_truncated[i])
+
+    # トランクの主流路は合流点セル (12, 12) まで遡る（それより上流は支流のリーフ）
+    trunk_cells = {tuple(x) for x in b.channel_rc[trunk].tolist()}
+    assert (12, 12) in trunk_cells
+
+
+def test_channel_is_truncated_at_aoi_edge_when_it_extends_into_collar():
+    # 南へ一様に下る斜面を collar で北へ延ばす。**collar の南側は海（nodata）**にして
+    # 吐口が AOI 南端に留まるようにする（そうしないと斜面が collar の南端まで延び、
+    # 吐口自体が AOI の外に出て `in_clip=False` になり、この検証にならない）。
+    # 列ごとに独立した縦一直線の流路になり、どれも北の collar 側まで遡ってから
+    # AOI 矩形で打ち切られる。
+    h = w = 10
+    c = 4
+    big_h = h + 2 * c
+    aoi = (100.0 - np.arange(h)[:, None]) + np.zeros((h, w))
+    yy = np.arange(big_h)[:, None] - c
+    collar = (100.0 - yy) + np.zeros((big_h, w + 2 * c))
+    collar[c + h:, :] = np.nan
+    r = route_with_collar(aoi, collar.copy(), c, want_basins=True,
+                          basin_channel_min_accum=1e9)
+    assert r.basins is not None
+    assert r.basins.n_basins == w   # 列ごとに独立（横方向の合流が無い一様斜面）
+
+    for b in range(1, r.basins.n_basins + 1):
+        chan = r.basins.channel_rc[b]
+        assert chan.shape[0] >= 1
+        assert tuple(int(v) for v in chan[0]) == tuple(int(v) for v in r.basins.outlet_rc[b])
+        # AOI 矩形の中に収まっている
+        assert chan[:, 0].min() >= 0 and chan[:, 0].max() < h
+        assert chan[:, 1].min() >= 0 and chan[:, 1].max() < w
+        # collar（北）側へ抜けた分は打ち切られているので、AOI 北端 (row 0) まで届く
+        assert chan[:, 0].min() == 0
+        assert bool(r.basins.channel_truncated[b])

@@ -514,6 +514,31 @@ async function boot() {
     }
   }
 
+  /**
+   * 流域の主流路（`catalog.flow.channels`、highres 数十 kB 程度）。断面ツールの
+   * 自動測線用。`flowBasins` と同じタイミングで読む（`basin_id` で対応付く）。
+   * `Map<basin_id, [lon,lat][]>`（先頭=吐口・末尾=源流。GeoJSON の座標列そのまま）。
+   */
+  let flowChannels: Map<number, LonLat[]> | undefined
+  let flowChannelsLoading = false
+  async function loadFlowChannels() {
+    const a = catalog.flow?.channels
+    if (!a?.url || flowChannels || flowChannelsLoading) return
+    flowChannelsLoading = true
+    try {
+      const b = await scheduler.submit({ key: 'flow-channels', url: a.url, cls: 'prefetch' })
+      const fc = JSON.parse(new TextDecoder().decode(b)) as {
+        features: { properties: { basin_id: number }
+                   geometry: { coordinates: LonLat[] } }[]
+      }
+      flowChannels = new Map(fc.features.map((f) => [f.properties.basin_id, f.geometry.coordinates]))
+    } catch {
+      // 主流路が無くても手動の 2 点断面は変わらず使える
+    } finally {
+      flowChannelsLoading = false
+    }
+  }
+
   /** basin id からハイライトを張り直す（`flowBasins` 未ロードなら何もしない）。 */
   function applyCatchment(rootId: number | undefined) {
     if (!catchment || !flowBasins) return
@@ -554,6 +579,10 @@ async function boot() {
       },
     })
     applyCatchment(id)
+    // 断面パネルが既に開いていれば、選んだ流域の主流路へ追従させる。
+    // **パネルを新たに開きはしない** — 集水域の選択は面積・最大集水を見るのが
+    // 主目的で、毎回パネルが画面下半分を覆うのは押し付けが強すぎる
+    if (document.body.classList.contains('section-open')) void buildSectionAlongChannel(id)
     return true
   }
 
@@ -611,6 +640,52 @@ async function boot() {
     const why = catalog.default_section?.from && secLine
       && secLine[0][0] === catalog.default_section.from[0]
       ? `${catalog.default_section.why}。` : ''
+    redrawSection()
+  }
+
+  /**
+   * 選んだ流域の**主流路**（`catalog.flow.channels`）に沿って断面を組み立てる。
+   *
+   * 主流路は折れ線（`main_channel_from_outlet`、`src/iwagaki/flow.py`）なので、
+   * 頂点ごとの区間を `sampleLine`（直線 2 点間）で辿り、距離を積み上げて 1 本の
+   * 断面にする。**地形タイルの取得は増えない**（`buildSection` と同じ scheduler・
+   * 同じキャッシュ経由）。3D 上の測線表示は既存のリボン（吐口→源流の直線）のまま
+   * — 折れ線そのものの描画は別 PR（`view/map.ts` の対象）。
+   *
+   * 手動の 2 点断面（`sectionTool` の `onLine` → `buildSection`）はこの関数を
+   * 経由しないので、既存の操作はそのまま動く（`pickCatchment` から呼ぶだけ）。
+   */
+  async function buildSectionAlongChannel(basinId: number) {
+    const line = flowChannels?.get(basinId)
+    if (!line || line.length < 2) return
+    const from = line[0]
+    const to = line[line.length - 1]
+    secLine = [from, to]
+    showSectionLine(viewer, from, to)
+    secEl.style.display = 'block'
+    document.body.classList.add('section-open')
+    drawSectionMessage(secCanvas, '読み込み中…')
+    const zoom = catalog.terrain.highres?.max_zoom ?? 18
+    const got = await Promise.all(SECTION_SERIES.map(async (s) => {
+      const asset = catalog.terrain[s.condition]
+      if (!asset) return null
+      const points: SectionSeries['points'] = []
+      let dOffset = 0
+      for (let i = 0; i < line.length - 1; i++) {
+        const seg = await sampleLine({
+          urlTemplate: asset.url, zoom, hStep: catalog.packing.h_step,
+          from: line[i], to: line[i + 1],
+          fetchTile: (url) => scheduler.submit({ key: url, url, cls: 'terrainFine' }),
+        })
+        // 区間の継ぎ目は前の区間の終点と同じ点なので、2 本目以降は 1 点落として重複を消す
+        for (let j = (i === 0 ? 0 : 1); j < seg.length; j++) {
+          points.push({ ...seg[j], d: seg[j].d + dOffset })
+        }
+        dOffset += seg.at(-1)?.d ?? 0
+      }
+      return { ...s, points } as SectionSeries
+    }))
+    secSeries = got.filter((x): x is SectionSeries => x !== null)
     redrawSection()
   }
 
@@ -982,6 +1057,7 @@ async function boot() {
       catchmentMode = wantCatchment
       if (wantCatchment) {
         void loadFlowBasins()
+        void loadFlowChannels()
         applyCatchment(s.selectedCatchment?.basinId)
       } else {
         applyCatchment(undefined)

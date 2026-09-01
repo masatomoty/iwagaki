@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -198,8 +199,10 @@ def _process(name: str, fname: str, res: float) -> dict:
         [p.__dict__ for p in pits], indent=2, ensure_ascii=False), encoding="utf-8")
     n_markers = _write_pour_points(name, grid, pits, term_edge)
     n_basins, max_basin_accum_m2 = _write_basins(name, grid, routing.basins, pits)
+    n_channels, total_channel_len_m = _write_channels(name, grid, routing.basins)
     print(f"{'':10s} basins={n_basins:4d}  "
-          f"max_catchment={max_basin_accum_m2 / 1e4:7.2f} ha")
+          f"max_catchment={max_basin_accum_m2 / 1e4:7.2f} ha  "
+          f"channels={n_channels:4d}  total_length={total_channel_len_m / 1e3:6.2f} km")
 
     return {
         "dtm": fname, "res_m": res, "cells": int(arr.size),
@@ -226,6 +229,8 @@ def _process(name: str, fname: str, res: float) -> dict:
         "edge_outlet_cells": int(routing.edge_outlet.sum()),
         "accum_conservation_ok": routing.conservation_ok,
         "pour_point_markers": n_markers,
+        "channel_count": n_channels,
+        "channel_total_length_m": round(total_channel_len_m, 1),
     }
 
 
@@ -385,6 +390,79 @@ def _write_basins(name: str, grid, basins, pits: list) -> tuple[int, float]:
     (OUT / f"flow_basins_{name}.geojson").write_text(
         json.dumps(fc, ensure_ascii=False), encoding="utf-8")
     return len(feats), max_accum_m2
+
+
+def _write_channels(name: str, grid, basins) -> tuple[int, float]:
+    """流域の**主流路**（吐口→源流のポリライン）の GeoJSON（EPSG:6674, LineString）。
+
+    `flow_basins` が主 receiver の流下木を合流点で切ったリーフごとに、各分岐で
+    集水セル数の大きい方だけを選んで遡った 1 本道（`src/iwagaki/flow.py` の
+    `main_channel_from_outlet`。断面ツールの自動測線用、`scripts/83` が
+    `catalog.flow.channels` にする。**潮位非依存。浸水判定には混ぜない。**
+
+    1 セルしかない（合流点のすぐ下流だけの）リーフは LineString にならないので
+    出さない（`_write_basins`・`_write_pour_points` と同じ「絞る」流儀）。
+
+    セル沿いの折れ線は 1 頂点/セルで冗長（highres 0.5m だと長い流路で数百〜数千
+    頂点）なので、`FLOW_BASIN_SIMPLIFY_M`（流域ポリゴンと同じ許容量）で単純化する。
+    始点・終点（吐口・源流）は Douglas-Peucker で必ず残るので、断面ツールが使う
+    2 点はそのまま（`main.ts`）。
+    """
+    from shapely.geometry import LineString
+
+    if basins is None or basins.n_basins == 0:
+        fc = {"type": "FeatureCollection",
+              "crs": {"type": "name", "properties": {"name": CRS_ANALYSIS}},
+              "properties": {"condition": name, "channel_count": 0,
+                             "what": "流域の主流路（断面ツールの自動測線用）"},
+              "features": []}
+        (OUT / f"flow_channels_{name}.geojson").write_text(
+            json.dumps(fc, ensure_ascii=False), encoding="utf-8")
+        return 0, 0.0
+
+    feats = []
+    total_len = 0.0
+    for b in range(1, basins.n_basins + 1):
+        cells = basins.channel_rc[b] if b < len(basins.channel_rc) else None
+        if cells is None or len(cells) < 2:
+            continue
+        coords = [grid.transform * (c + 0.5, r + 0.5) for r, c in cells.tolist()]
+        # 実長はセル沿いの生の折れ線で測る（単純化で短くなる分は無視しない）
+        length_m = sum(math.dist(coords[i], coords[i + 1]) for i in range(len(coords) - 1))
+        total_len += length_m
+        if FLOW_BASIN_SIMPLIFY_M > 0 and len(coords) > 2:
+            coords = list(LineString(coords).simplify(
+                FLOW_BASIN_SIMPLIFY_M, preserve_topology=True).coords)
+        truncated = (bool(basins.channel_truncated[b])
+                     if b < len(basins.channel_truncated) else False)
+        feats.append({
+            "type": "Feature",
+            "geometry": {"type": "LineString",
+                         "coordinates": [[round(x, 3), round(y, 3)] for x, y in coords]},
+            "properties": {
+                "basin_id": b,
+                "length_m": round(length_m, 1),
+                "n_points": len(coords),
+                "truncated": truncated,
+            },
+        })
+    fc = {
+        "type": "FeatureCollection",
+        "crs": {"type": "name", "properties": {"name": CRS_ANALYSIS}},
+        "properties": {
+            "condition": name,
+            "channel_count": len(feats),
+            "what": "流域の主流路（吐口→源流。各合流点で集水セル数が大きい方を選ぶ）。"
+                    "潮位非依存。断面ツールの自動測線に使う",
+            "truncated_note": "properties.truncated は源流が AOI/collar 端の外に"
+                              "あって打ち切ったもの（`flow_basins` の "
+                              "`channel_truncated`）",
+        },
+        "features": feats,
+    }
+    (OUT / f"flow_channels_{name}.geojson").write_text(
+        json.dumps(fc, ensure_ascii=False), encoding="utf-8")
+    return len(feats), total_len
 
 
 def _load(name: str) -> np.ndarray | None:
