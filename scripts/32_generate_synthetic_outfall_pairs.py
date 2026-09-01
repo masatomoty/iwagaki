@@ -122,6 +122,28 @@ def select_outfall_pits(
     return [rec for _, _, rec in chosen[:max_pairs]]
 
 
+def pit_source_truncation_error(fc: dict, min_area_m2: float) -> str | None:
+    """越流点 GeoJSON が面積で頭打ちで、`min_area_m2` がその最小面積より小さいなら
+    エラーメッセージを返す（そうでなければ `None`）。
+
+    `scripts/33` の GeoJSON は面積上位 `FLOW_POUR_POINT_MAX_COUNT` 窪地だけ。
+    `min_area_m2` がその最小面積以下だと「面積は下限以上だが上位に入らなかった
+    低 spill の窪地」が候補から漏れ、spill 昇順という前提が崩れる。
+    """
+    feats = fc.get("features", [])
+    total_pits = int(fc.get("properties", {}).get("total_pits", len(feats)))
+    areas = [round(float(f.get("properties", {}).get("area_ha", 0.0)) * 1e4, 2)
+             for f in feats]
+    min_listed = min(areas, default=0.0)
+    if total_pits <= len(feats) or min_area_m2 >= min_listed:
+        return None
+    return (f"越流点 GeoJSON は面積上位 {len(feats)} 窪地だけ"
+            f"（最小 {min_listed:.0f} m²、全 {total_pits} 窪地）。"
+            f"--min-area-m2 {min_area_m2:.0f} はそれより小さいので条件を満たす"
+            f"窪地が漏れる。--min-area-m2 を {min_listed:.0f} 以上にするか、"
+            "scripts/33 の FLOW_POUR_POINT_MAX_COUNT を増やして越流点を焼き直す。")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target-h", type=float, default=0.93)
@@ -150,18 +172,9 @@ def main() -> int:
     if not seed.any():
         raise SystemExit("open-water seed が空です（scripts/30 を先に回す）")
 
-    # 越流点 GeoJSON が面積で頭打ちなら、その最小面積より下の窪地は入っていない。
-    # `--min-area-m2` がそれ以下だと「面積は下限以上だが上位に入らなかった低 spill
-    # の窪地」を取りこぼす（spill 昇順が崩れる）。その場合は明示的に止める。
-    total_pits = int(fc.get("properties", {}).get("total_pits", len(pit_features)))
-    min_listed_area = min((f["area_m2"] for f in pit_features), default=0.0)
-    if total_pits > len(pit_features) and args.min_area_m2 < min_listed_area:
-        raise SystemExit(
-            f"{args.pits} は面積上位 {len(pit_features)} 窪地だけ"
-            f"（最小 {min_listed_area:.0f} m²、全 {total_pits} 窪地）。"
-            f"--min-area-m2 {args.min_area_m2:.0f} はそれより小さいので条件を満たす"
-            f"窪地が漏れる。--min-area-m2 を {min_listed_area:.0f} 以上にするか、"
-            "scripts/33 の FLOW_POUR_POINT_MAX_COUNT を増やして越流点を焼き直す。")
+    truncation = pit_source_truncation_error(fc, args.min_area_m2)
+    if truncation:
+        raise SystemExit(truncation)
 
     picks = select_outfall_pits(
         pit_features, hc, grid, args.target_h, args.max_pairs, args.min_area_m2)

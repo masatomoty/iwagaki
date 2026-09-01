@@ -38,6 +38,22 @@ def _pit_feature(row, col, spill, fill, area_m2, pit_id=1, put_spill_in_z=True):
             "properties": props}
 
 
+def test_pit_source_truncation_guard():
+    # 面積上位 3 窪地だけ収録・全 100 窪地。最小収録面積は 900 m²。
+    feats = [_pit_feature(1, 1, spill=1.2, fill=0.5, area_m2=a)
+             for a in (5000, 2000, 900)]
+    fc = {"properties": {"total_pits": 100}, "features": feats}
+    # min_area_m2 が最小収録面積より小さい → 取りこぼしうるので止める
+    assert mod.pit_source_truncation_error(fc, 250.0) is not None
+    assert mod.pit_source_truncation_error(fc, 899.0) is not None
+    # 最小収録面積以上なら OK
+    assert mod.pit_source_truncation_error(fc, 900.0) is None
+    assert mod.pit_source_truncation_error(fc, 1500.0) is None
+    # 全窪地が収録されている（頭打ちでない）なら常に OK
+    fc_full = {"properties": {"total_pits": 3}, "features": feats}
+    assert mod.pit_source_truncation_error(fc_full, 0.0) is None
+
+
 def test_parse_reads_spill_from_properties_or_z():
     fc = {"features": [
         _pit_feature(2, 2, spill=1.4, fill=0.5, area_m2=300, put_spill_in_z=True),
