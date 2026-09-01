@@ -357,7 +357,10 @@ KYOTO_DEM_ZIPS = {
 #: 国土地理院 標高タイル（数値標高モデル）。`.txt`（256x256 の CSV、`"e"`=nodata）を
 #: 使うので PNG デコード（Pillow）は要らない。**flow accumulation のルーティング
 #: collar 専用**（`src/iwagaki/gsi_dem.py`、`docs/data.md` §7）。
-#: 主 = DEM5A（航空レーザ 5m, ズーム 15）、副 = DEM10B（10m, ズーム 14。DEM5A の穴埋め）。
+#: `(レイヤ ID, ズーム)` の順に試す。主 = `dem5a`（DEM5A、航空レーザ 5m、z15）、
+#: 副 = `dem`（**DEM10B（10m）の配信レイヤ ID は "dem"**。`dem10b` という URL は無い。
+#: z14。DEM5A の無いタイルを埋める）。
+#: レイヤ一覧: https://maps.gsi.go.jp/development/ichiran.html#dem
 GSI_DEM_TILE_URL = "https://cyberjapandata.gsi.go.jp/xyz/{layer}/{z}/{x}/{y}.txt"
 GSI_DEM_TILE_LAYERS: tuple[tuple[str, int], ...] = (("dem5a", 15), ("dem", 14))
 

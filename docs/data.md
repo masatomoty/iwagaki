@@ -733,14 +733,18 @@ D8 を回し、集計・書き出しは元の AOI 矩形に clip する（`src/i
 `route_with_collar`、`scripts/33`、実装フェッチャは `src/iwagaki/gsi_dem.py`）。
 
 - **collar の DEM 源** = 国土地理院 標高タイル。主 **DEM5A**（航空レーザ 5m,
-  標高タイル ズーム 15）、無いタイルは **DEM10B**（10m, ズーム 14）で埋める。
-  `.txt` 形式（256×256 の CSV、`"e"` = nodata = 主に海面）を使うので PNG デコード
-  （Pillow）は不要。`requirements.txt` は増やさない（`docs/design.md`）。
+  標高タイル ズーム 15）、無いタイルは **DEM10B**（10m, ズーム 14。配信レイヤ ID は
+  `dem`）で埋める。`.txt` 形式（256×256 の CSV、`"e"` = nodata = 主に海面）を使うので
+  PNG デコード（Pillow）は不要。`requirements.txt` は増やさない（`docs/design.md`）。
   京都府 DEM（本解析の高解像度地形）とは別世代・別計測なので**接合部に数 cm の段差**
   が出うるが、AOI 矩形は開放水面（湾）と低地の外側の斜面に掛かるよう引いてあり、
   段差の影響は斜面の勾配に対して小さい。
 - **幅** = `FLOW_COLLAR_M`（既定 **150 m**。5.0 m と 0.5 m の両解像度で割り切れる）。
   `IWAGAKI_FLOW_COLLAR`（m 単位、0 で無効）で上書きできる。
+- **DEM5A の穴と海の区別**: DEM5A に陸地の穴があり `dem`（10m、日本全土をカバー）でも
+  埋まらないセルは NaN のままで、ルーティング上は sink（海）扱いになる。舞鶴の 3 範囲
+  では `dem` が穴を埋めるので起きないが、`collar_ring_coverage`（summary）で collar 帯の
+  有効率を確認できる（残りは正当な海）。
 - **collar はルーティングにだけ効かせる。** 窪地の充填深・越流点標高・容積は
   **AOI 単独**の ε 充填面（`priority_flood_fill(dem)`）で解いて AOI 内のセルだけ
   集計する。collar 帯のセルはカウントせず、AOI 端の窪地の充填深も collar で変えない

@@ -35,6 +35,7 @@ from iwagaki.config import (AOI, CRS_ANALYSIS, FLOW_COLLAR_M,
 from iwagaki.flow import (edge_truncated_fraction, label_pits, pit_records,
                           priority_flood_fill, route_with_collar,
                           top_pits_by_area)
+from iwagaki.gsi_dem import GsiTilesUnavailable
 from iwagaki.gsi_dem import collar_dem as gsi_collar_dem
 from iwagaki.raster import Grid, read, write
 
@@ -87,9 +88,14 @@ def _route(name: str, arr: np.ndarray, res: float):
         raise SystemExit(
             f"{name}: collar グリッド {cgrid.height}x{cgrid.width} が "
             f"{h + 2 * c}x{w + 2 * c} と合わない（res={res}, collar={collar_m}）")
-    gsi = gsi_collar_dem(cgrid)
+    try:
+        gsi = gsi_collar_dem(cgrid)
+    except GsiTilesUnavailable as e:
+        print(f"  {name}: GSI 標高タイルに届かない（{e}）-> collar 無しで続行")
+        return route_with_collar(arr, arr, 0), meta
     if not np.isfinite(gsi).any():
-        print(f"  {name}: GSI DEM が 1 タイルも取れなかった -> collar 無しで続行")
+        print(f"  {name}: collar 帯に有効な標高が無い（範囲がすべて海／配信外）"
+              " -> collar 無しで続行")
         return route_with_collar(arr, arr, 0), meta
 
     ring = np.ones(gsi.shape, dtype=bool)

@@ -10,11 +10,18 @@ PNG（`dem_png`）だと RGB→標高のデコードに 1 段増えるだけで�
 テキストのまま扱って依存を増やさない（`requirements.txt` は軽く保つ方針。
 `docs/design.md`「重い C++ 依存を足すなら理由を書く」）。
 
-- 主: **DEM5A**（航空レーザ測量 5m。標高タイルのズーム 15）
-- 副: **DEM10B**（10m メッシュ。ズーム 14。DEM5A が配信されていないタイルを埋める）
+- 主: **DEM5A**（航空レーザ測量 5m。標高タイルのレイヤ ID `dem5a`、ズーム 15）
+- 副: **DEM10B**（10m メッシュ。**配信レイヤ ID は `dem`**（`dem10b` という URL は
+  無い）、ズーム 14。DEM5A が配信されていないタイルを埋める）
 
 取得したタイルは `data/raw/gsi_dem/<layer>/<z>/<x>/<y>.txt` にキャッシュする
-（空ファイル = そのタイルは 404。次回スキップ）。
+（空ファイル = そのタイルは 404。次回スキップ）。到達不能（オフライン等）は
+`GsiTilesUnavailable` で、キャッシュしないので次回リトライされる。
+
+**限界**: DEM5A に陸地の穴があり `dem`（10m、日本全土をカバー）でも埋まらない
+セルは NaN のまま = ルーティング上は sink（海）扱いになる。舞鶴の 3 範囲では
+`dem` が穴を埋めるので起きないが、`collar_ring_coverage`（`scripts/33` の summary）
+で collar 帯の有効率を確認できる（`docs/data.md` §7）。
 """
 from __future__ import annotations
 
@@ -38,6 +45,14 @@ _ORIGIN = math.pi * _R_EARTH          # 20037508.342789244 (Web メルカトル�
 _CACHE = RAW / "gsi_dem"
 
 
+class GsiTilesUnavailable(RuntimeError):
+    """標高タイルサーバに届かない（オフライン・DNS 失敗・タイムアウト等）。
+
+    404（そのタイルが無い）とは別扱い。`scripts/33` はこれを受けて collar 無しに
+    落とす（`collar_used=false`）。一過性なのでキャッシュはしない。
+    """
+
+
 def _deg2tile(lon: float, lat: float, z: int) -> tuple[float, float]:
     """経緯度 -> XYZ タイル座標（分数）。標準の slippy map（Web メルカトル）。"""
     n = 2.0 ** z
@@ -54,7 +69,11 @@ def _mosaic_transform(z: int, x0: int, y0: int) -> Affine:
 
 
 def _fetch_tile(layer: str, z: int, x: int, y: int) -> np.ndarray | None:
-    """1 タイルを 256x256 の float32（NaN=nodata）で返す。404 は None。"""
+    """1 タイルを 256x256 の float32（NaN=nodata）で返す。404 は None。
+
+    オフライン・DNS 失敗・タイムアウト等は `GsiTilesUnavailable`（404 とは別扱い。
+    キャッシュしないので次回リトライされる）。
+    """
     cache = _CACHE / layer / str(z) / str(x) / f"{y}.txt"
     if cache.exists():
         text = cache.read_text()
@@ -62,14 +81,19 @@ def _fetch_tile(layer: str, z: int, x: int, y: int) -> np.ndarray | None:
         url = GSI_DEM_TILE_URL.format(layer=layer, z=z, x=x, y=y)
         req = urllib.request.Request(url, headers={"User-Agent": _UA})
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=15) as r:
                 text = r.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 cache.parent.mkdir(parents=True, exist_ok=True)
                 cache.write_text("")          # 空 = このタイルは無い
                 return None
+            if e.code in (429, 500, 502, 503, 504):
+                raise GsiTilesUnavailable(f"{url}: HTTP {e.code}") from e
             raise
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            # 到達不能（オフライン・DNS・接続拒否・タイムアウト）。キャッシュしない
+            raise GsiTilesUnavailable(f"{url}: {e}") from e
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(text)
     if not text.strip():
@@ -125,8 +149,13 @@ def _layer_to_grid(layer: str, z: int, grid: Grid, lonlat: tuple[float, float, f
 def collar_dem(grid: Grid) -> np.ndarray:
     """`grid`（解析 CRS）に合わせた GSI DEM。NaN = nodata（主に海面）。
 
-    DEM5A を主に敷き、まだ NaN のセルを DEM10B で埋める。1 セルも取れなければ
-    全面 NaN（呼び手はこれを見て collar 無しにフォールバックする）。
+    DEM5A を主に敷き、まだ NaN のセルを DEM10B（レイヤ ID `dem`）で埋める。
+
+    - タイルサーバに **1 度も届かなかった**（オフライン等）ら `GsiTilesUnavailable`。
+      呼び手はこれを受けて collar 無しに落とす。
+    - 途中でネットワークが切れても、それまでに取れた層（例: DEM5A だけ）で
+      有効セルが 1 つでもあれば、その部分成果を返す。
+    - サーバには届いたが範囲がすべて海／配信外なら全面 NaN を返す（例外にしない）。
     """
     t = Transformer.from_crs(grid.crs, "EPSG:4326", always_xy=True)
     x0, y0, x1, y1 = grid.bounds
@@ -135,9 +164,16 @@ def collar_dem(grid: Grid) -> np.ndarray:
     lonlat = (min(lons) - pad, min(lats) - pad, max(lons) + pad, max(lats) + pad)
 
     out = np.full((grid.height, grid.width), np.nan, dtype="float32")
+    unavailable: GsiTilesUnavailable | None = None
     for layer, z in GSI_DEM_TILE_LAYERS:
         need = ~np.isfinite(out)
         if not need.any():
             break
-        out[need] = _layer_to_grid(layer, z, grid, lonlat)[need]
+        try:
+            out[need] = _layer_to_grid(layer, z, grid, lonlat)[need]
+        except GsiTilesUnavailable as e:
+            unavailable = e
+            break
+    if unavailable is not None and not np.isfinite(out).any():
+        raise unavailable
     return out
