@@ -28,7 +28,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, CRS_ANALYSIS, FLOW_COLLAR_M,
+from iwagaki.config import (AOI, CRS_ANALYSIS, FLOW_COLLAR_M, FLOW_METHOD,
                             FLOW_POUR_POINT_MAX_COUNT,
                             FLOW_POUR_POINT_MIN_AREA_M2, OUT, RES_COARSE,
                             RES_HIGHRES, ROOT, asset_name)
@@ -51,14 +51,28 @@ CONDITIONS: dict[str, tuple[str, float]] = {
 #: 充填深がこれ以下のセルは窪地に数えない（ε 充填の ULP 積み上がり・float32 往復対策）
 MIN_PIT_DEPTH_M = 0.01
 
+#: ルーティング法。`IWAGAKI_FLOW_METHOD` で上書き（`IWAGAKI_FLOW_COLLAR` に倣う）
+FLOW_METHOD_USED = os.environ.get("IWAGAKI_FLOW_METHOD", FLOW_METHOD)
+
+_METHOD_LABEL = {
+    "dinf": "D-infinity flow accumulation（Tarboton 1997, 一様単位降雨。1 セル最大 2 方向へ角度按分）",
+    "d8": "D8 flow accumulation（O'Callaghan & Mark 1984, 一様単位降雨。1 セル 1 方向）",
+}
+
 METHOD = (
     "Priority-Flood + ε 窪地充填（Barnes, Lehman & Yatheendradas 2014）／"
-    "D8 flow accumulation（O'Callaghan & Mark 1984, 一様単位降雨）。"
-    "実装 src/iwagaki/flow.py（純 numpy/scipy）。D-infinity は未実装（docs/todo.md）"
+    f"{_METHOD_LABEL.get(FLOW_METHOD_USED, FLOW_METHOD_USED)}。"
+    "実装 src/iwagaki/flow.py（純 numpy/scipy、依存追加なし）。"
+    "D8 API は比較用に残してある（IWAGAKI_FLOW_METHOD=d8）"
 )
+_ROUTING_CAVEAT = {
+    "dinf": "flow accumulation は D-infinity（Tarboton 1997。最急降下 facet を挟む 2 隣接へ角度按分）。"
+            "尾根の分岐は D8 より滑らか",
+    "d8": "flow accumulation は D8（1 セル 1 方向）。D-infinity ではないので尾根の分岐が粗い",
+}
 CAVEATS = [
     "一様降雨・地形のみ。実際の降雨分布・地表被覆・浸透・管路・時間発展は含まない",
-    "flow accumulation は D8（1 セル 1 方向）。D-infinity ではないので尾根の分岐が粗い",
+    _ROUTING_CAVEAT.get(FLOW_METHOD_USED, _ROUTING_CAVEAT["dinf"]),
     "nodata（京都府 DEM では主に開放水面）と AOI 外周を流出先とする。"
     "集水域が collar の外周で切れているセルは edge_truncated_fraction で示す",
     "ルーティングは AOI 外周に GSI 5m DEM（DEM5A、穴は DEM10B）の collar 帯を "
@@ -81,7 +95,7 @@ def _route(name: str, arr: np.ndarray, res: float):
     meta = {"collar_m": 0.0, "collar_cells": 0, "collar_used": False,
             "collar_ring_coverage": 0.0}
     if c <= 0:
-        return route_with_collar(arr, arr, 0), meta
+        return route_with_collar(arr, arr, 0, method=FLOW_METHOD_USED), meta
 
     cgrid = Grid.for_aoi(AOI.buffered(collar_m), res)
     if (cgrid.height, cgrid.width) != (h + 2 * c, w + 2 * c):
@@ -92,17 +106,17 @@ def _route(name: str, arr: np.ndarray, res: float):
         gsi = gsi_collar_dem(cgrid)
     except GsiTilesUnavailable as e:
         print(f"  {name}: GSI 標高タイルに届かない（{e}）-> collar 無しで続行")
-        return route_with_collar(arr, arr, 0), meta
+        return route_with_collar(arr, arr, 0, method=FLOW_METHOD_USED), meta
     if not np.isfinite(gsi).any():
         print(f"  {name}: collar 帯に有効な標高が無い（範囲がすべて海／配信外）"
               " -> collar 無しで続行")
-        return route_with_collar(arr, arr, 0), meta
+        return route_with_collar(arr, arr, 0, method=FLOW_METHOD_USED), meta
 
     ring = np.ones(gsi.shape, dtype=bool)
     ring[c:c + h, c:c + w] = False
     meta.update(collar_m=collar_m, collar_cells=c, collar_used=True,
                 collar_ring_coverage=round(float(np.isfinite(gsi[ring]).mean()), 4))
-    return route_with_collar(arr, gsi, c), meta
+    return route_with_collar(arr, gsi, c, method=FLOW_METHOD_USED), meta
 
 
 def _process(name: str, fname: str, res: float) -> dict:
@@ -133,9 +147,10 @@ def _process(name: str, fname: str, res: float) -> dict:
     term_edge = routing.term_edge
 
     # collar の前後で edge_truncated_fraction がどう動くか（docs/data.md §7）。
-    # collar 無しの ε 充填面（上の `filled`）で端フラグだけ伝播させる軽量版
-    edge_frac_no_collar = (round(edge_truncated_fraction(filled), 4)
-                           if cmeta["collar_used"] and n_valid else None)
+    # collar 無しの ε 充填面（上の `filled`）で端フラグを伝播させる（method は揃える）
+    edge_frac_no_collar = (
+        round(edge_truncated_fraction(filled, method=FLOW_METHOD_USED), 4)
+        if cmeta["collar_used"] and n_valid else None)
 
     pit_id, n_pits = label_pits(fill_depth, MIN_PIT_DEPTH_M)
     # 越流点セルは viewer が出す上位の窪地だけ計算する（highres で 5〜7 万個あり、
@@ -181,7 +196,7 @@ def _process(name: str, fname: str, res: float) -> dict:
         "total_pit_area_ha": round(total_pit_area / 1e4, 3),
         "total_fill_volume_m3": total_pit_vol,
         "max_fill_depth_m": max_fill,
-        "flow_accum_max_cells": int(np.nanmax(accum)) if n_valid else 0,
+        "flow_accum_max_cells": int(round(float(np.nanmax(accum)))) if n_valid else 0,
         "flow_accum_max_m2": round(float(np.nanmax(accum)) * cell_area, 1) if n_valid else 0,
         "edge_truncated_fraction": round(edge_frac, 4),
         "edge_truncated_fraction_no_collar": edge_frac_no_collar,
@@ -279,7 +294,8 @@ def _figures(done: list[str]) -> None:
             ax.set_title(f"{c}  log10(集水セル数)")
             ax.set_xticks([]); ax.set_yticks([])
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        fig.suptitle(f"{AOI.name}: 地表流の集中（D8・一様降雨・地形のみ）")
+        _m = {"dinf": "D-infinity", "d8": "D8"}.get(FLOW_METHOD_USED, FLOW_METHOD_USED)
+        fig.suptitle(f"{AOI.name}: 地表流の集中（{_m}・一様降雨・地形のみ）")
         fig.tight_layout()
         out = img_dir / asset_name("flow_accum.png")
         fig.savefig(out, dpi=85); plt.close(fig)
@@ -332,8 +348,11 @@ def main() -> int:
     summary = {
         "aoi": AOI.bounds, "aoi_name": AOI.name,
         "method": METHOD,
+        "flow_method": FLOW_METHOD_USED,
         "rainfall": "uniform unit（有効セルの寄与 = 1）",
-        "connectivity_note": "flow routing は D8（8 近傍）。h_conn の 4 近傍とは別物",
+        "connectivity_note": (
+            "flow routing は 8 近傍（dinf は最急降下 facet を挟む 2 セルへ角度按分、"
+            "d8 は 1 セル 1 方向）。h_conn の 4 近傍とは別物"),
         "collar_note": (
             f"ルーティングは AOI 外周に GSI 5m DEM（DEM5A、穴は DEM10B）の collar 帯を "
             f"{FLOW_COLLAR_M:.0f} m 張ってから回し、AOI 矩形に clip する。collar は"

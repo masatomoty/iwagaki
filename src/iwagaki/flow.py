@@ -18,10 +18,12 @@
   そのまま使えない。ここは非量子化で解く。ε は 1 ULP（`math.nextafter`）で、
   平地に最小の勾配を与えて D8 が必ず下流セルを持つようにするためだけのもの。
   地形値は事実上変えない（`docs/data.md`）。
-- **flow accumulation = D8**（O'Callaghan & Mark 1984）。ε 充填面の最急降下で
-  1 セル 1 方向に流し、位相ソートで上流セル数を数える。一様単位降雨
-  （有効セルの寄与 = 1）。**D-infinity は numba（pyflwdir）か C++（richdem）が
-  要るので第 1 段では入れない**（`docs/todo.md`「FARR のロジックを取り込む」）。
+- **flow accumulation = D-infinity**（Tarboton 1997。既定）ないし **D8**
+  （O'Callaghan & Mark 1984）。ε 充填面の最急降下で流し、位相ソートで上流セル数を
+  数える。一様単位降雨（有効セルの寄与 = 1）。D-inf は 8 三角 facet の最急勾配方向を
+  求め、それを挟む隣接 2 セルへ角度で按分する（1 セル最大 2 receiver）。numba も C++
+  も使わず純 numpy/scipy で書ける（`docs/data.md` §7「FARR 取り込み・第 4 段」）。
+  D8 API は比較用に残してある。`method={"dinf","d8"}` で切替（`route_with_collar`）。
 
 境界: 配列の外周セルと nodata セルを流出先（sink）とする。nodata は京都府 DEM
 では主に開放水面（湾・川・水路）なので、そこに達した流れは AOI を出たとみなす。
@@ -30,10 +32,12 @@
 **collar（縁取り）**: AOI 端の集水を過小評価しないよう、`route_with_collar` は
 AOI の外周に GSI 5m DEM のバッファ帯を張ってからルーティングし、集計・書き出しは
 元の AOI 矩形に clip する（`scripts/33`、`docs/data.md` §7）。collar はルーティング
-専用で、窪地の充填深・越流点・容積は AOI 内のセルだけ集計する。
+専用で、窪地の充填深・越流点・容積は AOI 内のセルだけ集計する。collar と method
+（dinf / d8）は直交する。
 """
 from __future__ import annotations
 
+import array
 import heapq
 import math
 from collections import deque
@@ -275,6 +279,233 @@ def d8_accumulation(
     return accum.reshape(h, w), term_edge.reshape(h, w)
 
 
+# --- D-infinity（Tarboton 1997）-------------------------------------------------
+#
+# D8 は 1 セル 1 方向なので尾根の分岐が粗い。D-inf は各セルで 8 つの三角 facet の
+# うち最急降下のものを選び、その facet を挟む隣接 2 セル（基本方位 e1・斜め e2）へ
+# 流れの角度で按分する（1 セル最大 2 receiver）。純 numpy/scipy で書けるので
+# `requirements.txt` は増えない（`docs/data.md` §7）。D8 API はそのまま残す。
+
+_PI4 = math.pi / 4.0
+#: routing 上で nodata（海・水路）に与える「必ず下る」標高。inf を避けて有限値にする
+_ROUTE_NODATA = -1.0e18
+
+#: Tarboton (1997) Table 1 の 8 facet。各要素は
+#: `((e1 の dy,dx), (e2 の dy,dx))`。e1 = 基本方位の隣（距離 1）、e2 = 斜めの隣。
+#: facet 内角 r（e1 から e2 へ測る、範囲 [0, π/4]）で 2 セルへ配分する。
+_DINF_FACETS: tuple[tuple[tuple[int, int], tuple[int, int]], ...] = (
+    ((0, 1), (-1, 1)), ((-1, 0), (-1, 1)),
+    ((-1, 0), (-1, -1)), ((0, -1), (-1, -1)),
+    ((0, -1), (1, -1)), ((1, 0), (1, -1)),
+    ((1, 0), (1, 1)), ((0, 1), (1, 1)),
+)
+
+
+@dataclass(frozen=True)
+class DinfResult:
+    receiver1: np.ndarray     # int32 flat index（第 1 receiver。自分自身 = 端流出/sink）
+    receiver2: np.ndarray     # int32 flat index（第 2 receiver。無ければ receiver1 と同じ）
+    prop1: np.ndarray         # float64, receiver1 へ配分する割合（単一なら 1.0、終端は 0.0）
+    prop2: np.ndarray         # float64, receiver2 へ配分する割合（単一なら 0.0）
+    edge_outlet: np.ndarray   # bool, map の外へ抜けるセル
+    sink_outlet: np.ndarray   # bool, nodata（海・水路）へ流れ込むセル
+    order: np.ndarray         # int32, 位相ソート順（source -> sink）の flat index
+
+
+def dinf_flow_direction(filled: np.ndarray) -> DinfResult:
+    """ε 充填面から D-infinity（Tarboton 1997）の流向を決める。
+
+    各セルは 8 つの三角 facet の中で最急降下のものを選び、その facet を挟む
+    2 つの隣接セル（基本方位 e1・斜め e2）へ facet 内角で按分して流す（最大 2
+    receiver）。内角 r が 0 なら e1 だけ、π/4 なら e2 だけに流れ、D8 に一致する。
+
+    nodata は routing 上 -1e18（必ず下る）として扱うので海に隣接するセルは海へ
+    流れ、`sink_outlet` が立つ。外周で map 外へ抜けるセルは `edge_outlet`。
+    どちらでもない有効セルは必ず下流の有効セルを持つ（Priority-Flood + ε の帰結）。
+    """
+    filled = np.asarray(filled, dtype="float64")
+    h, w = filled.shape
+    valid = np.isfinite(filled)
+
+    routing = np.where(valid, filled, _ROUTE_NODATA)
+    padded = np.full((h + 2, w + 2), np.inf, dtype="float64")  # map 外は登れない壁
+    padded[1:-1, 1:-1] = routing
+    e0 = padded[1:-1, 1:-1]
+
+    best_s = np.full((h, w), -np.inf, dtype="float64")
+    best_r = np.zeros((h, w), dtype="float64")
+    best_k = np.full((h, w), -1, dtype="int8")
+    sqrt2 = math.sqrt(2.0)
+    with np.errstate(invalid="ignore"):
+        for k, ((dy1, dx1), (dy2, dx2)) in enumerate(_DINF_FACETS):
+            e1 = padded[1 + dy1:1 + dy1 + h, 1 + dx1:1 + dx1 + w]
+            e2 = padded[1 + dy2:1 + dy2 + h, 1 + dx2:1 + dx2 + w]
+            s1 = e0 - e1
+            s2 = e1 - e2
+            r = np.arctan2(s2, s1)
+            s = np.hypot(s1, s2)
+            lo = r < 0.0
+            r = np.where(lo, 0.0, r)
+            s = np.where(lo, s1, s)
+            hi = r > _PI4
+            r = np.where(hi, _PI4, r)
+            s = np.where(hi, (e0 - e2) / sqrt2, s)
+            # e1/e2 が map 外（inf）の facet は使えない。nodata（-1e18）は可
+            usable = np.isfinite(e1) & np.isfinite(e2)
+            take = usable & (s > best_s) & (s > 0.0)
+            best_s = np.where(take, s, best_s)
+            best_r = np.where(take, r, best_r)
+            best_k = np.where(take, np.int8(k), best_k)
+
+    idx = np.arange(h * w, dtype="int64").reshape(h, w)
+    r1 = idx.copy()
+    r2 = idx.copy()
+    p1 = np.zeros((h, w), dtype="float64")
+    p2 = np.zeros((h, w), dtype="float64")
+
+    has_down = valid & (best_k >= 0)
+    ys, xs = np.nonzero(has_down)
+    if ys.size:
+        kk = best_k[ys, xs]
+        rr = best_r[ys, xs]
+        e1y = ys.copy(); e1x = xs.copy()
+        e2y = ys.copy(); e2x = xs.copy()
+        for k, ((dy1, dx1), (dy2, dx2)) in enumerate(_DINF_FACETS):
+            m = kk == k
+            if not m.any():
+                continue
+            e1y[m] = ys[m] + dy1; e1x[m] = xs[m] + dx1
+            e2y[m] = ys[m] + dy2; e2x[m] = xs[m] + dx2
+        prop_e2 = rr / _PI4
+        r1[ys, xs] = idx[e1y, e1x]
+        r2[ys, xs] = idx[e2y, e2x]
+        p1[ys, xs] = 1.0 - prop_e2
+        p2[ys, xs] = prop_e2
+
+    flat_valid = valid.reshape(-1)
+    r1f = r1.reshape(-1)
+    r2f = r2.reshape(-1)
+    p1f = p1.reshape(-1)
+    p2f = p2.reshape(-1)
+    ar = np.arange(h * w)
+
+    # receiver が nodata のセルは海へ抜ける（sink）。receiver を自分自身に畳んで
+    # DAG を閉じ、accumulation では終端として扱う（D8 の sink_outlet と同じ）
+    r1_nd = (r1f != ar) & ~flat_valid[r1f] & (p1f > 0.0)
+    r2_nd = (r2f != ar) & ~flat_valid[r2f] & (p2f > 0.0)
+    sink = flat_valid & (r1_nd | r2_nd)
+    r1f[sink] = ar[sink]; r2f[sink] = ar[sink]
+    p1f[sink] = 1.0; p2f[sink] = 0.0
+
+    on_border = np.zeros((h, w), dtype=bool)
+    on_border[0, :] = on_border[-1, :] = on_border[:, 0] = on_border[:, -1] = True
+    no_rec = flat_valid & (r1f == ar)
+    edge_outlet = (no_rec & ~sink & on_border.reshape(-1)).reshape(h, w)
+
+    order = _drain_order(filled.reshape(-1), flat_valid)
+    return DinfResult(
+        receiver1=r1f.reshape(h, w).astype("int32"),
+        receiver2=r2f.reshape(h, w).astype("int32"),
+        prop1=p1f.reshape(h, w),
+        prop2=p2f.reshape(h, w),
+        edge_outlet=edge_outlet,
+        sink_outlet=sink.reshape(h, w),
+        order=order.astype("int32"),
+    )
+
+
+def _drain_order(filled_flat: np.ndarray, flat_valid: np.ndarray) -> np.ndarray:
+    """accumulation の処理順（flat index、標高の高いセルから）。
+
+    各セルは donor（自分に流し込むセル）すべてより後、receiver より先に処理したい。
+    ε 充填面では正の配分先 receiver は必ず中心セルより真に低いので、
+    **充填標高の降順**がそのまま妥当な位相順になる（Kahn を回さずに済む）。
+    同一標高で互いに流し合うセルは無いので同着の並びは任意でよい。
+    """
+    fl = np.where(flat_valid, filled_flat, -np.inf)
+    order = np.argsort(fl, kind="stable")[::-1]
+    n_valid = int(flat_valid.sum())
+    return order[:n_valid].astype("int64")
+
+
+def dinf_accumulation(
+    dinf: DinfResult, valid: np.ndarray, weights: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """上流寄与セル数（自セルを含む）を返す。一様単位降雨なら weights=None。
+
+    D8 の `d8_accumulation` と同じ契約。各セルの寄与は最大 2 receiver へ
+    `prop1` / `prop2` で割って流す（分配しても総量は保存する）。
+
+    返り値: `(accum, edge_drained_fraction)`。
+    - `accum`: float64。有効セルは >= 1（自セルの降雨ぶん）。nodata は 0。
+    - `edge_drained_fraction`: float64（0–1）。そのセルの流出のうち、最終的に
+      AOI 外周で map の外へ抜ける割合（配分を下流へ辿った加重平均）。nodata（海）へ
+      抜けるぶんは 0 に数える。D8 の `d8_accumulation` が返す bool（1 経路が端へ
+      抜けるか）を、分配に合わせて連続値に一般化したもの。端流出セルは 1.0。
+    """
+    h, w = valid.shape
+    n = h * w
+    flat_valid = valid.reshape(-1)
+
+    accum0 = np.where(flat_valid, 1.0, 0.0)
+    if weights is not None:
+        accum0 = np.where(flat_valid, np.asarray(weights, dtype="float64").reshape(-1), 0.0)
+
+    # 0.5 m 条件は数千万セルあり Python ループを回す。numpy スカラ index は遅く、
+    # list 化はメモリを食い過ぎる（4000 万要素の float list で ~1 GB）。
+    # `array.array`（型付き・オブジェクト無し）で両方を避ける。index は int32 で足りる
+    # （最大セル数 < 2^31）。
+    order = array.array("i")
+    order.frombytes(dinf.order.reshape(-1).astype("int32").tobytes())
+    rec1 = array.array("i")
+    rec1.frombytes(dinf.receiver1.reshape(-1).astype("int32").tobytes())
+    rec2 = array.array("i")
+    rec2.frombytes(dinf.receiver2.reshape(-1).astype("int32").tobytes())
+    p1 = array.array("d")
+    p1.frombytes(np.ascontiguousarray(dinf.prop1, dtype="float64").tobytes())
+    p2 = array.array("d")
+    p2.frombytes(np.ascontiguousarray(dinf.prop2, dtype="float64").tobytes())
+    accum = array.array("d")
+    accum.frombytes(np.ascontiguousarray(accum0, dtype="float64").tobytes())
+
+    for c in order:
+        a = accum[c]
+        r = rec1[c]
+        if r != c:
+            w1 = p1[c]
+            if w1 > 0.0:
+                accum[r] += a * w1
+        r = rec2[c]
+        if r != c:
+            w2 = p2[c]
+            if w2 > 0.0:
+                accum[r] += a * w2
+
+    edge = array.array("b")
+    edge.frombytes(np.ascontiguousarray(dinf.edge_outlet, dtype="int8").tobytes())
+    ef = array.array("d", bytes(8 * n))   # 端へ抜ける流出の割合（下流から伝播）
+    for c in reversed(order):
+        r1 = rec1[c]
+        r2 = rec2[c]
+        has_rec = False
+        val = 0.0
+        w1 = p1[c]
+        if r1 != c and w1 > 0.0:
+            has_rec = True
+            val += w1 * ef[r1]
+        w2 = p2[c]
+        if r2 != c and w2 > 0.0:
+            has_rec = True
+            val += w2 * ef[r2]
+        ef[c] = val if has_rec else (1.0 if edge[c] else 0.0)
+
+    accum_out = np.frombuffer(accum, dtype="float64").copy()
+    accum_out[~flat_valid] = 0.0
+    edge_frac = np.frombuffer(ef, dtype="float64").copy()
+    edge_frac[~flat_valid] = 0.0
+    return accum_out.reshape(h, w), edge_frac.reshape(h, w)
+
+
 @dataclass(frozen=True)
 class CollarRouting:
     """`route_with_collar` の結果。配列はすべて AOI 矩形に clip 済み。
@@ -285,8 +516,9 @@ class CollarRouting:
       `priority_flood_fill(dem)`（AOI 単独）を使うこと（`scripts/33`）。
     - `accum`: 集水セル数。**collar 経由で AOI に流れ込む上流の寄与を含む**ので、
       AOI 端のセルで collar 無しより増える。
-    - `term_edge`: そのセルの流れが最終的に **collar の外周**で map の外へ抜けるか
-      （= まだ端で切れている）。collar 内の窪地・海（nodata）で終わるなら False。
+    - `term_edge`: そのセルの流出のうち最終的に **collar の外周**で map の外へ
+      抜ける割合（= まだ端で切れているぶん）。collar 内の窪地・海（nodata）で
+      終わるぶんは 0。`method="d8"` では bool（0/1）、`"dinf"` では 0–1 の連続値。
     - `sink_outlet` / `edge_outlet`: AOI セルのうち nodata へ直接流れ込む / 下流を
       持たず AOI 矩形の縁に接するもの（collar 有りでは後者はほぼ空になる）。
     """
@@ -300,15 +532,17 @@ class CollarRouting:
 
 
 def route_with_collar(
-    dem: np.ndarray, collar_dem: np.ndarray, collar: int
+    dem: np.ndarray, collar_dem: np.ndarray, collar: int, method: str = "dinf",
 ) -> CollarRouting:
     """`dem`（AOI）の外周に `collar_dem` のバッファ帯を張ってから Priority-Flood +
-    D8 を回し、AOI 矩形に clip した集水・端フラグを返す。
+    flow accumulation を回し、AOI 矩形に clip した集水・端フラグを返す。
+
+    `method`: `"dinf"`（既定、D-infinity / Tarboton 1997）または `"d8"`（比較用）。
 
     `collar_dem` は shape `(H + 2*collar, W + 2*collar)`。中心 `(H, W)` は必ず
     `dem` で上書きするので、呼び手は帯だけ埋めれば十分（全面 GSI DEM を渡してもよい）。
-    NaN = nodata。`collar == 0` なら collar 無し（`d8_flow_direction` /
-    `d8_accumulation` を素の AOI に掛けるのと一致する）。
+    NaN = nodata。`collar == 0` なら collar 無し（`*_flow_direction` /
+    `*_accumulation` を素の AOI に掛けるのと一致する）。
 
     **collar 帯はルーティングにだけ使う。** 返すのは `accum` と `term_edge`（と
     その補助フラグ）。窪地の充填深・越流点標高・容積は collar で AOI 端の窪地の
@@ -321,6 +555,8 @@ def route_with_collar(
     c = int(collar)
     if c < 0:
         raise ValueError("collar must be >= 0")
+    if method not in ("dinf", "d8"):
+        raise ValueError(f"method must be 'dinf' or 'd8', got {method!r}")
     big = np.array(collar_dem, dtype="float64")
     if big.shape != (h + 2 * c, w + 2 * c):
         raise ValueError(
@@ -328,14 +564,23 @@ def route_with_collar(
     big[c:c + h, c:c + w] = dem
 
     filled_big = priority_flood_fill(big)
-    d8 = d8_flow_direction(filled_big)
     valid_big = np.isfinite(filled_big)
-    accum_big, term_big = d8_accumulation(d8, valid_big)
-
-    # 一様単位降雨の保存則は collar グリッド全体で見る
-    rec = d8.receiver.reshape(-1)
     flat_valid = valid_big.reshape(-1)
-    terminal = flat_valid & ((rec == np.arange(rec.size)) | ~flat_valid[rec])
+
+    if method == "d8":
+        fd = d8_flow_direction(filled_big)
+        accum_big, term_big = d8_accumulation(fd, valid_big)
+        rec1 = fd.receiver.reshape(-1)
+        sink_big, edge_big = fd.sink_outlet, fd.edge_outlet
+    else:
+        fd = dinf_flow_direction(filled_big)
+        accum_big, term_big = dinf_accumulation(fd, valid_big)
+        rec1 = fd.receiver1.reshape(-1)
+        sink_big, edge_big = fd.sink_outlet, fd.edge_outlet
+
+    # 一様単位降雨の保存則は collar グリッド全体で見る。終端 = receiver を持たない
+    # セル（端流出・sink・孤立窪地）。ここに全降雨が集まる
+    terminal = flat_valid & ((rec1 == np.arange(rec1.size)) | ~flat_valid[rec1])
     n_valid = int(valid_big.sum())
     term_sum = float(accum_big.reshape(-1)[terminal].sum())
 
@@ -344,32 +589,31 @@ def route_with_collar(
         filled=filled_big[sl].copy(),
         accum=accum_big[sl].copy(),
         term_edge=term_big[sl].copy(),
-        sink_outlet=(d8.sink_outlet[sl] & valid_big[sl]).copy(),
-        edge_outlet=d8.edge_outlet[sl].copy(),
-        conservation_ok=abs(term_sum - n_valid) <= 0.5,
+        sink_outlet=(sink_big[sl] & valid_big[sl]).copy(),
+        edge_outlet=edge_big[sl].copy(),
+        conservation_ok=abs(term_sum - n_valid) <= max(0.5, 1e-6 * n_valid),
         collar_shape=big.shape,
     )
 
 
-def edge_truncated_fraction(filled: np.ndarray) -> float:
+def edge_truncated_fraction(filled: np.ndarray, method: str = "dinf") -> float:
     """collar 無しで解いたときに集水域が AOI 端で切れるセルの割合。
 
-    `route_with_collar` の前後比較用の軽量版（`accum` は積まず、端フラグの伝播だけ）。
-    `filled` は `priority_flood_fill(dem)` の結果（collar 無し）。
+    `route_with_collar` の前後比較用。`filled` は `priority_flood_fill(dem)` の
+    結果（collar 無し）。`method` は `route_with_collar` と揃える。
     """
     filled = np.asarray(filled, dtype="float64")
     valid = np.isfinite(filled)
-    d8 = d8_flow_direction(filled)
-    rec = d8.receiver.reshape(-1).astype("int64")
     flat_valid = valid.reshape(-1)
-    edge = d8.edge_outlet.reshape(-1)
-    term_edge = np.zeros(filled.size, dtype=bool)
-    for c in d8.order[::-1].tolist():
-        r = rec[c]
-        if r == c or not flat_valid[r]:
-            term_edge[c] = bool(edge[c])
-        else:
-            term_edge[c] = term_edge[r]
+    if method == "d8":
+        fd = d8_flow_direction(filled)
+        _, term = d8_accumulation(fd, valid)
+    elif method == "dinf":
+        fd = dinf_flow_direction(filled)
+        _, term = dinf_accumulation(fd, valid)
+    else:
+        raise ValueError(f"method must be 'dinf' or 'd8', got {method!r}")
+    term_edge = term.reshape(-1)
     nv = int(flat_valid.sum())
     return float(term_edge[flat_valid].mean()) if nv else 0.0
 

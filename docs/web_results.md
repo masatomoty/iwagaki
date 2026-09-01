@@ -243,14 +243,20 @@ FARR 取り込みの第 2 段で「水みち／窪地」ピラミッドを足し
 水みちにしたときだけ引く**（`main.ts` の `buildTerrain` が `terrainPaint` で
 分岐）ので、差分タイルと同じく初回描画・既定表示には 1 バイトも乗らない。
 
-配信サイズ（`scripts/80` の report）:
+配信サイズ（`scripts/80` の report。**第 4 段で D-infinity ルーティングにしたあとの
+実測値**。D8 のときの値を括弧で残す）:
 
 | 範囲 | 条件 | z 上限 | タイル | サイズ |
 |---|---|---:|---:|---:|
-| 吉原 100 ha | baseline / control | 17 | 39 / 39 | 0.21 / 0.20 MB |
-| 吉原 100 ha | highres / pointcloud | 17 | 39 / 39 | 1.28 / 1.30 MB |
-| 西舞鶴 625 ha | baseline / highres | 16 | 51 / 51 | 0.68 / 2.19 MB |
-| 東舞鶴 1,000 ha | baseline / highres | 16 | 77 / 76 | 1.02 / 3.37 MB |
+| 吉原 100 ha | baseline / control | 17 | 39 / 39 | 0.24 / 0.23 MB（D8: 0.21 / 0.20） |
+| 吉原 100 ha | highres / pointcloud | 17 | 39 / 39 | 1.24 / 1.26 MB（D8: 1.28 / 1.30） |
+| 西舞鶴 625 ha | baseline / highres | 16 | 51 / 51 | 0.75 / 2.11 MB（D8: 0.68 / 2.19） |
+| 東舞鶴 1,000 ha | baseline / highres | 16 | 77 / 76 | 1.12 / 3.29 MB（D8: 1.02 / 3.37） |
+
+D8 → D-inf で **coarse 条件（baseline / control）は 1 割ほど増え、highres は数 %
+減った**。D-inf が最急降下方向を挟む 2 セルへ流れを配るぶん、5m では階段状だった
+R チャネルに中間調が増えて PNG のエントロピが上がり、0.5m では逆に鋭いピークが
+ならされて下がる。合計は誤差の範囲（`docs/results.md`「D8 → D-infinity」）。
 
 R チャネルの 8bit log で焼く（16bit にすると R,G が高エントロピなノイズ場になり
 highres で 4 MB まで膨らんだ）。**吉原は z17・広い 2 範囲は z16 で止める**

@@ -374,6 +374,11 @@ GSI_DEM_TILE_LAYERS: tuple[tuple[str, int], ...] = (("dem5a", 15), ("dem", 14))
 #: `IWAGAKI_FLOW_COLLAR`（[m]）で上書きできる（0 で collar 無効）。
 FLOW_COLLAR_M = 150.0
 
+#: flow accumulation のルーティング法。`"dinf"`（D-infinity / Tarboton 1997、既定）
+#: または `"d8"`（O'Callaghan & Mark 1984、比較用）。`IWAGAKI_FLOW_METHOD` で
+#: 上書きできる（`src/iwagaki/flow.py`、`docs/data.md` §7「FARR 取り込み・第 4 段」）。
+FLOW_METHOD = "dinf"
+
 ATTRIBUTION = [
     "出典：3D都市モデル（Project PLATEAU）舞鶴市（2025年度）／国土交通省",
     "出典：京都府オープンデータ「数値標高モデル（DEM）」（2019-2023年計測）"
