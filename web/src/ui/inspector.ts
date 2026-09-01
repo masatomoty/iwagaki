@@ -80,9 +80,50 @@ function currentTable(
       </table>`}`
 }
 
+/**
+ * 「水みち」モードで選んだ集水域。地物インスペクタと同じ枠に出す
+ * （`domain/flow.ts` の `catchmentSummary`、`catalog.flow.basins`）。
+ * **潮位非依存の別オーバーレイ**で、浸水判定・h_conn とは無関係。
+ */
+function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selectedCatchment']>) {
+  el.style.display = 'block'
+  const ha = (v: number) => `${v.toFixed(2)} ha`
+  // 出すのは**ハイライトしている面の面積**だけ。吐口の D-inf 集水（`maxAccumM2`）は
+  // 主 receiver で切った流域境界を跨いで出入りするので面積とは別物になり、数字で
+  // 並べると紛らわしい（`domain/flow.ts` には残し、geojson の `max_accum_*` で参照可）。
+  el.innerHTML = `
+    <div class="insp-head">
+      <h1>集水域</h1>
+      <button id="insp-close" type="button" title="選択を外す">×</button>
+    </div>
+    <p class="sub">水みち（一様降雨・地形のみ）。潮位に依存しない</p>
+    <table>
+      <tr><td>流域面積${c.edgeTruncated ? '（AOI 内）' : ''}</td>
+        <td class="num">${ha(c.areaHa)}</td></tr>
+      ${c.pit
+        ? `<tr><td>流出先</td><td class="num">海に通じない窪地<br>
+             <span class="sub">越流点 ${c.pit.spillElev.toFixed(2)} m T.P.</span></td></tr>`
+        : ''}
+    </table>
+    ${c.edgeTruncated
+      ? `<div class="note"><b>集水域が表示範囲の外へ延びている。</b>
+          面積は AOI 内に入っているぶんだけで、実際の集水域はこれより広い
+          （ルーティングは AOI 外周に 150 m の collar を張っている）。</div>`
+      : ''}
+    <div class="note">地図をクリックした地点の上流を、事前分割した部分流域を
+      つないで面にしている（<b>浸水判定には混ぜていない</b>別レイヤ。
+      潮位スライダを動かしても変わらない）。</div>
+  `
+}
+
 export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog) {
   const a = store.state.selected
-  if (!a) { el.style.display = 'none'; return }
+  if (!a) {
+    const c = store.state.selectedCatchment
+    if (c && store.state.terrainPaint === 'catchment') renderCatchment(el, c)
+    else el.style.display = 'none'
+    return
+  }
   el.style.display = 'block'
   const H = store.state.waterLevel
   const th = catalog.semantics.road_depth_classes_m
