@@ -135,7 +135,20 @@ def test_road_polygon_graph_connects_touching_segments():
     assert graph.edges[0][:2] == (0, 1)
 
 
-# --- スクリプトの自己確認 ------------------------------------------
+# --- スクリプトの自己確認・入力検証 --------------------------------
 
 def test_script_selfcheck_passes():
     assert script._selfcheck() == 0
+
+
+@pytest.mark.parametrize("argv", [
+    ["94", "--lon", "135.38", "--lat", "35.48", "--minutes", "-1"],
+    ["94", "--lon", "135.38", "--lat", "35.48", "--speed-m-min", "0"],
+    ["94", "--lon", "135.38", "--lat", "35.48", "--edge-buffer-m", "-5"],
+    ["94", "--lon", "999", "--lat", "35.48"],
+])
+def test_script_rejects_bad_cli_inputs(monkeypatch, argv):
+    monkeypatch.setattr("sys.argv", argv)
+    with pytest.raises(SystemExit) as exc:
+        script.main()
+    assert exc.value.code == 2  # argparse のエラー終了

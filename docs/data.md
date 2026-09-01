@@ -833,7 +833,9 @@ todo T2 の当初メモは「PLATEAU `tran` の LineString からグラフを構
 
 `scripts/50` が焼いた `data/out/{aoi}/objects.geojson` の
 `feature_type == "tran:Road"`（EPSG:6674、AOI で切り出し済み）から
-（`--from-raw` で `data/raw/plateau/*_tran_*.gml` を直接読むこともできる）:
+（`--from-raw` で `data/raw/plateau/*_tran_*.gml` を直接読むこともできる。
+**`objects.geojson` は `scripts/50` が「非水セルが 1 つも無い地物」を落としている**ので、
+開放水面だけを渡る橋が連結に効く場合は `--from-raw` を使う）:
 
 * **ノード** = 各道路ポリゴンの代表点（`shapely` の `representative_point`）
 * **エッジ** = 境界が **6 m** 以内で接する 2 ポリゴンの代表点どうし。

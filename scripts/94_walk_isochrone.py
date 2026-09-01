@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,10 +77,16 @@ AOI_ONLY_NOTE = "AOI 内でのみ有効。道路グラフの端で等時線も�
 
 
 def load_road_polygons(aoi_name: str, drop_grade_separated: bool) -> list:
-    """objects.geojson から道路面ポリゴンを読む（EPSG:6674 のまま）。"""
+    """objects.geojson から道路面ポリゴンを読む（EPSG:6674 のまま）。
+
+    **注意:** `scripts/50` は「非水セルが 1 つも無い地物」を `objects.geojson` から
+    落とす（開放水面の上だけを通る橋など）。連結に効く橋が欠けうるので、
+    完全な `tran:Road` が要るときは `--from-raw` を使う（`walk_isochrone_summary.json`
+    の `water_only_roads_excluded` に注意書きを出す）。
+    """
     path = OUT / "objects.geojson"
     if not path.exists():
-        raise SystemExit(f"入力がありません: {path}")
+        raise SystemExit(f"入力がありません: {path}（先に scripts/50、または --from-raw）")
     data = json.loads(path.read_text())
     if data.get("crs", {}).get("properties", {}).get("name") != "EPSG:6674":
         raise SystemExit(f"{path}: CRS が EPSG:6674 ではありません")
@@ -205,6 +212,11 @@ def build(
     polys = (load_road_polygons_from_raw(drop_grade_separated) if from_raw
              else load_road_polygons(aoi_name, drop_grade_separated))
     summary["road_source"] = "raw_citygml" if from_raw else "objects.geojson"
+    if not from_raw:
+        summary["water_only_roads_excluded"] = (
+            "objects.geojson は scripts/50 が『非水セルが無い地物』（開放水面の上だけを"
+            "通る橋など）を落としている。完全な tran:Road が要るなら --from-raw"
+        )
     if not polys:
         raise SystemExit(f"{aoi_name}: 道路が 1 件も読めませんでした")
     graph = graph_from_road_polygons(polys)
@@ -303,6 +315,13 @@ def main() -> int:
         return _selfcheck()
     if args.lon is None or args.lat is None:
         ap.error("--lon と --lat は必須です（--dry-run のとき以外）")
+    if not (-180.0 <= args.lon <= 180.0 and -90.0 <= args.lat <= 90.0):
+        ap.error("--lon / --lat が経緯度の範囲外です")
+    for name, value in (("--minutes", args.minutes), ("--speed-m-min", args.speed_m_min)):
+        if not (math.isfinite(value) and value > 0):
+            ap.error(f"{name} は正の有限値を指定してください（受け取った値: {value}）")
+    if not (math.isfinite(args.edge_buffer_m) and args.edge_buffer_m > 0):
+        ap.error(f"--edge-buffer-m は正の有限値を指定してください（受け取った値: {args.edge_buffer_m}）")
 
     fc, summary = build(AOI.name, args.lon, args.lat, args.minutes,
                         args.speed_m_min, args.edge_buffer_m, args.drop_grade_separated,
