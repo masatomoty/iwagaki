@@ -674,6 +674,62 @@ T.P. **0.0 〜 +3.0 m** を掃引し、上表の4つを目盛りとスナップ�
 
 ---
 
+## 7. 地表流の集中と窪地構造（FARR ロジックの取り込み）**[実測: 外部プロダクト調査]**（2026-09-01）
+
+外部プロダクト **FARR**（Flow Accumulation Realtime Renderer, mite-shiru 社
+<https://mite-shiru.co.jp/farr/>）は DEM だけで「一様降雨時に地表流がどこに
+集まるか」をブラウザでリアルタイム計算する汎用ツール。iwagaki が明示的に
+「やらない」内水・地表流の集中を扱うので補完的と判断した（経緯は `docs/todo.md`
+「FARR のロジックを取り込む」）。`scripts/33_flow_accum.py` /
+`src/iwagaki/flow.py` がラスタを焼く。**潮位非依存の別レイヤ**で、
+`h_conn`・浸水判定には混ぜていない（`docs/design.md`「やらないこと」）。
+
+### 採用した手法と出典 **[既知]**
+
+| 課題 | 使うもの | 出典 |
+|---|---|---|
+| 窪地充填（fill_depth / spill_elev / volume） | **Priority-Flood + ε**（ε = 1 ULP）を純 numpy/scipy で実装 | Barnes, Lehman & Yatheendradas (2014) "Priority-flood: An optimal depression-filling and watershed-labeling algorithm for digital elevation models", *Computers & Geosciences* 62, 117–127 |
+| flow accumulation（水みち） | **D8**（1 セル 1 方向・最急降下）を位相ソートで積算。一様単位降雨 | O'Callaghan & Mark (1984) "The extraction of drainage networks from digital elevation data", *CVGIP* 28, 323–344 |
+| 窪地のラベリング | `scipy.ndimage.label`（8 近傍） | — |
+
+### 既存 OSS を評価した結果、自前実装にした **[実測]**
+
+`richdem` / `pyflwdir` / `pysheds` / `whitebox` を比較した。いずれも
+(a) Priority-Flood と D8 を持つが、
+
+| OSS | 追加される依存 | 判断 |
+|---|---|---|
+| `richdem` | **C++ 拡張**（ビルド or wheel） | 却下。重い |
+| `pyflwdir` | `numba`（+ `llvmlite` 約 40 MB） | 却下。D-inf 目的でしか要らない |
+| `pysheds` | `numba` / `scikit-image` ほか | 却下。同上 |
+| `whitebox` | 別プロセスの Rust バイナリを実行時 DL | 却下。オフライン前提と相性が悪い |
+
+**自前実装にした理由**: (b) `src/iwagaki/flood.py` が既に同じ Priority-Flood 系の
+minimax（`h_conn`）を純 numpy/scipy で持っており、Priority-Flood + ε も `heapq` と
+`scipy.ndimage` だけで 100 行に収まる。(c) `requirements.txt` は軽く保つ方針で
+（`docs/design.md`「重い C++ 依存を足すなら理由を書く」）、D8 までなら依存ゼロで足りる。
+**D-infinity（Tarboton 1997）は `numba` か C++ が要るので第 1 段では入れず、
+`docs/todo.md` に残した。** D8 は 1 セル 1 方向なので尾根の分岐が粗い。
+
+なお `h_conn` をそのまま流用はできない。`h_conn` は 0.05 m 刻みに量子化され
+`H_MAX = 3.0 m` で頭打ちになるので、充填深・越流点標高・容積には非量子化の
+Priority-Flood が要る。同じ量の別解像度版という位置づけ。
+
+### 境界の扱いと限界（成果物に明記）**[実測]**
+
+- **流出先** = 配列の外周セル ∪ nodata セル。京都府 DEM の nodata は主に開放水面
+  （湾・川・水路）なので、そこに達した流れは AOI を出たとみなす。
+- **集水域は AOI の外へ伸びる。** 最急降下が外周で map の外へ抜けるセルには
+  「AOI 端で切れている」フラグを立て、`flow_accum_summary.json` の
+  `edge_truncated_fraction` に割合を出す（吉原 highres で 60 %、西舞鶴で 18 %）。
+- **GSI 5m DEM の collar（縁取り）は第 1 段では入れていない。** ルーティング用に
+  AOI 外周へ 5m DEM を足してから clip する案は `docs/todo.md` に残した。
+  `config.py` の AOI 矩形は開放水面（湾）を含むよう余裕を持たせてある。
+- **一様降雨・地形のみ。** 実際の降雨分布・地表被覆・浸透・管路・時間発展は含まない
+  （FARR と同じ但し書き）。
+
+---
+
 ## 標高成果の世代 **[未確認]**
 
 **指摘:** 3D 都市モデルと点群は**現在の新しい標高成果ではなく旧標高成果**で
