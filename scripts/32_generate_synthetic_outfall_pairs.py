@@ -2,11 +2,16 @@
 """窪地の越流点から仮想吐口ペアを作る。
 
 `scripts/33_flow_accum.py` が Priority-Flood + ε で特定した窪地（海に通じない
-くぼみ）のうち、**越流点標高（鞍部の高さ）が低い順**に最大 `--max-pairs` 個を
-選び、各窪地の**越流点セル**（`iwagaki.flow.pit_pour_points` が出す鞍部）を
-陸側端、最寄りの open-water seed を海側の geometry として GeoJSON へ出力する。
-`scripts/31_drainage_flood.py` がその陸側端を追加 seed にして S2 の到達水位
-ラスタを出す。
+くぼみ）のうち、**面積 `--min-area-m2`（既定 1000 m²）以上・越流点標高（鞍部の
+高さ）が低い順**に最大 `--max-pairs` 個を選び、各窪地の**越流点セル**
+（`iwagaki.flow.pit_pour_points` が出す鞍部）を陸側端、最寄りの open-water seed を
+海側の geometry として GeoJSON へ出力する。`scripts/31_drainage_flood.py` が
+その陸側端を追加 seed にして S2 の到達水位ラスタを出す。
+
+`scripts/33` の越流点 GeoJSON は**面積上位 60 窪地だけ**なので、`--min-area-m2`
+はその最小面積より大きくしておく（`main` が検査して、そうでなければ止める）。
+面積下限で切ったうえで spill で並べるので、上位 60 から漏れた低 spill の窪地を
+取りこぼさない。
 
 **「大きい窪地から順」ではなく越流点ベースにした理由**（`docs/todo.md`,
 `docs/flood_simulation_spec.md` §5.2）: S2 の感度を支配しているのは吐口の敷高
@@ -88,6 +93,11 @@ def select_outfall_pits(
 
     並び順は **越流点標高の昇順**（逆流が効き始めるのが早い順）、同着は面積の
     降順。先頭から `max_pairs` 個。
+
+    入力の `pit_features` は `scripts/33` が出す**面積上位の窪地だけ**なので、
+    `min_area_m2` はその面積下限より大きくしておく（`main` が検査する）。
+    そうしないと「面積は下限以上だが上位 N に入らなかった低 spill の窪地」が
+    候補から漏れ、spill 昇順という前提が崩れる。
     """
     h, w = hc.shape
     chosen: list[tuple[float, float, dict]] = []
@@ -116,7 +126,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target-h", type=float, default=0.93)
     ap.add_argument("--max-pairs", type=int, default=12)
-    ap.add_argument("--min-area-m2", type=float, default=250.0)
+    # 既定は 1000 m²（0.1 ha）。`scripts/33` の越流点 GeoJSON は面積上位 60 窪地
+    # だけなので、その最小面積（範囲により 600〜950 m² 程度）より大きくしておく。
+    ap.add_argument("--min-area-m2", type=float, default=1000.0)
     ap.add_argument("--pits", type=Path,
                     default=OUT / "flow_accum_pits_highres.geojson",
                     help="scripts/33 が出す越流点 GeoJSON（面積上位の窪地）")
@@ -133,9 +145,23 @@ def main() -> int:
         raise SystemExit(
             f"{args.pits} がありません。先に scripts/33_flow_accum.py を回して "
             "窪地の越流点を書き出してください（run_all.sh は 33 -> 32 の順）。")
-    pit_features = parse_pit_features(json.loads(args.pits.read_text()))
+    fc = json.loads(args.pits.read_text())
+    pit_features = parse_pit_features(fc)
     if not seed.any():
         raise SystemExit("open-water seed が空です（scripts/30 を先に回す）")
+
+    # 越流点 GeoJSON が面積で頭打ちなら、その最小面積より下の窪地は入っていない。
+    # `--min-area-m2` がそれ以下だと「面積は下限以上だが上位に入らなかった低 spill
+    # の窪地」を取りこぼす（spill 昇順が崩れる）。その場合は明示的に止める。
+    total_pits = int(fc.get("properties", {}).get("total_pits", len(pit_features)))
+    min_listed_area = min((f["area_m2"] for f in pit_features), default=0.0)
+    if total_pits > len(pit_features) and args.min_area_m2 < min_listed_area:
+        raise SystemExit(
+            f"{args.pits} は面積上位 {len(pit_features)} 窪地だけ"
+            f"（最小 {min_listed_area:.0f} m²、全 {total_pits} 窪地）。"
+            f"--min-area-m2 {args.min_area_m2:.0f} はそれより小さいので条件を満たす"
+            f"窪地が漏れる。--min-area-m2 を {min_listed_area:.0f} 以上にするか、"
+            "scripts/33 の FLOW_POUR_POINT_MAX_COUNT を増やして越流点を焼き直す。")
 
     picks = select_outfall_pits(
         pit_features, hc, grid, args.target_h, args.max_pairs, args.min_area_m2)
