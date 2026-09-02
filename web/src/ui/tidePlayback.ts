@@ -86,7 +86,7 @@ function forecastStatusHtml(s: TideForecastState, isForecastSelected: boolean): 
       : '気象庁から現在〜7日後ぶんの潮位予測を取得し直す（この曲線のみ更新）'
   return `<button id="tide-refresh" type="button" aria-label="気象庁の潮位予測（舞鶴・7日間）を取得し直す"
       data-tip="${tip}" aria-busy="${busy}" ${disabled ? 'disabled' : ''}
-      >${busy ? '更新中…' : '⟳ 気象庁の潮位予測を更新'}</button>
+      >${busy ? '更新中…' : '⟳ 気象庁予測を更新'}</button>
     <div id="tide-status" class="pb-forecast-status" aria-live="polite">${updated}${msg}</div>`
 }
 
