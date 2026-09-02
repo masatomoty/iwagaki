@@ -60,11 +60,11 @@ const areaMenuTip = (a: AreaChoice): string =>
     `${x.label}＝${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}`).join('\n')
 
 const ROAD_COLOR_MENU_TIP =
-  '道路レイヤの塗り分け。切り替えた人だけに出る。\n一律＝どこが道路かだけ（既定）\n'
+  '道路レイヤの塗り分け。\n一律＝どこが道路かだけ（既定）\n'
   + '通行支障＝浸水深 0.1 / 0.3 / 0.5 m で 4 段\n交通規制＝徐行 / 通行規制検討 / 通行止め相当'
 
 const BUILDING_COLOR_MENU_TIP =
-  '建物レイヤの塗り分け。\n塗り分けない\n用途＝11 種の用途色\n'
+  '建物レイヤの塗り分け。\n用途＝11 種の用途色\n'
   + '浸水深（床下・床上）＝地盤面から 0.50 m を境に（既定）'
 
 const WATER_LEVEL_TIP =
@@ -575,9 +575,8 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
 function syncToolbar() {
   const row = document.getElementById('toolbar-row')
   if (!row || row.dataset.built === '1') return
-  row.innerHTML = '<b>断面</b>'
-    + '<button id="secbtn" type="button" aria-pressed="false"'
-    + ' data-tip="地図を 2 点クリックして測線を引く。断面図が下に開く。Esc で中止">測線を引く</button>'
+  row.innerHTML = '<b data-tip="地図を 2 点クリックして測線を引くと、その線の地形・浸水の断面図が下に開く。Esc で中止">断面</b>'
+    + '<button id="secbtn" type="button" aria-pressed="false">測線を引く</button>'
   row.dataset.built = '1'
 }
 

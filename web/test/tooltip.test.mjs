@@ -47,3 +47,14 @@ test('上下どちらにも収まらないときは上端で切れない', () =>
   assert.ok(p.y >= 6)
   assert.ok(p.y + tall.h <= VP.h)
 })
+
+test('insets.top（#topbar のぶん）に潜るなら下へフリップ', () => {
+  // 既定マージンなら上に収まる位置。トリガーは帯の直下
+  const r = { left: 400, top: 120, width: 80, height: 20 }
+  assert.equal(placeTip(r, TIP, VP).placement, 'top')
+  // 上辺を 66px 空けると above(=52) がそこに潜るので下へ
+  const insets = { top: 66, right: 6, bottom: 6, left: 6 }
+  const p = placeTip(r, TIP, VP, insets)
+  assert.equal(p.placement, 'bottom')
+  assert.equal(p.y, 120 + 20 + 8)
+})

@@ -464,7 +464,10 @@ z=0 前提でずれを `parallax()` で自前に補正しているので、既�
   トリガーの `getBoundingClientRect()` から JS で位置を決める。
 - 位置決め（`placeTip`）は描画に依らない純関数に切り出してテストする
   （既定はトリガーの上、上に収まらなければ下へフリップ、左右は viewport に
-  クランプ）。`web/test/tooltip.test.mjs`。
+  クランプ）。`web/test/tooltip.test.mjs`。**上辺の余白は `#topbar`（固定・
+  z-index 10）の下端まで広げる** — 帯の直下にあるトリガー（浸水深ボタン・断面）で
+  上に出すと帯に潜るので、そのぶん下へフリップさせる（`placeTip` の `insets` 引数、
+  `reposition()` が `#topbar` の `bottom` を渡す）。
 - 委譲リスナ 1 組（`pointerover` / `focusin` / `pointerout` / `focusout` /
   `keydown[Escape]`）を `document` に張り、`[data-tip]` を持つ要素を対象にする。
   ホバーは ~400ms 遅延、フォーカスは遅延なし。非表示は即時

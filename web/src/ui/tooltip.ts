@@ -37,9 +37,24 @@ export interface RectLike {
 }
 
 /**
+ * viewport 端から空けたい余白。既定は四辺 `MARGIN`。
+ * **上辺は固定ヘッダ（`#topbar`）のぶん広げる** — トリガーが帯の直下にあると、
+ * ツールチップを上に出したとき帯に潜ってしまう（浸水深ボタンなど）。
+ */
+export interface Insets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+const DEFAULT_INSETS: Insets = { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN }
+
+/**
  * ツールチップの左上座標と、トリガーの上下どちらに出したか。
  *
- * 既定はトリガーの上。上に収まらず、かつ下には収まるなら下へフリップする。
+ * 既定はトリガーの上。上に収まらない（＝ `insets.top` より上、多くは `#topbar` と
+ * 重なる位置）で、かつ下には収まるなら下へフリップする。
  * 左右はトリガー中央を狙い、viewport からはみ出す分だけ寄せてクランプする。
  * 上下どちらでも収まらないときは、少なくとも上端で切れない位置に置く。
  */
@@ -47,20 +62,21 @@ export function placeTip(
   trigger: RectLike,
   tip: { w: number; h: number },
   viewport: { w: number; h: number },
+  insets: Insets = DEFAULT_INSETS,
 ): { x: number; y: number; placement: Placement } {
   const cx = trigger.left + trigger.width / 2
   let x = cx - tip.w / 2
-  x = Math.max(MARGIN, Math.min(x, viewport.w - tip.w - MARGIN))
+  x = Math.max(insets.left, Math.min(x, viewport.w - tip.w - insets.right))
 
   const above = trigger.top - GAP - tip.h
   const below = trigger.top + trigger.height + GAP
   let placement: Placement = 'top'
   let y = above
-  if (above < MARGIN && below + tip.h <= viewport.h - MARGIN) {
+  if (above < insets.top && below + tip.h <= viewport.h - insets.bottom) {
     placement = 'bottom'
     y = below
   }
-  y = Math.max(MARGIN, Math.min(y, viewport.h - tip.h - MARGIN))
+  y = Math.max(insets.top, Math.min(y, viewport.h - tip.h - insets.bottom))
   return { x, y, placement }
 }
 
@@ -89,10 +105,14 @@ function reposition(): void {
     hide()
     return
   }
+  // 上辺は固定ヘッダ（`#topbar`）の下端まで空ける。トリガーが帯の直下にあると
+  // 上に出したとき帯へ潜るので（浸水深ボタンなど）、そのぶん下へフリップさせる
+  const headerBottom = document.getElementById('topbar')?.getBoundingClientRect().bottom ?? 0
   const { x, y, placement } = placeTip(
     r,
     { w: tipEl.offsetWidth, h: tipEl.offsetHeight },
     { w: window.innerWidth, h: window.innerHeight },
+    { top: Math.max(MARGIN, headerBottom + MARGIN), right: MARGIN, bottom: MARGIN, left: MARGIN },
   )
   tipEl.style.left = `${Math.round(x)}px`
   tipEl.style.top = `${Math.round(y)}px`
