@@ -2,7 +2,7 @@
 // requestAnimationFrame で曲線の時刻を進め、その時刻の潮位を state.waterLevel に置くだけ。
 // h_conn 評価は定数時間なので、サーバ往復もタイルの作り直しも発生しない。
 
-import type { TideForecastState } from '../domain/tideForecast'
+import { FORECAST_SERIES_ID, type TideForecastState } from '../domain/tideForecast'
 import { advancedTime, formatJst, tideAt, timeValue,
          type TidePoint, type TideSeries } from '../domain/tideSeries'
 import type { Store } from '../state'
@@ -64,9 +64,14 @@ const escHtml = (s: string): string =>
  * 更新ボタン・状態行。**「更新中・成功・失敗」を必ず出す。**
  * 失敗時も直前の成功情報（最終更新日時・出典）は消さない
  * （`domain/tideForecast.ts` の `failTideForecastFetch` が状態を保つのに合わせる）。
+ *
+ * **ボタンは「気象庁 潮位予測」の曲線を選んでいるときだけ押せる。** 観測・台風
+ * イベントの曲線を見ているときに押しても、その曲線自体は更新されず紛らわしいため
+ * （更新される対象は常に予測曲線 1 本だけ）。押せない理由はツールチップで示す
  */
-function forecastStatusHtml(s: TideForecastState): string {
+function forecastStatusHtml(s: TideForecastState, isForecastSelected: boolean): string {
   const busy = s.status === 'loading'
+  const disabled = busy || !isForecastSelected
   const updated = s.retrievedAt
     ? `<span>最終更新 <b>${formatJst(timeValue(s.retrievedAt))}</b> JST</span>`
       + `<span class="sub">${escHtml(s.sourceLabel ?? '気象庁')}</span>`
@@ -75,8 +80,13 @@ function forecastStatusHtml(s: TideForecastState): string {
     : s.status === 'error' ? `<span class="pb-forecast-msg err">更新に失敗しました：${escHtml(s.error ?? '')}`
       + `${s.retrievedAt ? '（直前の予測を表示中）' : ''}</span>`
       : s.warning ? `<span class="pb-forecast-msg warn">${escHtml(s.warning)}</span>` : ''
-  return `<button id="tide-refresh" type="button" aria-label="気象庁の最新の潮位予測（舞鶴・7日間）に更新"
-      aria-busy="${busy}" ${busy ? 'disabled' : ''}>${busy ? '更新中…' : '⟳ 最新情報に更新'}</button>
+  // 常に data-tip を持たせる（無効の理由・押すと何が起きるかのどちらかを常に示す）
+  const tip = !isForecastSelected ? '「気象庁 潮位予測」を選んでいるときだけ更新できます'
+    : busy ? '気象庁の潮位予測を取得中です'
+      : '気象庁から現在〜7日後ぶんの潮位予測を取得し直す（この曲線のみ更新）'
+  return `<button id="tide-refresh" type="button" aria-label="気象庁の潮位予測（舞鶴・7日間）を取得し直す"
+      data-tip="${tip}" aria-busy="${busy}" ${disabled ? 'disabled' : ''}
+      >${busy ? '更新中…' : '⟳ 気象庁の潮位予測を更新'}</button>
     <div id="tide-status" class="pb-forecast-status" aria-live="polite">${updated}${msg}</div>`
 }
 
@@ -88,7 +98,7 @@ export function tidePlaybackHtml(
     <p class="grouplabel" data-tip="実測の台風イベント（および気象擾乱を含まない天文潮）や気象庁の潮位予測の毎時潮位を再生し、水位が上がるにつれ浸水域がどう広がるかを見る。モデルの時間発展ではなく、各時刻を静水位で解いたもの。最高潮位で自動で止まる">潮位の記録を再生</p>
     <div id="playback" data-curve="${selected}">
       <select id="pcurve" aria-label="再生する潮位の記録">${options(curves, selected)}</select>
-      <div class="pb-forecast">${forecastStatusHtml(forecast)}</div>
+      <div class="pb-forecast">${forecastStatusHtml(forecast, selected === FORECAST_SERIES_ID)}</div>
       <div class="pb-graph">
         <svg class="tidecurve" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" aria-hidden="true">
           <path id="curve-fill" d="${fillPath(points)}"></path>
@@ -135,6 +145,7 @@ export function getTidePlaybackHandle(parent: HTMLElement): TidePlaybackHandle |
 export function mountTidePlayback(
   parent: HTMLElement, curves: TideSeries[], selected: string, store: Store,
   onRefreshForecast: () => void = () => {},
+  initialForecast: TideForecastState = { status: 'idle' },
 ): TidePlaybackHandle {
   const el = parent.querySelector<HTMLElement>('#playback')
   if (!el) {
@@ -248,6 +259,15 @@ export function mountTidePlayback(
       x.setAttribute('aria-pressed', String(x === b))
     }
   })
+  // 更新ボタンの活性・ツールチップは「いま選んでいる曲線が予測曲線かどうか」
+  // に依存する。曲線を切り替えるたびに更新するので、直近の状態をここで覚えておく
+  let lastForecastState: TideForecastState = initialForecast
+  const renderForecastBlock = () => {
+    const wrap = q('.pb-forecast')
+    if (wrap) wrap.innerHTML = forecastStatusHtml(lastForecastState, curve.id === FORECAST_SERIES_ID)
+    q<HTMLButtonElement>('#tide-refresh')?.addEventListener('click', () => onRefreshForecast())
+  }
+
   /** 曲線を切り替える（ユーザーの select 操作、または `upsertCurve({selectIt:true})` から） */
   const selectCurve = (next: TideSeries) => {
     curve = next
@@ -261,6 +281,7 @@ export function mountTidePlayback(
     setCurveGeometry()
     store.set({ waterLevel: tideAt(next.points, currentMs) })
     paint()
+    renderForecastBlock()   // 更新ボタンの活性状態を新しい曲線に合わせ直す
   }
   q<HTMLSelectElement>('#pcurve')?.addEventListener('change', (e) => {
     const next = curves.find((c) => c.id === (e.target as HTMLSelectElement).value) ?? curves[0]
@@ -288,9 +309,8 @@ export function mountTidePlayback(
       }
     },
     setForecastStatus(state) {
-      const wrap = q('.pb-forecast')
-      if (wrap) wrap.innerHTML = forecastStatusHtml(state)
-      q<HTMLButtonElement>('#tide-refresh')?.addEventListener('click', () => onRefreshForecast())
+      lastForecastState = state
+      renderForecastBlock()
     },
   }
   HANDLES.set(el, handle)

@@ -285,10 +285,11 @@
      縦書きになっていた（2026-09） */
   #playback { display: flex; flex-direction: column; gap: 9px; }
   #playback #pcurve { font-size: 12.5px; }
-  /* 舞鶴の潮位予測（気象庁, Worker 経由）の更新ボタンと状態行 */
-  .pb-forecast { display: flex; flex-direction: column; gap: 4px; }
+  /* 舞鶴の潮位予測（気象庁, Worker 経由）の更新ボタンと状態行。
+     select（曲線選択）のすぐ下に来るので、上にも少し余白を取って離す */
+  .pb-forecast { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
   #tide-refresh { align-self: flex-start; background: var(--control); color: var(--fg);
-    border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px;
     font-size: 12px; line-height: 1.2; cursor: pointer; }
   #tide-refresh:hover:not(:disabled) { border-color: var(--accent); }
   #tide-refresh:disabled { opacity: .55; cursor: default; }

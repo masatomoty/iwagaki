@@ -707,7 +707,7 @@ export function renderControls(
       const initialSelected = catalog.water_level.tide_series?.default ?? tideCurves[0].id
       el.querySelector('#playbackslot')?.insertAdjacentHTML('beforeend',
         tidePlaybackHtml(tideCurves, initialSelected, tideForecast))
-      mountTidePlayback(el, tideCurves, initialSelected, store, onRefreshForecast)
+      mountTidePlayback(el, tideCurves, initialSelected, store, onRefreshForecast, tideForecast)
     } else {
       // 潮位再生パネルは初回構築後に作り直さない。更新ボタン・状態行だけ反映する
       // （曲線そのものの追加/差し替えは main.ts が handle.upsertCurve で直接行う）
@@ -857,7 +857,7 @@ export function renderControls(
   el.dataset.built = '1'
   if (tideCurves.length) {
     mountTidePlayback(el, tideCurves,
-      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store, onRefreshForecast)
+      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store, onRefreshForecast, tideForecast)
     updateTidePlayback(el, playbackStats)
   }
 

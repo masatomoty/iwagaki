@@ -7,6 +7,10 @@
 
 import type { TidePoint, TideSeries } from './tideSeries'
 
+/** 予測曲線の id。Worker（`deploy/worker.js`）の `buildMaizuruForecastSeries` と
+ * 揃える（別ランタイムの別モジュールなので定数は共有できず、文字列で合わせる） */
+export const FORECAST_SERIES_ID = 'forecast-maizuru'
+
 // **`timeValue`（= `Date.parse`）を tideSeries.ts から import しない。** ここは
 // import type だけにして、Node の型除去（`node --test`）が実行時に
 // `./tideSeries` を解決しに行かない状態を保つ（拡張子なしの相対 import は
@@ -85,7 +89,7 @@ export function parseTideForecastResponse(json: unknown, nowMs: number): TideFor
   for (const p of points) if (p.tide_m_tp > peak.tide_m_tp) peak = p
 
   const normalized: TideSeries = {
-    id: series.id || 'forecast-maizuru',
+    id: series.id || FORECAST_SERIES_ID,
     label: series.label || '気象庁 潮位予測（舞鶴・7日間）',
     kind: 'computed',
     points,
