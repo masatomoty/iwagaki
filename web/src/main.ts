@@ -51,11 +51,14 @@ import {
   updatePointBufferPanel, type PointBufferPanelState,
 } from './ui/pointBufferPanel'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
+import { easeOutCubic, prefersReducedMotion } from './view/anim'
 import {
   createColorScheme, depthLegend, FLOOR_ABOVE_DEPTH_M, legendOf, type ColorScheme,
 } from './view/buildingColor'
-import { applyPreset, attachViewCube, bindCameraKeys, createViewer, initialZoom,
-         showSectionLine } from './view/map'
+import {
+  applyPreset, attachViewCube, bindCameraKeys, createViewer, hideSectionLine,
+  hideSectionPreview, initialZoom, showSectionLine, showSectionPreview,
+} from './view/map'
 import { PointPickTool } from './view/pointPickTool'
 import { SectionTool, type LonLat } from './view/sectionTool'
 import { toAssertion, type RawFeature } from './view/semantics'
@@ -671,19 +674,55 @@ async function boot() {
    */
   let pendingChannelRetry: { basinId: number; seq: number } | undefined
 
-  const redrawSection = () => {
+  const drawSectionNow = (reveal = 1) => {
     if (secSeries.length === 0) return
     // いま選んでいる条件を先頭にする。塗り（連結して浸水する区間）はそれで判定する
     const cur = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
     const ordered = [...secSeries].sort((a, b) =>
       (a.condition === cur ? -1 : 0) - (b.condition === cur ? -1 : 0))
-    drawSection(secCanvas, ordered, store.state.waterLevel, secFit, store.state.floodModel)
+    drawSection(secCanvas, ordered, store.state.waterLevel, secFit, store.state.floodModel, reveal)
   }
+
+  /**
+   * 測線を引いた直後の 1 回だけ、断面を左から立ち上げる（`docs/todo.md` U4）。
+   * 打ち切りは `sectionSeq` の変化（別の測線・流域選択・パネル閉じ）と `sec-close` が
+   * 担う。潮位や地形条件の変化での再描画（`redrawSection`）は**打ち切らず**、その
+   * ときの進捗 `secRevealK` のまま描き直す（潮位再生中でも立ち上がりが消えない）。
+   */
+  const SEC_REVEAL_MS = 340
+  let secRevealRaf: number | null = null
+  /** 立ち上がりの進捗（eased, 0〜1）。アニメ外は 1。`redrawSection` もこれを見る */
+  let secRevealK = 1
+  const cancelSectionReveal = () => {
+    if (secRevealRaf !== null) { cancelAnimationFrame(secRevealRaf); secRevealRaf = null }
+    secRevealK = 1
+  }
+  function animateSectionReveal(seq: number) {
+    cancelSectionReveal()
+    if (secSeries.length === 0 || seq !== sectionSeq) return
+    // 断面データ（地形サンプリング）はこの関数に来る時点で揃っている。補間するのは描画だけ
+    if (prefersReducedMotion()) { drawSectionNow(1); return }
+    secRevealK = 0
+    drawSectionNow(secRevealK)   // 「読み込み中…」を残さず、目盛りだけの状態から始める
+    const t0 = performance.now()
+    const tick = () => {
+      if (seq !== sectionSeq || secSeries.length === 0) { secRevealRaf = null; secRevealK = 1; return }
+      const k = Math.min(1, (performance.now() - t0) / SEC_REVEAL_MS)
+      secRevealK = easeOutCubic(k)
+      drawSectionNow(secRevealK)
+      if (k < 1) { secRevealRaf = requestAnimationFrame(tick) } else { secRevealRaf = null; secRevealK = 1 }
+    }
+    secRevealRaf = requestAnimationFrame(tick)
+  }
+
+  // resize / secFit 切替・潮位や条件の変化での再描画。アニメ中なら現在の進捗のまま
+  const redrawSection = () => { drawSectionNow(secRevealK) }
 
   async function buildSection(from: LonLat, to: LonLat) {
     const seq = ++sectionSeq
     secLine = [from, to]
-    showSectionLine(viewer, from, to)
+    // 手動 2 点は 1 点目からの仮測線が既にそこにあるので伸ばさず即出し（U4）
+    showSectionLine(viewer, from, to, false, geoid)
     secEl.style.display = 'flex'
     document.body.classList.add('section-open')
     // 注記の div をやめたので、読み込み中は canvas に出す
@@ -706,7 +745,7 @@ async function boot() {
     const why = catalog.default_section?.from && secLine
       && secLine[0][0] === catalog.default_section.from[0]
       ? `${catalog.default_section.why}。` : ''
-    redrawSection()
+    animateSectionReveal(seq)
   }
 
   /**
@@ -735,7 +774,8 @@ async function boot() {
     const from = line[0]
     const to = line[line.length - 1]
     secLine = [from, to]
-    showSectionLine(viewer, from, to)
+    // クリック無しの自動測線。仮測線が無いので from→to へ伸ばす（U4）
+    showSectionLine(viewer, from, to, true, geoid)
     secEl.style.display = 'flex'
     document.body.classList.add('section-open')
     drawSectionMessage(secCanvas, '読み込み中…')
@@ -761,7 +801,7 @@ async function boot() {
     }))
     if (seq !== sectionSeq) return   // 待っている間に別の流域が選ばれた
     secSeries = got.filter((x): x is SectionSeries => x !== null)
-    redrawSection()
+    animateSectionReveal(seq)
   }
 
   // 断面は**起動時には出さない**（2026-09 指示）。ユーザーが「測線を引く」を
@@ -772,6 +812,11 @@ async function boot() {
     // 地表は z = geoid + 標高 * 鉛直強調 に描かれる。0 で交えると 2 点目が外れる
     planeZ: geoid,
     onLine: (a, b) => void buildSection(a, b),
+    // 1 点目を置いてから 2 点目までカーソルに追従する仮測線（U4）
+    onPreview: (from, to) => {
+      if (from) showSectionPreview(viewer, from, to, geoid)
+      else hideSectionPreview(viewer)
+    },
     onState: ({ active, hasFirst }) => {
       // **作図中はパネルがクリックを飲まないようにする。**
       // 既定の断面を出すようにしてから、断面パネルが画面の下半分を覆っている。
@@ -851,6 +896,8 @@ async function boot() {
     }
     if (t.id === 'sec-close') {
       sectionSeq++   // 進行中の断面リクエスト（手動・流域とも）があれば無効化する
+      cancelSectionReveal()
+      hideSectionLine(viewer)   // 測線（3D リボン）も一緒に消す
       secEl.style.display = 'none'
       document.body.classList.remove('section-open')
       secSeries = []; secLine = null

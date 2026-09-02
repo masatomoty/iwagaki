@@ -95,13 +95,14 @@
   #section { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
   #section .sec-head { display: flex; justify-content: flex-end; align-items: center;
     gap: 6px; margin-bottom: 4px; flex: 0 0 auto; }
-  #sec-close { background: transparent; border: none; color: rgba(226,232,240,.6);
-    font-size: 19px; cursor: pointer; padding: 0 4px; }
-  #sec-close:hover { color: #fff; }
-  #sec-fit { background: rgba(148,163,184,.14); border: 1px solid rgba(148,163,184,.3);
-    color: rgba(226,232,240,.85); font-size: 11.5px; border-radius: 4px;
-    padding: 3px 8px; cursor: pointer; margin-right: 6px; }
-  #sec-fit:hover { background: rgba(148,163,184,.26); }
+  /* 「全体を見る」「×」は #toolbar の「測線を引く」（#secbtn）と同じ高さ・見た目に揃える */
+  #sec-fit, #sec-close { background: #232936; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; line-height: 1.55;
+    padding: 6px 14px; cursor: pointer; }
+  #sec-fit, #sec-close { font-size: 12.5px; }
+  #sec-fit { margin-right: 6px; }
+  #sec-close { padding: 6px 12px; }
+  #sec-fit:hover, #sec-close:hover { border-color: #3d4657; color: #fff; }
   #sec-canvas { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
   #section .note { margin-top: 2px; flex: 0 0 auto; }
   /* 属性情報（#panel-attr）。地物クリックの中身。以前は右上に浮くパネルだった */

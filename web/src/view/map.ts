@@ -12,6 +12,7 @@ import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicMaterial } from 
 import type { Catalog } from '../domain/catalog'
 import { createLocalFrame, lngLatToWorld, type LocalFrame } from '../three/mercator'
 import { Viewer, type ProjectionMode } from '../three/viewer'
+import { easeOutCubic, lerp, prefersReducedMotion } from './anim'
 import { ViewCube } from './viewCube'
 
 /**
@@ -217,10 +218,21 @@ export function attachViewCube(v: Viewer): ViewCube {
  *
  * `depthTest: false` で常に手前に出す。地形メッシュは測線の真上を横切るので、
  * 深度で素直に比べると天端の向こう側が隠れて「どこを切ったか」が読めない。
+ *
+ * `grow`（`docs/todo.md` U4）: true のとき from→to へリボンが伸びる。手動 2 点は
+ * 1 点目から仮の測線（`showSectionPreview`）がカーソルに追従して既にそこにあるので
+ * `false` で即出し、主流路の自動測線（クリック無し）は `true` で伸ばす。
+ *
+ * `planeZ`: リボンを置くワールド z。**`sectionTool` がクリック光線を交える平面と
+ * 同じ値（ジオイド高）を渡すこと。** ここを大きな定数にすると、透視投影では
+ * その高さぶん画面上でリボンが上にずれ、「クリックした場所と線が全然違う」状態に
+ * なる（仮測線でカーソル追従にして初めて露見した）。
  */
 export function showSectionLine(
-  v: Viewer, from: [number, number], to: [number, number],
+  v: Viewer, from: [number, number], to: [number, number], grow = true, planeZ = 0,
 ): void {
+  hideSectionPreview(v)
+  ribbonZ = planeZ
   const [ax, ay] = lngLatToWorld(v.frame, from[0], from[1])
   const [bx, by] = lngLatToWorld(v.frame, to[0], to[1])
 
@@ -244,17 +256,86 @@ export function showSectionLine(
       if (cur) redrawRibbons(v, cur[0], cur[1], cur[2], cur[3])
     })
   }
+  g.visible = true
   sectionEnds = [ax, ay, bx, by]
-  redrawRibbons(v, ax, ay, bx, by)
+  if (grow) {
+    startRibbonReveal(v)
+  } else {
+    if (ribbonRaf !== null) { cancelAnimationFrame(ribbonRaf); ribbonRaf = null }
+    ribbonReveal = 1
+    redrawRibbons(v, ax, ay, bx, by)
+  }
+}
+
+/**
+ * 断面パネルを閉じたときに呼ぶ。**測線（3D リボン）も一緒に消す**（2026-09 指示）。
+ * 伸びかけのアニメも止める。
+ */
+export function hideSectionLine(v: Viewer): void {
+  if (ribbonRaf !== null) { cancelAnimationFrame(ribbonRaf); ribbonRaf = null }
+  ribbonReveal = 1
+  sectionEnds = null
+  const g = v.world.getObjectByName(SECTION_LINE) as Group | undefined
+  if (g) g.visible = false
+  hideSectionPreview(v)
+  v.invalidate()
 }
 
 const SECTION_LINE = 'section-line'
+const SECTION_PREVIEW = 'section-preview'
 /** 直近に引いた測線のワールド座標 [ax, ay, bx, by]。太さの引き直しに要る */
 let sectionEnds: [number, number, number, number] | null = null
+/** 仮の測線（1 点目〜2 点目）のワールド座標。'move' 再描画に要る */
+let previewEnds: [number, number, number, number] | null = null
 /** 画面上の太さ [px]。縁取りと本体 */
 const RIBBON_PX = [7, 3]
-/** 地形より十分上。depthTest を切っているので見えかたには影響しない */
-const RIBBON_Z = 300
+/** 仮の測線の太さ [px] と 1 点目マーカーの一辺 [px] */
+const PREVIEW_PX = 2
+const MARKER_PX = 9
+/**
+ * リボン・仮測線・マーカーを置くワールド z。**`sectionTool` のクリック平面
+ * （ジオイド高）と一致させる** — `showSectionLine` / `showSectionPreview` が
+ * `planeZ` から設定する。`depthTest: false` なので地物に隠れることはないが、
+ * z を大きくすると透視投影で画面上の位置がその高さぶんずれる。
+ */
+let ribbonZ = 0
+
+/**
+ * 測線が確定してからリボンを from→to へ伸ばすアニメーション（`docs/todo.md` U4）。
+ *
+ * **クリック無しの経路（主流路の自動測線）専用。** 手動 2 点は 1 点目から
+ * `showSectionPreview` の仮測線がカーソルに追従して既に描かれているので、確定時は
+ * 伸ばさず即出しする（`showSectionLine(…, false)`）。ここが補間するのはリボンの
+ * 板だけ（`redrawRibbons` が `metresPerPixel` から毎フレーム作り直しているのと
+ * 同じ処理）で、断面データ（地形サンプリング）は要らない。
+ *
+ * 進捗 `ribbonReveal`（0〜1）だけ持ち、終点の lerp は `redrawRibbons` 側でやる。
+ * こうしておくとアニメ中にカメラの 'move' 再描画が走っても、そのフレームの進捗の
+ * まま正しく引き直される（喧嘩しない）。
+ */
+const RIBBON_REVEAL_MS = 320
+/** いま描くべき from→to の割合。1 = 全体。'move' 再描画もこれを見る */
+let ribbonReveal = 1
+let ribbonRaf: number | null = null
+
+function startRibbonReveal(v: Viewer): void {
+  if (ribbonRaf !== null) { cancelAnimationFrame(ribbonRaf); ribbonRaf = null }
+  const draw = () => {
+    const e = sectionEnds
+    if (e) redrawRibbons(v, e[0], e[1], e[2], e[3])
+  }
+  if (prefersReducedMotion()) { ribbonReveal = 1; draw(); return }
+  ribbonReveal = 0
+  draw()   // 前の測線を残さず、まず起点だけの状態から始める
+  const t0 = performance.now()
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / RIBBON_REVEAL_MS)
+    ribbonReveal = easeOutCubic(k)
+    draw()
+    ribbonRaf = k < 1 ? requestAnimationFrame(tick) : null
+  }
+  ribbonRaf = requestAnimationFrame(tick)
+}
 
 function ribbonGeometry(): BufferGeometry {
   const g = new BufferGeometry()
@@ -263,25 +344,93 @@ function ribbonGeometry(): BufferGeometry {
   return g
 }
 
+/**
+ * 1 点目を置いてから 2 点目までの仮の測線（`docs/todo.md` U4: 「1 点目を設定する
+ * ところから」）。確定リボン（`SECTION_LINE`）とは別グループ・別スタイル
+ * （細い半透明の線＋起点マーカー）で、「まだ確定していない」と読めるようにする。
+ * `to` が null（カーソルがまだ動いていない）ときは起点マーカーだけ出す。
+ */
+export function showSectionPreview(
+  v: Viewer, from: [number, number], to: [number, number] | null, planeZ = 0,
+): void {
+  ribbonZ = planeZ
+  const [ax, ay] = lngLatToWorld(v.frame, from[0], from[1])
+  const [ex, ey] = to ? lngLatToWorld(v.frame, to[0], to[1]) : [ax, ay]
+
+  let g = v.world.getObjectByName(SECTION_PREVIEW) as Group | undefined
+  if (!g) {
+    g = new Group()
+    g.name = SECTION_PREVIEW
+    g.renderOrder = 899   // 確定リボンの下
+    const mat = () => new MeshBasicMaterial({
+      color: 0xf59e0b, depthTest: false, transparent: true, opacity: 0.55,
+    })
+    const line = new Mesh(ribbonGeometry(), mat()); line.name = 'line'
+    const marker = new Mesh(ribbonGeometry(), mat()); marker.name = 'marker'
+    for (const m of [line, marker]) { m.frustumCulled = false; g.add(m) }
+    v.world.add(g)
+    v.on('move', () => { if (previewEnds) redrawPreview(v) })
+  }
+  g.visible = true
+  previewEnds = [ax, ay, ex, ey]
+  redrawPreview(v)
+}
+
+/** 仮の測線を消す（2 点目確定・Esc・ツール停止時）。 */
+export function hideSectionPreview(v: Viewer): void {
+  const g = v.world.getObjectByName(SECTION_PREVIEW) as Group | undefined
+  if (!g || !g.visible) return
+  g.visible = false
+  previewEnds = null
+  v.invalidate()
+}
+
+function redrawPreview(v: Viewer): void {
+  const g = v.world.getObjectByName(SECTION_PREVIEW) as Group | undefined
+  if (!g || !previewEnds) return
+  const [ax, ay, ex, ey] = previewEnds
+  const mpp = v.metresPerPixel()
+  const line = g.getObjectByName('line') as Mesh
+  const marker = g.getObjectByName('marker') as Mesh
+  writeRibbon(line, ax, ay, ex, ey, (PREVIEW_PX * mpp) / 2)
+  // 起点マーカーは向きを持たない小さな正方形
+  const h = (MARKER_PX * mpp) / 2
+  ;((marker.geometry.getAttribute('position')) as BufferAttribute).copyArray(new Float32Array([
+    ax - h, ay - h, ribbonZ, ax + h, ay - h, ribbonZ,
+    ax - h, ay + h, ribbonZ, ax + h, ay + h, ribbonZ,
+  ]))
+  ;(marker.geometry.getAttribute('position') as BufferAttribute).needsUpdate = true
+  v.invalidate()
+}
+
+/** 板 1 枚を (ax,ay)→(ex,ey)・半幅 half[m] で書き換える */
+function writeRibbon(
+  mesh: Mesh, ax: number, ay: number, ex: number, ey: number, half: number,
+): void {
+  const len = Math.hypot(ex - ax, ey - ay) || 1
+  const nx = -(ey - ay) / len
+  const ny = (ex - ax) / len
+  const pos = mesh.geometry.getAttribute('position') as BufferAttribute
+  pos.copyArray(new Float32Array([
+    ax + nx * half, ay + ny * half, ribbonZ,
+    ax - nx * half, ay - ny * half, ribbonZ,
+    ex + nx * half, ey + ny * half, ribbonZ,
+    ex - nx * half, ey - ny * half, ribbonZ,
+  ]))
+  pos.needsUpdate = true
+}
+
 function redrawRibbons(
   v: Viewer, ax: number, ay: number, bx: number, by: number,
 ): void {
   const g = v.world.getObjectByName(SECTION_LINE) as Group | undefined
   if (!g) return
-  const len = Math.hypot(bx - ax, by - ay) || 1
-  const nx = -(by - ay) / len          // 線に直交する単位ベクトル
-  const ny = (bx - ax) / len
+  // アニメ中は終点を from→to の途中まで lerp する（`startRibbonReveal`）
+  const ex = lerp(ax, bx, ribbonReveal)
+  const ey = lerp(ay, by, ribbonReveal)
   const mpp = v.metresPerPixel()
   g.children.forEach((child, i) => {
-    const half = (RIBBON_PX[i] * mpp) / 2
-    const pos = ((child as Mesh).geometry.getAttribute('position') as BufferAttribute)
-    pos.copyArray(new Float32Array([
-      ax + nx * half, ay + ny * half, RIBBON_Z,
-      ax - nx * half, ay - ny * half, RIBBON_Z,
-      bx + nx * half, by + ny * half, RIBBON_Z,
-      bx - nx * half, by - ny * half, RIBBON_Z,
-    ]))
-    pos.needsUpdate = true
+    writeRibbon(child as Mesh, ax, ay, ex, ey, (RIBBON_PX[i] * mpp) / 2)
   })
   v.invalidate()
 }

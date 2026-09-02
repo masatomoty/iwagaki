@@ -77,6 +77,12 @@ function niceStep(span: number): number {
 export function drawSection(
   canvas: HTMLCanvasElement, series: SectionSeries[], waterLevel: number,
   fit: 'water' | 'all' = 'water', model: FloodModel = 'simple',
+  /**
+   * 測線を引いた直後の立ち上がり（`docs/todo.md` U4）。0〜1 で、地形ライン・
+   * 浸水塗り・水位線を左から `reveal` の割合だけ見せる。**目盛りと凡例は
+   * 動かさない**（読む足場なので即座に出す）。1 = 通常の即時描画。
+   */
+  reveal = 1,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -92,10 +98,28 @@ export function drawSection(
 
   const withData = series.filter((s) => s.points.some((p) => Number.isFinite(p.elev)))
   if (withData.length === 0) {
+    // 測線が丸ごと水域（航空レーザは水面から反射が返らない）か、タイル範囲の外。
+    // 空の canvas を出すのではなく、水位線と理由を描く（`docs/web_design.md`
+    // 「海が一枚も描かれていなかった」と同じ扱い）。陸側から引き直せば断面は出る。
+    const anyWet = series.some((s) => s.points.some((p) => p.hConn <= waterLevel))
+    const yW = h * 0.5
+    ctx.strokeStyle = 'rgba(96,165,250,.9)'
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([5, 4])
+    ctx.beginPath(); ctx.moveTo(PAD.left, yW); ctx.lineTo(w - PAD.right, yW); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = 'rgba(96,165,250,.95)'
+    ctx.font = FONT.legend
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+    ctx.fillText(`H = ${waterLevel.toFixed(2)} m T.P.`, PAD.left + 4, yW - 3)
     ctx.fillStyle = 'rgba(226,232,240,.6)'
     ctx.font = FONT.axis
-    ctx.textAlign = 'center'
-    ctx.fillText('この測線には地形データがありません', w / 2, h / 2)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillText(
+      anyWet ? '水域 — 水面から下の地形データはありません（陸側から引き直してください）'
+             : 'この測線には地形データがありません（タイル範囲の外）',
+      w / 2, yW + 10,
+    )
     return
   }
 
@@ -129,6 +153,16 @@ export function drawSection(
   ctx.fillText('m', PAD.left - 40, PAD.top - 2)
   ctx.textAlign = 'right'
   ctx.fillText('距離 m', w - PAD.right, h - PAD.bottom + 5)
+
+  // ここから下（塗り・水位線・地形ライン）は測線を引いた直後だけ左から現れる。
+  // 目盛りは上で描き終えているので clip の外側で、立ち上がっても動かない
+  const revealing = reveal < 1
+  if (revealing) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, PAD.left + reveal * (w - PAD.left - PAD.right), h)
+    ctx.clip()
+  }
 
   // 浸水する区間を塗る。**先頭の条件（いま画面に出ているもの）で判定する**
   const main = withData[0]
@@ -182,6 +216,8 @@ export function drawSection(
     }
     ctx.stroke()
   }
+
+  if (revealing) ctx.restore()
 
   // 凡例
   ctx.font = FONT.axis
