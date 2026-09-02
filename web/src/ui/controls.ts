@@ -491,12 +491,16 @@ function topbarHtml(
     conditionsOf(catalog).map((c) =>
       `<option value="${c.id}" title="${c.hint}"
                ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
+  // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
+  const keys = '<span class="tb-keys">投影 <kbd>O</kbd>　視点 <kbd>1–6</kbd>　'
+    + '計測パネル <kbd>P</kbd></span>'
   // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
   // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
   // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）
-  const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">出典`
+  const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
+    + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${keys}${src}`
 }
 
 /**
@@ -531,19 +535,18 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
 }
 
 /**
- * 断面ツールの帯（`#toolbar`）。サイドバーとビューキューブの間に横並びで置く。
- * 「測線を引く」は画面の主操作なので、タブの中に埋めず常時見える所へ（2026-09 指示）。
+ * 断面ツール（`#toolbar` の上段 `#toolbar-row`）。サイドバーとビューキューブの間に置く。
+ * 「測線を引く」は画面の主操作なのでタブに埋めない。線を引くと `#toolbar` 内の
+ * `#section` にグラフが開く（`main.ts`。パネル高さは左の `#controls-top` と揃う）。
  * `#secbtn` の click は `main.ts` の委譲ハンドラが拾う（DOM 位置に依存しない）。
  */
 function syncToolbar() {
-  const toolbar = document.getElementById('toolbar')
-  if (!toolbar || toolbar.dataset.built === '1') return
-  toolbar.innerHTML = '<b>断面</b>'
+  const row = document.getElementById('toolbar-row')
+  if (!row || row.dataset.built === '1') return
+  row.innerHTML = '<b>断面</b>'
     + '<button id="secbtn" type="button" aria-pressed="false"'
     + ' title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>'
-    + '<span class="keyhints">投影 <kbd>O</kbd>　視点 <kbd>1–6</kbd>　'
-    + '計測パネル <kbd>P</kbd></span>'
-  toolbar.dataset.built = '1'
+  row.dataset.built = '1'
 }
 
 export function renderControls(

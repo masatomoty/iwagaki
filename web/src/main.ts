@@ -183,6 +183,11 @@ async function boot() {
   const viewer: Viewer = createViewer(document.getElementById('map')!, catalog)
   // 旧実装（MapLibre zoom 15.6）と同じ景色にする。規約の違いは INITIAL_ZOOM を見ること
   viewer.setZoom(Number(qs.get('z')) || initialZoom(catalog))
+  // 操作系（トップバー・断面ツール・左サイドバー）を左上に固めたので、既定の注視点を
+  // 画面の右下寄りへ送って市街が隠れないようにする（?z 指定時も同じ）
+  if (!qs.has('target')) {
+    viewer.panByPixels(viewer.canvas.clientWidth * 0.17, viewer.canvas.clientHeight * 0.12)
+  }
   if (OPT.ortho) viewer.setProjection('orthographic')
   attachViewCube(viewer)
 
@@ -688,7 +693,7 @@ async function boot() {
     const seq = ++sectionSeq
     secLine = [from, to]
     showSectionLine(viewer, from, to)
-    secEl.style.display = 'block'
+    secEl.style.display = 'flex'
     document.body.classList.add('section-open')
     // 注記の div をやめたので、読み込み中は canvas に出す
     drawSectionMessage(secCanvas, '読み込み中…')
@@ -740,7 +745,7 @@ async function boot() {
     const to = line[line.length - 1]
     secLine = [from, to]
     showSectionLine(viewer, from, to)
-    secEl.style.display = 'block'
+    secEl.style.display = 'flex'
     document.body.classList.add('section-open')
     drawSectionMessage(secCanvas, '読み込み中…')
     const zoom = catalog.terrain.highres?.max_zoom ?? 18
@@ -768,13 +773,8 @@ async function boot() {
     redrawSection()
   }
 
-  // 起動時に既定の断面を出す。**測線を引かせる前に、一番読む価値のある断面を見せる。**
-  // 天端を横切る線で、3D では潰れて見えない 0〜3 m の起伏がここで読める
-  // **`from` / `to` の有無まで見る。** 以前は `catalog.default_section` の
-  // truthy だけを見ていて、`{}`（= 天端の解析を回していない範囲）で
-  // `ds.from[0]` を読んで落ちていた
-  const ds = catalog.default_section
-  if (ds?.from && ds?.to) void buildSection(ds.from as LonLat, ds.to as LonLat)
+  // 断面は**起動時には出さない**（2026-09 指示）。ユーザーが「測線を引く」を
+  // 押してから開く。`catalog.default_section` は残しておく（今は未使用）
 
   const sectionTool = new SectionTool({
     viewer,

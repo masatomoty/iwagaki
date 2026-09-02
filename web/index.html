@@ -6,7 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>iwagaki — 舞鶴・吉原 高潮浸水ビューア</title>
 <style>
-  :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff; }
+  :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff;
+          --toppanel-h: 232px; /* #controls-top と section 展開時 #toolbar の共通高さ */ }
   * { box-sizing: border-box; }
   html, body, #map { height: 100%; margin: 0; }
   body { background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
@@ -27,10 +28,15 @@
     font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
   #topbar .tbsel select { width: auto; flex: 0 1 auto; min-width: 90px;
     padding: 5px 26px 5px 9px; font-size: 12.5px; }
-  /* 出典は右端に畳んで置く。ホバー／フォーカスで全文（下に垂らす） */
-  #topbar .tb-src { margin-left: auto; flex: 0 0 auto; position: relative; cursor: help;
-    font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap;
-    border-bottom: 1px dotted var(--line); }
+  /* 右端はキー操作案内 ＋ 縦線 ＋ 出典。キー案内が余白を吸って右へ寄せる */
+  #topbar .tb-keys { margin-left: auto; flex: 0 0 auto; font-size: 11px;
+    color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
+  #topbar .tb-keys kbd { margin: 0 1px; }
+  /* 出典は畳んで置く。ホバー／フォーカスで全文（下に垂らす） */
+  #topbar .tb-src { flex: 0 0 auto; position: relative; cursor: help;
+    padding-left: 15px; border-left: 1px solid var(--line);
+    font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
+  #topbar .tb-src-lbl { text-decoration: underline dotted; text-underline-offset: 3px; }
   #topbar .tb-src:hover, #topbar .tb-src:focus-visible { color: var(--fg); outline: none; }
   #topbar .tb-src-pop { position: absolute; top: calc(100% + 9px); right: 0;
     width: 520px; max-width: 78vw; background: var(--panel);
@@ -48,16 +54,19 @@
               display: flex; flex-direction: column; gap: 10px; }
   /* 中の 2 枚は .panel の見た目だけ借りて、位置は flex に任せる */
   #controls-top, #controls-tabs { position: static; }
-  #controls-top { flex: 0 0 auto; }
+  #controls-top { flex: 0 0 auto; min-height: var(--toppanel-h); }
   #controls-top > #tpaint { margin-bottom: 9px; }
   #controls-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
                    overflow: hidden; }
   #controls-tabs > .tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  /* 断面ツール。サイドバー（左）とビューキューブ（右）の間の帯に横並びで置く。
-     測線を引くは画面の主操作なので、タブの中に埋めず常時見える所へ（2026-09 指示） */
+  /* 断面ツール。「測線を引く」とグラフを 1 枚のパネルにまとめ、サイドバー（左）と
+     ビューキューブ（右）の間に置く。線を引くと下にグラフが開き、パネルの高さは
+     左の #controls-top（地形の色＋凡例）と揃う（2026-09 指示） */
   #toolbar { position: absolute; top: 58px; left: 342px; right: 180px;
-             display: flex; align-items: center; gap: 12px; padding: 5px 12px; }
-  #toolbar b { flex: 0 0 auto; font-size: 12px; font-weight: 600; color: var(--muted);
+             display: flex; flex-direction: column; padding: 8px 12px; gap: 8px; }
+  body.section-open #toolbar { height: var(--toppanel-h); }
+  #toolbar-row { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  #toolbar-row b { flex: 0 0 auto; font-size: 12px; font-weight: 600; color: var(--muted);
     letter-spacing: .04em; }
   #toolbar #secbtn { flex: 0 0 auto; background: #232936; color: var(--fg);
     border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px;
@@ -65,8 +74,6 @@
   #toolbar #secbtn:hover { border-color: #3d4657; }
   #toolbar #secbtn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
     color: #07101d; font-weight: 600; }
-  #toolbar .keyhints { margin-left: auto; font-size: 11.5px; color: var(--muted); }
-  #toolbar .keyhints kbd { margin: 0 1px; }
 
   /* ビューキューブ。トップバー（高さ 46px）の下・右端に置く。
      キューブの上隅がバー下辺に食い込まないよう十分下げる */
@@ -78,31 +85,27 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.65); transition: color .12s;
   }
   #viewcube-home:hover { color: rgba(255,255,255,.98); }
-  /* 断面。**左メニューの右から右端まで**の帯にする。左右両方を避けて中央に寄せると
-     測線が短く描かれ、0〜3 m の起伏がまた読めなくなる（以前は左 292 / 右 176 だった）。
-     下の余白はサイドバー（#controls）と同じ 12px。右端は画面に密着させ枠と角を落とす */
-  #section {
-    display: none; left: 342px; right: 0; bottom: 12px; height: 268px;
-    padding: 8px 14px 4px; border-radius: 0; border-right: 0;
-  }
-  #section .sec-head { display: flex; justify-content: space-between; align-items: center;
-    font-size: 13.5px; margin-bottom: 4px; }
+  /* 断面グラフ。#toolbar の中で「測線を引く」行の下に開く。測線が短いと
+     0〜3 m の起伏が読めないので、canvas は残りの高さいっぱいに広げる */
+  #section { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
+  #section .sec-head { display: flex; justify-content: flex-end; align-items: center;
+    gap: 6px; margin-bottom: 4px; flex: 0 0 auto; }
   #sec-close { background: transparent; border: none; color: rgba(226,232,240,.6);
     font-size: 19px; cursor: pointer; padding: 0 4px; }
   #sec-close:hover { color: #fff; }
   #sec-fit { background: rgba(148,163,184,.14); border: 1px solid rgba(148,163,184,.3);
-    color: rgba(226,232,240,.85); font-size: 12.5px; border-radius: 4px;
-    padding: 4px 10px; cursor: pointer; margin-right: 6px; }
+    color: rgba(226,232,240,.85); font-size: 11.5px; border-radius: 4px;
+    padding: 3px 8px; cursor: pointer; margin-right: 6px; }
   #sec-fit:hover { background: rgba(148,163,184,.26); }
-  #sec-canvas { width: 100%; height: 222px; display: block; }
-  #section .note { margin-top: 2px; }
+  #sec-canvas { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
+  #section .note { margin-top: 2px; flex: 0 0 auto; }
   /* インスペクタ。**ビューキューブ（右上 8px / 128px 角）の下に置く。**
      以前は top:12 right:53 で幅 300 だったので右端 53〜136px がキューブと重なり、
      z-index:5 のキューブがパネルの上に乗っていた */
   #inspector { top: 146px; right: 12px; width: 330px; bottom: 12px;
                overflow: auto; display: none; }
-  /* 断面を出している間は、その上に収める（断面 bottom:12 + 高さ268 + 隙間8） */
-  body.section-open #inspector { bottom: 288px; }
+  /* 断面グラフは #toolbar 直下（画面上部）へ移したので、インスペクタは
+     断面の開閉に関係なく下端まで使ってよい */
   #inspector .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
   #insp-close { background: transparent; border: none; color: rgba(226,232,240,.55);
     font-size: 19px; line-height: 1; cursor: pointer; padding: 0 2px; }
@@ -115,10 +118,9 @@
   #perf { display: none; top: 58px; left: 342px; width: 300px; max-height: 40%; overflow: auto;
            font-variant-numeric: tabular-nums; }
   /* 地点＋徒歩圏（T1）。既定は隠す（`catalog.point_buffer` が無い配信物では出さない）。
-     左メニューの右・断面帯の上に置く。断面を開いている間は場所を譲る */
+     左メニューの右下に置く */
   #point-buffer { display: none; left: 342px; bottom: 12px; width: 300px; max-height: 46%;
                   overflow: auto; }
-  body.section-open #point-buffer { bottom: 288px; }
   h1 { font-size: 14.5px; margin: 0 0 2px; letter-spacing: .02em; }
   .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
   fieldset { border: 0; padding: 0; margin: 0 0 12px; }
@@ -294,18 +296,22 @@
 <body>
   <div id="map"></div>
   <div id="topbar"></div>
-  <div id="toolbar" class="panel"></div>
+  <!-- 断面ツール。「測線を引く」とグラフを 1 枚のパネルにまとめる。
+       #toolbar-row は controls.ts が組む。#section は線を引くまで hidden -->
+  <div id="toolbar" class="panel">
+    <div id="toolbar-row"></div>
+    <div id="section">
+      <div class="sec-head">
+        <button id="sec-fit" type="button" title="縦の範囲を切り替える">全体を見る</button>
+        <button id="sec-close" type="button" title="閉じる">×</button>
+      </div>
+      <canvas id="sec-canvas"></canvas>
+    </div>
+  </div>
   <div id="controls"></div>
   <div id="inspector" class="panel"></div>
   <div id="perf" class="panel"></div>
   <div id="point-buffer" class="panel"></div>
-  <div id="section" class="panel">
-    <div class="sec-head"><b>断面</b>
-      <span><button id="sec-fit" type="button" title="縦の範囲を切り替える">全体を見る</button>
-      <button id="sec-close" type="button" title="閉じる">×</button></span>
-    </div>
-    <canvas id="sec-canvas"></canvas>
-    </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
