@@ -52,13 +52,14 @@
   /* ボタン／トグル／select の説明（U2）。`[data-tip]` を持つ要素にホバー／
      フォーカスすると `ui/tooltip.ts` が単一ノードを body 直下へ position:fixed で
      出す（サイドバー #controls-tabs が overflow スクロールでクリップするため）。
-     見た目は上の #topbar .tb-src-pop に合わせる。z-index は #topbar(10) より上 */
+     z-index は #topbar(10) より上。**地図（暗い背景）や操作パネルの上に重なるので、
+     パネル地色（ほぼ黒）だと文字が沈む。1 段持ち上げた地に明るい文字で出す。** */
   #ui-tooltip {
-    position: fixed; left: 0; top: 0; z-index: 20; max-width: 280px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 7px 10px; font-size: 11.5px; line-height: 1.55; color: var(--muted);
+    position: fixed; left: 0; top: 0; z-index: 20; max-width: 320px;
+    background: #313949; border: 1px solid #454f63; border-radius: 8px;
+    padding: 10px 13px; font-size: 13px; line-height: 1.65; color: #f2f4f8;
     letter-spacing: 0; white-space: pre-line; pointer-events: none;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
     opacity: 0; transition: opacity .12s; }
   #ui-tooltip.is-shown { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { #ui-tooltip { transition: none; } }
