@@ -334,13 +334,12 @@ function legendHtml(
   rows.push(roadsLegend(s))
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
   if (s.layers.railway && s.catalog.railway) {
-    // 濃灰の縁 ＋ 濃灰/生成りの刻み（`three/railwayLine.ts` と同じ濃さ）
-    // 事業者名（「（西日本旅客鉄道）」）は "JR 線路" と重複するので落として短く
+    // 濃灰の縁 ＋ 濃灰/生成りの刻み（`three/railwayLine.ts` と同じ濃さ）。
+    // 路線名は凡例に出すと折り返すので title だけ（事業者名の括弧は落とす）
     const lines = s.catalog.railway.lines.map((n) => n.replace(/（[^（）]*）\s*$/, '')).join(' / ')
-    rows.push('<div><i style="background:'
+    rows.push('<div title="JR 線路（' + lines + '）"><i style="background:'
       + 'repeating-linear-gradient(90deg,#242830 0 2px,#e0e3e9 2px 5px);'
-      + 'box-shadow:inset 0 0 0 1px #242830"></i>'
-      + `JR 線路<span class="sub"> ${lines}</span></div>`)
+      + 'box-shadow:inset 0 0 0 1px #242830"></i>JR 線路</div>')
   }
   // 徒歩圏（T2）。潮位非依存の別レイヤなので、浸水系の色とは独立に出す
   if (s.layers.walkIsochrone && s.catalog.walk_isochrones?.length) {
@@ -531,6 +530,22 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
   })
 }
 
+/**
+ * 断面ツールの帯（`#toolbar`）。サイドバーとビューキューブの間に横並びで置く。
+ * 「測線を引く」は画面の主操作なので、タブの中に埋めず常時見える所へ（2026-09 指示）。
+ * `#secbtn` の click は `main.ts` の委譲ハンドラが拾う（DOM 位置に依存しない）。
+ */
+function syncToolbar() {
+  const toolbar = document.getElementById('toolbar')
+  if (!toolbar || toolbar.dataset.built === '1') return
+  toolbar.innerHTML = '<b>断面</b>'
+    + '<button id="secbtn" type="button" aria-pressed="false"'
+    + ' title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>'
+    + '<span class="keyhints">投影 <kbd>O</kbd>　視点 <kbd>1–6</kbd>　'
+    + '計測パネル <kbd>P</kbd></span>'
+  toolbar.dataset.built = '1'
+}
+
 export function renderControls(
   el: HTMLElement, store: Store, catalog: Catalog,
   buildingLegend: LegendEntry[] = [],
@@ -543,6 +558,7 @@ export function renderControls(
   const cond = surfaceCondition(s.surface)
 
   syncTopbar(store, catalog, area)
+  syncToolbar()
 
   if (el.dataset.built === '1') {
     const v = el.querySelector<HTMLElement>('#wlv')
@@ -583,8 +599,10 @@ export function renderControls(
     const pond = el.querySelector<HTMLInputElement>('input[data-l="ponded"]')
     const pondRow = pond?.closest('label') as HTMLElement | null
     if (pondRow) pondRow.hidden = s.floodModel !== 'connected'
-    const lg = el.querySelector<HTMLElement>('#legend')
-    if (lg) lg.innerHTML = legendHtml(s, buildingLegend, walkIsochroneInfo)
+    const lgMain = el.querySelector<HTMLElement>('#legend-main')
+    if (lgMain) lgMain.innerHTML = legendHtml(s, buildingLegend, walkIsochroneInfo)
+    const lgBldg = el.querySelector<HTMLElement>('#legend-bldg')
+    if (lgBldg) lgBldg.innerHTML = buildingLegendHtml(s, buildingLegend)
     // 地域別の浸水建物。水位・モデル・地形条件の変更にその場で追従する
     const ag = el.querySelector<HTMLElement>('#areagroup')
     if (ag) ag.hidden = areaFlood.length === 0
@@ -603,24 +621,17 @@ export function renderControls(
       pl.disabled = hidden
       pl.closest('label')?.classList.toggle('off', hidden)
     }
-    const why = el.querySelector<HTMLElement>('#why-plateau')
-    if (why) why.hidden = !hidden
-    const bwrap = el.querySelector<HTMLElement>('#bcolwrap')
-    if (bwrap) bwrap.hidden = hidden || !s.layers.plateau
+    // 道路の色・建物の色の select は常時表示（チェックボックスに追従させない）
     const bcb = el.querySelector<HTMLSelectElement>('#bcol')
     if (bcb && bcb.value !== s.buildingColor) bcb.value = s.buildingColor
     const rcb = el.querySelector<HTMLSelectElement>('#rcol')
     if (rcb && rcb.value !== s.roadColor) rcb.value = s.roadColor
-    const rwrap = el.querySelector<HTMLElement>('#rcolwrap')
-    if (rwrap) rwrap.hidden = !s.layers.roads
     const wiwrap = el.querySelector<HTMLElement>('#wiwrap')
     if (wiwrap) wiwrap.hidden = !s.layers.walkIsochrone
     const wisel = el.querySelector<HTMLSelectElement>('#wisel')
     if (wisel && wisel.value !== String(s.walkIsochroneIndex ?? 0)) {
       wisel.value = String(s.walkIsochroneIndex ?? 0)
     }
-    const blg = el.querySelector<HTMLElement>('#bldglegend')
-    if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
     if (tideCurves.length && !el.querySelector('#playback')) {
       el.querySelector('#playbackslot')?.insertAdjacentHTML('beforeend',
         tidePlaybackHtml(tideCurves,
@@ -638,32 +649,37 @@ export function renderControls(
   const refs = Object.entries(wl.reference_levels_m_tp).sort((a, b) => a[1] - b[1])
 
   el.innerHTML = `
-    <!-- 地形の色（浸水深／地盤高／水みち）は「今どの面を見ているか」そのもの。
-         凡例の意味を決めるので、タブの外・サイドバー最上部に常時置く（2026-09）。
-         見出しは付けない（3 ボタンで自明）。旧 nowline（現況サマリ文）は廃止 -->
-    <div class="seg" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
-        `<button data-p="${m.id}" type="button" title="${m.hint}"
-                 aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
-    <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
+    <!-- サイドバーは 2 枚のパネルに分ける。1 枚目＝地形の色（今どの面を見ているか）
+         ＋凡例。見出しは付けない（3 ボタンで自明）。旧 nowline は廃止 -->
+    <div class="panel" id="controls-top">
+      <div class="seg" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
+          `<button data-p="${m.id}" type="button" title="${m.hint}"
+                   aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
+      <!-- 凡例は 2 列。左＝画面の色（地形＋レイヤ）、右＝建物の色の内訳（棟数）。
+           右列は「建物の色」を none 以外にしたときだけ中央固定の縦線を挟んで出る -->
+      <div id="legend">
+        <div id="legend-main">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
+        <div id="legend-bldg">${buildingLegendHtml(s, buildingLegend)}</div>
+      </div>
+    </div>
 
-    <!-- タブは2つ。「基本情報＝表示レイヤー・比較表示・絞り込む・断面（何をどう見るか）」
-         「条件＝シミュレーション条件・潮位・参照潮位・潮位再生・地域別集計
+    <!-- 2 枚目＝タブ。「基本情報＝表示対象・比較表示・絞り込む（何をどう見るか）」
+         「浸水条件＝シミュレーション条件・潮位・参照潮位・潮位再生・地域別集計
          （何を動かして数字で調べるか）」。対象範囲と地形データはトップバー、
-         地形の色と凡例はこのすぐ上。断面とキー操作案内は基本情報に吸収し、
-         分析タブは畳んだ。高さを強調は UI から落としキー操作のみ（キー [ ]）。
-         タブの並びはスクロールしても常に見える。中身が長いタブはパネルの中だけが
-         スクロールする -->
+         断面ツールは #toolbar、分析タブは畳んだ。高さを強調は UI から落とし
+         キー操作のみ（キー [ ]）。中身が長いタブはこのパネルの中だけがスクロールする -->
+    <div class="panel" id="controls-tabs">
     <div class="tabs" id="ctabs">
       <div class="tablist" role="tablist">
         <button class="tab" id="tab-basic" type="button" role="tab"
                 aria-selected="true" aria-controls="panel-basic">基本情報</button>
         <button class="tab" id="tab-display" type="button" role="tab"
-                aria-selected="false" aria-controls="panel-display" tabindex="-1">条件</button>
+                aria-selected="false" aria-controls="panel-display" tabindex="-1">浸水条件</button>
       </div>
 
       <div class="tabpanels">
       <div class="tabpanel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
-        <p class="subhead">表示レイヤー</p>
+        <p class="subhead">表示対象</p>
         <div class="layergrid">
         ${layersOf(catalog).map((l) =>
           `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
@@ -671,7 +687,9 @@ export function renderControls(
             ><input type="checkbox" data-l="${l.key}"
             ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
         </div>
-        <div class="nested" id="rcolwrap" ${s.layers.roads ? '' : 'hidden'}>
+        <!-- 道路の色・建物の色は**チェックボックスの ON/OFF に関わらず常時出す**。
+             入れ子（.nested）にはしない＝表示対象と同じ左端に揃える（2026-09 指示） -->
+        <div class="colsel" id="rcolwrap">
           <p class="grouplabel">道路の色</p>
           <select id="rcol" aria-label="道路の色">${MENU_ROAD_COLORS.map((m) =>
             `<option value="${m.id}" ${s.roadColor === m.id ? 'selected' : ''}
@@ -684,9 +702,7 @@ export function renderControls(
             `<option value="${i}" ${(s.walkIsochroneIndex ?? 0) === i ? 'selected' : ''}
             >${w.label ?? `${w.minutes} 分（${i}）`}</option>`).join('')}</select>
         </div>` : ''}
-        <div class="whyoff" id="why-plateau" ${s.exaggeration > 1 ? '' : 'hidden'}
-          >高さを強調している間は隠す（建物は実高のまま）</div>
-        <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
+        <div class="colsel" id="bcolwrap">
           <!-- **チェックボックスから select にした。** 塗り分けが 3 通りになり、
                浸水深（床下・床上）は「用途で塗る」の on/off では表せない。
                **見出しを付ける。** 無いと「用途」とだけ書かれた裸のドロップダウンに
@@ -696,7 +712,6 @@ export function renderControls(
           <select id="bcol" aria-label="建物の色">${MENU_BUILDING_COLORS.map((m) =>
             `<option value="${m.id}" ${s.buildingColor === m.id ? 'selected' : ''}
             >${m.id === 'none' ? '塗り分けない' : m.label}</option>`).join('')}</select>
-          <div id="bldglegend">${buildingLegendHtml(s, buildingLegend)}</div>
         </div>
 
         <p class="subhead">比較表示</p>
@@ -715,13 +730,6 @@ export function renderControls(
         <p class="subhead">絞り込む</p>
         <label class="row"><input type="checkbox" id="cb-changed"
           ${s.layers.changedOnly ? 'checked' : ''}/>判定が変わる地物のみ</label>
-
-        <p class="subhead">断面</p>
-        <button class="btnwide" id="secbtn" type="button"
-                title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>
-        <div class="keyrow" style="margin-top:11px">投影 <span>キー O</span></div>
-        <div class="keyrow">視点 <span>キー 1–6 ・ ビューキューブ</span></div>
-        <div class="keyrow">計測パネル <span>キー P</span></div>
       </div>
 
       <div class="tabpanel" id="panel-display" role="tabpanel" aria-labelledby="tab-display" hidden>
@@ -759,6 +767,7 @@ export function renderControls(
       </div>
       </div>
       </div>
+    </div>
   `
   el.dataset.built = '1'
   if (tideCurves.length) {
