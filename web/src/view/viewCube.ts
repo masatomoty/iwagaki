@@ -209,7 +209,7 @@ export class ViewCube {
       if (f.z > 0.55) {
         const [lx, ly] = project(f.dir.map((v) => v * h * 0.92) as Dir, this.orient, scale)
         ctx.fillStyle = hovered ? '#0b1020' : 'rgba(226,232,240,0.92)'
-        ctx.font = `600 ${Math.round(this.size * 0.13)}px system-ui, sans-serif`
+        ctx.font = `600 ${Math.round(this.size * 0.13)}px "Noto Sans JP", "Roboto", Arial, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(f.label, cx + lx, cy + ly)
@@ -231,7 +231,7 @@ export class ViewCube {
     // 北を指す小さな目印。回転しても方位が分かるように
     const [nx, ny] = project([0, 1.42, 0], this.orient, scale)
     ctx.fillStyle = 'rgba(248,113,113,0.95)'
-    ctx.font = `700 ${Math.round(this.size * 0.11)}px system-ui, sans-serif`
+    ctx.font = `700 ${Math.round(this.size * 0.11)}px "Noto Sans JP", "Roboto", Arial, sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('N', cx + nx, cy + ny)

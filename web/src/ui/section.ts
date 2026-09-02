@@ -21,7 +21,10 @@ export interface SectionSeries {
 const PAD = { left: 54, right: 14, top: 16, bottom: 30 }
 
 /** 軸と凡例の文字。パネル外に注記を持たないので、ここが読めないと何も分からない */
-const FONT = { axis: '12.5px system-ui, sans-serif', legend: '600 13px system-ui, sans-serif' }
+// HTML 側の UI と同じ日本語優先の書体。canvas は CSS の font-family を継承しないため、
+// ここにも明示して断面図だけ別の字面にならないようにする。
+const FONT_FAMILY = '"Noto Sans JP", "Roboto", Arial, sans-serif'
+const FONT = { axis: `12.5px ${FONT_FAMILY}`, legend: `600 13px ${FONT_FAMILY}` }
 
 /** データが来る前の状態。**パネル下の注記をやめたので canvas に出す** */
 export function drawSectionMessage(canvas: HTMLCanvasElement, text: string) {
