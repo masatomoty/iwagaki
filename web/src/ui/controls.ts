@@ -21,6 +21,7 @@
 import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
 import type { AreaFloodRow } from '../domain/flood'
+import type { TideForecastState } from '../domain/tideForecast'
 import type { TideSeries } from '../domain/tideSeries'
 import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
 import { comparisonPair } from '../domain/terrain'
@@ -32,7 +33,7 @@ import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
 } from '../view/buildingColor'
 import { ATTR_EMPTY_HINT } from './inspector'
-import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
+import { getTidePlaybackHandle, mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
          type PlaybackStats } from './tidePlayback'
 
 /** `[` `]` キーが回る段。UI には出さない（`__iwagaki` かキー操作のみ） */
@@ -578,11 +579,18 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
     // クリック後に select のフォーカスが残ると、←→が select の操作に使われて
     // 潮位変更へ届かない。ポインター操作だけ解除し、キーボード操作時の
     // フォーカス（タブ移動など）はアクセシビリティのため維持する。
+    //
+    // **select は pointerup では blur しない。** select を開くクリックそのものが
+    // 先に pointerup を発火するため、ここで blur すると開いた直後のネイティブ
+    // ドロップダウンが閉じてしまい、他の選択肢を選べなくなる（実機で再現・確認した
+    // 不具合）。select は「値が確定した」change の後に blur する
     topbar.addEventListener('pointerup', (e) => {
       const target = e.target
-      if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
-        target.blur()
-      }
+      if (target instanceof HTMLButtonElement) target.blur()
+    })
+    topbar.addEventListener('change', (e) => {
+      const target = e.target
+      if (target instanceof HTMLSelectElement) target.blur()
     })
     topbar.dataset.pointerBlurBound = '1'
   }
@@ -634,6 +642,8 @@ export function renderControls(
   tideCurves: TideSeries[] = [], playbackStats?: PlaybackStats,
   areaFlood: AreaFloodRow[] = [],
   walkIsochroneInfo: WalkIsochroneInfo | null = null,
+  tideForecast: TideForecastState = { status: 'idle' },
+  onRefreshForecast: () => void = () => {},
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
@@ -643,11 +653,18 @@ export function renderControls(
   if (el.dataset.pointerBlurBound !== '1') {
     // タブ・ボタン・select のクリック後は、直後の潮位キー操作を使えるよう
     // ポインター操作時だけフォーカスを外す。キー操作のフォーカスは残す。
+    //
+    // **select は pointerup では blur しない**（`syncTopbar` と同じ理由）。
+    // select を開くクリック自体が先に pointerup を発火するため、ここで blur すると
+    // 開いた直後のネイティブドロップダウンが閉じ、他の選択肢（潮位の記録の
+    // 台風イベントなど）を選べなくなる。select は change の後に blur する
     el.addEventListener('pointerup', (e) => {
       const target = e.target
-      if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
-        target.blur()
-      }
+      if (target instanceof HTMLButtonElement) target.blur()
+    })
+    el.addEventListener('change', (e) => {
+      const target = e.target
+      if (target instanceof HTMLSelectElement) target.blur()
     })
     el.dataset.pointerBlurBound = '1'
   }
@@ -724,11 +741,14 @@ export function renderControls(
       wisel.value = String(s.walkIsochroneIndex ?? 0)
     }
     if (tideCurves.length && !el.querySelector('#playback')) {
+      const initialSelected = catalog.water_level.tide_series?.default ?? tideCurves[0].id
       el.querySelector('#playbackslot')?.insertAdjacentHTML('beforeend',
-        tidePlaybackHtml(tideCurves,
-          catalog.water_level.tide_series?.default ?? tideCurves[0].id))
-      mountTidePlayback(el, tideCurves,
-        catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+        tidePlaybackHtml(tideCurves, initialSelected, tideForecast))
+      mountTidePlayback(el, tideCurves, initialSelected, store, onRefreshForecast, tideForecast)
+    } else {
+      // 潮位再生パネルは初回構築後に作り直さない。更新ボタン・状態行だけ反映する
+      // （曲線そのものの追加/差し替えは main.ts が handle.upsertCurve で直接行う）
+      getTidePlaybackHandle(el)?.setForecastStatus(tideForecast)
     }
     updateTidePlayback(el, playbackStats)
     return
@@ -853,7 +873,8 @@ export function renderControls(
         <p class="subhead" data-tip="押すと潮位をその値（平均海面・朔望平均満潮位・高潮想定・既往最高など）に合わせる。高潮想定・既往最高は台風由来（各項目にホバーで内訳）">参照潮位</p>
         ${tideRefListHtml(refs, catalog.water_level.reference_levels_detail)}
 
-        <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}</div>
+        <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves,
+          catalog.water_level.tide_series?.default ?? tideCurves[0].id, tideForecast) : ''}</div>
 
         <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
           <p class="subhead" data-tip="いまの潮位・モデルで浸水する建物を、国勢調査の小地域（町丁・字等）ごとに集計。浸水棟数の多い順">地域別の浸水建物</p>
@@ -873,7 +894,7 @@ export function renderControls(
   el.dataset.built = '1'
   if (tideCurves.length) {
     mountTidePlayback(el, tideCurves,
-      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store, onRefreshForecast, tideForecast)
     updateTidePlayback(el, playbackStats)
   }
 

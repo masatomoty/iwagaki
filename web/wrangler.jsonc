@@ -12,10 +12,11 @@
 	"compatibility_date": "2026-08-01",
 	"assets": {
 		"directory": "./dist",
-		// COPC のパスだけは「アセットが無いから Worker に落ちてきた」ではなく
-		// 「最初から Worker が処理する」を明示する。取りこぼしを設定で防ぐ。
+		// COPC・潮位予測 API のパスだけは「アセットが無いから Worker に落ちてきた」
+		// ではなく「最初から Worker が処理する」を明示する。取りこぼしを設定で防ぐ。
 		"run_worker_first": [
-			"/data/pointcloud/*"
+			"/data/pointcloud/*",
+			"/api/tide/maizuru"
 		]
 	},
 	// raw LAS（将来）と COPC を同じバケットに置く。キー空間は URL パスと一致させる:

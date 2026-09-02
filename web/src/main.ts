@@ -13,6 +13,10 @@ import { type CameraDescription, eyeInLocal, visibleBoxLocal,
          visiblePolygonLocal } from './domain/camera'
 import { floorCounts, perAreaFloodCounts, regulatedRoadCount } from './domain/flood'
 import type { Catalog } from './domain/catalog'
+import {
+  failTideForecastFetch, initialTideForecastState, parseTideForecastResponse,
+  startTideForecastFetch, succeedTideForecastFetch, type TideForecastState,
+} from './domain/tideForecast'
 import type { TideSeries } from './domain/tideSeries'
 import { parseAreaIndex, pickArea, SINGLE_AREA } from './domain/areas'
 import { comparisonPair, resolveSurface } from './domain/terrain'
@@ -48,6 +52,7 @@ import { TerrainTiles } from './three/terrainTiles'
 import { FOV_Y_DEG, type Viewer } from './three/viewer'
 import { EXAGGERATIONS, renderControls } from './ui/controls'
 import { renderInspector } from './ui/inspector'
+import { getTidePlaybackHandle } from './ui/tidePlayback'
 import { renderPerf } from './ui/perfPanel'
 import {
   initialPointBufferState, loadPointBufferResult, mountPointBufferPanel,
@@ -349,6 +354,25 @@ async function boot() {
   let hovered: string | undefined
   const assertions = new Map<string, FeatureAssertion>()
   const tideCurves = new Map<string, TideSeries>()
+  /**
+   * 潮位再生パネルは初回構築後、`refresh()` では作り直さない
+   * （`ui/tidePlayback.ts`「以後の refresh では DOM を作り直さない」）。
+   * `tideCurves` への追加が既存 tide_series の一括取得と予測取得の 2 経路に
+   * 分かれ、しかもどちらが先に終わるかはネットワーク次第なので、**両方とも
+   * この関数を通す**。パネルが未構築ならこれまで通り `refresh()` が作り、
+   * 既に構築済みなら `handle.upsertCurve` で選択肢に追い付かせる（どちらの
+   * 経路が先でも取りこぼさない）。`selectId` は今回追加/更新した曲線のうち
+   * 既定選択にしたいもの（無指定なら選択を変えない）
+   */
+  function syncTideCurvesUI(selectId?: string) {
+    const handle = getTidePlaybackHandle(document.getElementById('controls')!)
+    if (handle) {
+      for (const series of tideCurves.values()) {
+        handle.upsertCurve(series, { selectIt: series.id === selectId })
+      }
+    }
+    refresh()
+  }
   // 非同期の初期読み込みが `refresh()` を先に呼ぶことがあるため、
   // `refresh()` が参照する補助レイヤの状態は async 処理より前に宣言する。
   let coverage: import('three').LineSegments | undefined
@@ -360,9 +384,52 @@ async function boot() {
         })
         tideCurves.set(entry.id, JSON.parse(new TextDecoder().decode(b)) as TideSeries)
       }))
-      refresh()
+      syncTideCurvesUI()
     })()
   }
+
+  // ---- 舞鶴 潮位予測（気象庁, 同一オリジンの Worker 経由） -----------------
+  //
+  // 上の `tide_series`（catalog に焼き込んだ観測・台風イベント）とは別物。
+  // こちらは「現在時刻〜7 日後」の予測で、ビルド時に焼くと日々古くなるので、
+  // ページ読み込み時／更新ボタン押下時に `deploy/worker.js` の
+  // `/api/tide/maizuru` を都度叩く。自動ポーリングはしない（要件どおり）。
+  let forecastState: TideForecastState = initialTideForecastState()
+  let forecastEverSucceeded = false
+  async function loadTideForecast() {
+    // 連打対策。すでに更新中なら二重リクエストを出さない
+    if (forecastState.status === 'loading') return
+    forecastState = startTideForecastFetch(forecastState)
+    refresh()
+    try {
+      const res = await fetch('/api/tide/maizuru', { cache: 'no-store' })
+      const json: unknown = await res.json().catch(() => undefined)
+      const parsed = parseTideForecastResponse(json, Date.now())
+      if (!parsed.ok) {
+        forecastState = failTideForecastFetch(forecastState, parsed.error)
+        refresh()
+        return
+      }
+      forecastState = succeedTideForecastFetch(forecastState, parsed.value)
+      tideCurves.set(parsed.value.series.id, parsed.value.series)
+      // 最初に取れたときだけ既定選択にする。以後の更新（ボタン連打含め）は
+      // ユーザーがいま見ている曲線を勝手に切り替えない
+      syncTideCurvesUI(forecastEverSucceeded ? undefined : parsed.value.series.id)
+      forecastEverSucceeded = true
+    } catch (e) {
+      // ネットワーク断・JSON 解釈失敗などはまとめてここに来る。
+      // **直前に成功していたデータには一切触れない**（failTideForecastFetch）
+      forecastState = failTideForecastFetch(forecastState,
+        e instanceof Error ? e.message : '潮位予測の取得中にエラーが発生しました')
+      refresh()
+    }
+  }
+  // **ここではまだ呼ばない。** `refresh()` は `plateau` / `pcb` / `catchment` など
+  // まだ宣言（`let`）に到達していない後段の変数を参照するので、boot() の
+  // 最初の同期区間でここから同期的に `refresh()` を呼ぶと TDZ の
+  // ReferenceError で `loadTideForecast` が `await` に届く前に丸ごと落ちる
+  // （＝取得が一生始まらず「更新中…」のまま固まる。実機で確認した不具合）。
+  // 呼び出しは、全部の宣言を通過した後段（`buildTerrain(); refresh()` の直後）に置く
 
   void (async () => {
     const b = await scheduler.submit({
@@ -1147,7 +1214,7 @@ async function boot() {
     }
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
       { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats,
-      areaFlood, walkIsochroneLayer?.info ?? null)
+      areaFlood, walkIsochroneLayer?.info ?? null, forecastState, () => void loadTideForecast())
     const attrPanel = document.getElementById('panel-attr')
     if (attrPanel) renderInspector(attrPanel, store, catalog)
     viewer.invalidate()
@@ -1306,6 +1373,10 @@ async function boot() {
 
   buildTerrain()
   refresh()
+
+  // ここまで来れば `refresh()` が参照する変数は全部初期化済み。
+  // 舞鶴の潮位予測（気象庁, Worker 経由）をページ読み込み時に1回取得する
+  void loadTideForecast()
 
   // 初見者向けの起動時モーダル（U6）。地形の読み込みは裏で走らせたまま、
   // その上に条件（対象地域・浸水の決め方・潮位）の選択を出す。読み直しをまたいで
