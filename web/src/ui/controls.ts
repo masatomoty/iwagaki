@@ -556,8 +556,8 @@ function topbarHtml(
   const wlv = `<span class="tb-wl" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位`
     + ` <b id="tb-wl-v">${waterLevel.toFixed(2)}</b> m<span class="tb-wl-u"> T.P.</span></span>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
-  const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　投影 <kbd>O</kbd>　'
-    + '視点 <kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
+  const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
+    + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
   // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
   // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
   // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）

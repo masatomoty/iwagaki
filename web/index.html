@@ -156,8 +156,8 @@
      PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めているが、ラベルは常に見え、
      ホバー／フォーカスで全文に到達できる（MapLibre の畳んだ AttributionControl と同じ） */
   /* 計測パネルは開発者向け。既定は隠す（?perf=1 / P キーで開く）。
-     左下は操作パネルが下まで占めるので、その右隣の上に置く */
-  #perf { display: none; top: 58px; left: 342px; width: 300px; max-height: 40%; overflow: auto;
+     表示時は地図画面の右下に置く */
+  #perf { display: none; right: 12px; bottom: 12px; width: 300px; max-height: 46%; overflow: auto;
            font-variant-numeric: tabular-nums; }
   /* 地点＋徒歩圏（T1）。既定は隠す（`catalog.point_buffer` が無い配信物では出さない）。
      左メニューの右下に置く */
