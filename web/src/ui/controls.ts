@@ -579,11 +579,18 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
     // クリック後に select のフォーカスが残ると、←→が select の操作に使われて
     // 潮位変更へ届かない。ポインター操作だけ解除し、キーボード操作時の
     // フォーカス（タブ移動など）はアクセシビリティのため維持する。
+    //
+    // **select は pointerup では blur しない。** select を開くクリックそのものが
+    // 先に pointerup を発火するため、ここで blur すると開いた直後のネイティブ
+    // ドロップダウンが閉じてしまい、他の選択肢を選べなくなる（実機で再現・確認した
+    // 不具合）。select は「値が確定した」change の後に blur する
     topbar.addEventListener('pointerup', (e) => {
       const target = e.target
-      if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
-        target.blur()
-      }
+      if (target instanceof HTMLButtonElement) target.blur()
+    })
+    topbar.addEventListener('change', (e) => {
+      const target = e.target
+      if (target instanceof HTMLSelectElement) target.blur()
     })
     topbar.dataset.pointerBlurBound = '1'
   }
@@ -646,11 +653,18 @@ export function renderControls(
   if (el.dataset.pointerBlurBound !== '1') {
     // タブ・ボタン・select のクリック後は、直後の潮位キー操作を使えるよう
     // ポインター操作時だけフォーカスを外す。キー操作のフォーカスは残す。
+    //
+    // **select は pointerup では blur しない**（`syncTopbar` と同じ理由）。
+    // select を開くクリック自体が先に pointerup を発火するため、ここで blur すると
+    // 開いた直後のネイティブドロップダウンが閉じ、他の選択肢（潮位の記録の
+    // 台風イベントなど）を選べなくなる。select は change の後に blur する
     el.addEventListener('pointerup', (e) => {
       const target = e.target
-      if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
-        target.blur()
-      }
+      if (target instanceof HTMLButtonElement) target.blur()
+    })
+    el.addEventListener('change', (e) => {
+      const target = e.target
+      if (target instanceof HTMLSelectElement) target.blur()
     })
     el.dataset.pointerBlurBound = '1'
   }
