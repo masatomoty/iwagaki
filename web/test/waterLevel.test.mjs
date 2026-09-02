@@ -8,7 +8,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  nudgeWaterLevel, WATER_LEVEL_FAST_STEPS, WATER_LEVEL_UI_MAX_M_TP, waterLevelRange,
+  nudgeWaterLevel, WATER_LEVEL_KEY_FAST_STEP_M, WATER_LEVEL_KEY_STEP_M,
+  WATER_LEVEL_UI_MAX_M_TP, waterLevelRange,
 } from '../src/domain/waterLevel.ts'
 
 const catalog = (over = {}) => ({
@@ -26,32 +27,33 @@ test('waterLevelRange は配信物の max が上限より低ければそのま�
   assert.equal(waterLevelRange(catalog({ max: 1.5 })).max, 1.5)
 })
 
-test('nudgeWaterLevel は steps × step ぶん動かす', () => {
+test('nudgeWaterLevel は deltaM ぶん動かす', () => {
   const r = waterLevelRange(catalog())
-  assert.equal(nudgeWaterLevel(0.5, 1, r), 0.55)
-  assert.equal(nudgeWaterLevel(0.5, -1, r), 0.45)
+  assert.equal(nudgeWaterLevel(0.5, WATER_LEVEL_KEY_STEP_M, r), 0.51)
+  assert.equal(nudgeWaterLevel(0.5, -WATER_LEVEL_KEY_STEP_M, r), 0.49)
 })
 
-test('nudgeWaterLevel は Shift 併用の高速段（5 段）でまとめて動かす', () => {
+test('キーの刻みは ← → 0.01 m / Shift ＋ ← → 0.05 m', () => {
+  assert.equal(WATER_LEVEL_KEY_STEP_M, 0.01)
+  assert.equal(WATER_LEVEL_KEY_FAST_STEP_M, 0.05)
   const r = waterLevelRange(catalog())
-  assert.equal(nudgeWaterLevel(0.5, WATER_LEVEL_FAST_STEPS, r), 0.75)
-  assert.equal(nudgeWaterLevel(0.5, -WATER_LEVEL_FAST_STEPS, r), 0.25)
+  assert.equal(nudgeWaterLevel(0.5, WATER_LEVEL_KEY_FAST_STEP_M, r), 0.55)
 })
 
-test('nudgeWaterLevel は値域でクランプする（高速段でも越えない）', () => {
+test('nudgeWaterLevel は値域でクランプする（大きい delta でも越えない）', () => {
   const r = waterLevelRange(catalog())
-  assert.equal(nudgeWaterLevel(WATER_LEVEL_UI_MAX_M_TP, 1, r), WATER_LEVEL_UI_MAX_M_TP)
-  assert.equal(nudgeWaterLevel(-0.5, -1, r), -0.5)
-  assert.equal(nudgeWaterLevel(1.9, WATER_LEVEL_FAST_STEPS, r), WATER_LEVEL_UI_MAX_M_TP)
+  assert.equal(nudgeWaterLevel(WATER_LEVEL_UI_MAX_M_TP, 0.05, r), WATER_LEVEL_UI_MAX_M_TP)
+  assert.equal(nudgeWaterLevel(-0.5, -0.05, r), -0.5)
+  assert.equal(nudgeWaterLevel(1.98, WATER_LEVEL_KEY_FAST_STEP_M, r), WATER_LEVEL_UI_MAX_M_TP)
 })
 
 test('nudgeWaterLevel は刻みの格子に乗せ直さない（端の値・参照潮位を保つ）', () => {
   const r = waterLevelRange(catalog())
-  // MSL 0.124 から 1 段上げても 0.15 ではなく 0.174 のまま +step
-  assert.equal(nudgeWaterLevel(0.124, 1, r), 0.174)
+  // MSL 0.124 から ← → 1 打鍵で 0.13 ではなく 0.134
+  assert.equal(nudgeWaterLevel(0.124, WATER_LEVEL_KEY_STEP_M, r), 0.134)
 })
 
 test('nudgeWaterLevel は mm 単位に丸めて浮動小数の誤差を消す', () => {
-  const r = waterLevelRange(catalog({ step: 0.1 }))
-  assert.equal(nudgeWaterLevel(0.3, 1, r), 0.4)
+  const r = waterLevelRange(catalog())
+  assert.equal(nudgeWaterLevel(0.3, 0.1, r), 0.4)
 })

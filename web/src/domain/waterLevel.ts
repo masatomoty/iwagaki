@@ -9,6 +9,14 @@ import type { Catalog } from './catalog'
  */
 export const WATER_LEVEL_UI_MAX_M_TP = 2
 
+/**
+ * キーボードの ← → 1 打鍵で動かす量 [m]。**スライダの `step`（配信物由来、0.05 m）
+ * より細かい 0.01 m** にして、キーでは値を追い込めるようにする（外部要望、2026-09）。
+ */
+export const WATER_LEVEL_KEY_STEP_M = 0.01
+/** Shift ＋ ← → 1 打鍵で動かす量 [m]。スライダの刻みと同じ 0.05 m で速く掃く。 */
+export const WATER_LEVEL_KEY_FAST_STEP_M = 0.05
+
 export interface WaterLevelRange {
   min: number
   max: number
@@ -21,19 +29,17 @@ export function waterLevelRange(catalog: Catalog): WaterLevelRange {
   return { min, max: Math.min(max, WATER_LEVEL_UI_MAX_M_TP), step }
 }
 
-/** Shift を押しながらのキー操作で 1 打鍵に進む段数（速く掃くため）。 */
-export const WATER_LEVEL_FAST_STEPS = 5
-
 /**
- * 潮位を `steps` 段（符号つき。1 段 = `range.step`）動かした値。値域でクランプし、
- * mm 単位に丸める。−／＋ ボタンは ±1、Shift ＋ ← → は ±`WATER_LEVEL_FAST_STEPS`。
+ * 潮位を `deltaM` メートル（符号つき）動かした値。値域でクランプし、mm 単位に丸める。
+ * −／＋ ボタンは ±`range.step`、← → は ±`WATER_LEVEL_KEY_STEP_M`、
+ * Shift ＋ ← → は ±`WATER_LEVEL_KEY_FAST_STEP_M`。
  *
  * **刻みの格子には乗せ直さない。** 端の値（既定は MSL 0.124 m）や参照潮位は
  * その値そのものに意味があり、格子に丸めると出典と合わなくなる。
  */
 export function nudgeWaterLevel(
-  current: number, steps: number, range: WaterLevelRange,
+  current: number, deltaM: number, range: WaterLevelRange,
 ): number {
-  const v = Math.min(range.max, Math.max(range.min, current + steps * range.step))
+  const v = Math.min(range.max, Math.max(range.min, current + deltaM))
   return Math.round(v * 1000) / 1000
 }

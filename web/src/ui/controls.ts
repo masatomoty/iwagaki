@@ -70,8 +70,9 @@ const BUILDING_COLOR_MENU_TIP =
   + '浸水深（床下・床上）＝地盤面から 0.50 m を境に（既定）'
 
 const WATER_LEVEL_TIP =
-  'T.P.（東京湾平均海面）基準の潮位。スライダ・−／＋・キーボードの ← → で動かす'
-  + '（Shift ＋ ← → で 5 段ずつ）。動かしてもサーバ往復やタイルの再取得は起きない'
+  'T.P.（東京湾平均海面）基準の潮位。スライダ・−／＋ のほか、キーボードの ← → は '
+  + '0.01 m 刻み、Shift ＋ ← → は 0.05 m 刻み。'
+  + '動かしてもサーバ往復やタイルの再取得は起きない'
 
 /**
  * 建物の塗り分けでメニューに出すもの。`class`（普通建物・堅ろう建物）は
@@ -908,9 +909,9 @@ export function renderControls(
     store.set({ waterLevel: Number(range.value) })
   })
   // **ドラッグだけでは 0.05 m 刻みを合わせにくい。** 1 段ずつ動かせるようにする
-  // （左右キーも `main.ts` で同じ `nudgeWaterLevel` を呼ぶ）
+  // （左右キーも `main.ts` で同じ `nudgeWaterLevel` を呼ぶ。刻みはキー側が持つ）
   const nudge = (d: -1 | 1) => {
-    store.set({ waterLevel: nudgeWaterLevel(store.state.waterLevel, d, wl) })
+    store.set({ waterLevel: nudgeWaterLevel(store.state.waterLevel, d * wl.step, wl) })
   }
   el.querySelector('#wl-down')!.addEventListener('click', () => nudge(-1))
   el.querySelector('#wl-up')!.addEventListener('click', () => nudge(1))
