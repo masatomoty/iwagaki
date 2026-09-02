@@ -452,6 +452,18 @@ async function boot() {
     } finally {
       plateauLoading = false
     }
+    // 読み込み中に建物の色や地形条件が変更された場合、変更時の
+    // ensurePlateau() は plateauLoading によって早期 return している。
+    // そのままにすると、初期の浸水深モードで読み込んだ建物が「用途」へ
+    // 切り替わらないため、完了後の最新状態と比較して再構築する。
+    const latestMode = store.state.buildingColor
+    const latestCond = latestMode === 'depth'
+      ? (store.state.floodModel === 'drainage' ? 'drainage'
+        : resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres')
+      : ''
+    if (latestMode !== plateauMode || latestCond !== plateauCondition) {
+      void ensurePlateau()
+    }
     refresh()
   }
 
