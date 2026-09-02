@@ -196,7 +196,13 @@ const TIDE_STATION_LABEL = '舞鶴（MAIZURU）'
 const TIDE_SOURCE_LABEL = '気象庁 潮位表（潮汐推算）'
 const HYOKO_DH_JGD2011_TO_2024_M = -0.19031
 const TP_OF_TIDE_TABLE_DATUM_JGD2024_M = -0.066
-export const TP_OF_TIDE_TABLE_DATUM_M = TP_OF_TIDE_TABLE_DATUM_JGD2024_M - HYOKO_DH_JGD2011_TO_2024_M
+// **この定数自体は export しない。** Cloudflare Workers（Module Worker）は
+// エントリモジュールの named export をすべて「関数 or ExportedHandler」として
+// 検証する（Durable Object 等のバインディングとして扱われうるため）。定数を
+// export すると `wrangler dev` がここで実行時エラーになり Worker が起動しない
+// （実機確認済み: "Incorrect type for map entry ... not of type 'function or
+// ExportedHandler'"）。テストからは `tideTableCmToTpMeters()` 経由で検証する
+const TP_OF_TIDE_TABLE_DATUM_M = TP_OF_TIDE_TABLE_DATUM_JGD2024_M - HYOKO_DH_JGD2011_TO_2024_M
 const FORECAST_WINDOW_DAYS = 7
 const FORECAST_WINDOW_MS = FORECAST_WINDOW_DAYS * 24 * 3600 * 1000
 const JST_OFFSET_MS = 9 * 3600 * 1000

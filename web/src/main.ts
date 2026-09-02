@@ -420,7 +420,12 @@ async function boot() {
       refresh()
     }
   }
-  void loadTideForecast()
+  // **ここではまだ呼ばない。** `refresh()` は `plateau` / `pcb` / `catchment` など
+  // まだ宣言（`let`）に到達していない後段の変数を参照するので、boot() の
+  // 最初の同期区間でここから同期的に `refresh()` を呼ぶと TDZ の
+  // ReferenceError で `loadTideForecast` が `await` に届く前に丸ごと落ちる
+  // （＝取得が一生始まらず「更新中…」のまま固まる。実機で確認した不具合）。
+  // 呼び出しは、全部の宣言を通過した後段（`buildTerrain(); refresh()` の直後）に置く
 
   void (async () => {
     const b = await scheduler.submit({
@@ -1353,6 +1358,10 @@ async function boot() {
 
   buildTerrain()
   refresh()
+
+  // ここまで来れば `refresh()` が参照する変数は全部初期化済み。
+  // 舞鶴の潮位予測（気象庁, Worker 経由）をページ読み込み時に1回取得する
+  void loadTideForecast()
 
   // 初見者向けの起動時モーダル（U6）。地形の読み込みは裏で走らせたまま、
   // その上に条件（対象地域・浸水の決め方・潮位）の選択を出す。読み直しをまたいで

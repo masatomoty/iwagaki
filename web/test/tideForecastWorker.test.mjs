@@ -7,18 +7,19 @@
 
 import assert from 'node:assert/strict'
 import {
-  buildMaizuruForecastSeries, parseSuisanLine, parseSuisanText,
-  tideTableCmToTpMeters, TP_OF_TIDE_TABLE_DATUM_M,
+  buildMaizuruForecastSeries, parseSuisanLine, parseSuisanText, tideTableCmToTpMeters,
 } from '../deploy/worker.js'
 
 // --- T.P. 換算 ------------------------------------------------------------
 //
 // docs/data.md §4 / src/iwagaki/config.py と同じ値であることを確認する
 // （潮位表基準面の標高 -0.066 m T.P.(2024) を、測地成果2011→2024 の
-// 補正 -0.19031 m だけ引き戻した値。地形と同じ測地成果2011 基準に揃える）
-assert.ok(Math.abs(TP_OF_TIDE_TABLE_DATUM_M - 0.12431) < 1e-9,
-  `TP_OF_TIDE_TABLE_DATUM_M が docs/data.md の値と食い違う: ${TP_OF_TIDE_TABLE_DATUM_M}`)
-assert.ok(Math.abs(tideTableCmToTpMeters(0) - 0.12431) < 1e-9)
+// 補正 -0.19031 m だけ引き戻した値。地形と同じ測地成果2011 基準に揃える）。
+// **定数そのものは export しない**（Cloudflare Workers の named export 検証に
+// 引っかかり `wrangler dev` が起動しなくなる。実機確認済み）ので、
+// `tideTableCmToTpMeters()` の出力から間接的に検証する
+assert.ok(Math.abs(tideTableCmToTpMeters(0) - 0.12431) < 1e-9,
+  `tideTableCmToTpMeters(0) が docs/data.md の値と食い違う: ${tideTableCmToTpMeters(0)}`)
 assert.ok(Math.abs(tideTableCmToTpMeters(100) - 1.12431) < 1e-9)
 console.log('ok tideTableCmToTpMeters は docs/data.md §4 の換算式と一致する')
 
