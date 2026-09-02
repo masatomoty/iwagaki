@@ -154,8 +154,19 @@ function hide(): void {
   }
 }
 
-const triggerFrom = (t: EventTarget | null): HTMLElement | null =>
-  t instanceof Element ? t.closest<HTMLElement>('[data-tip]') : null
+const triggerFrom = (t: EventTarget | null): HTMLElement | null => {
+  if (!(t instanceof Element)) return null
+  const trigger = t.closest<HTMLElement>('[data-tip]')
+  if (!trigger) return null
+
+  // `data-tip` is often placed on a label or a control group so that its
+  // visible description can explain the whole group. Do not let that parent
+  // capture hover/focus from a native form control, though: opening or
+  // changing a select (and moving a range/checkbox) should not produce a
+  // large tooltip over the control being operated.
+  if (trigger !== t && t.matches('button, input, select, textarea, option')) return null
+  return trigger
+}
 
 /** `main.ts` から 1 回だけ呼ぶ。document に委譲リスナを 1 組張る */
 export function mountTooltip(): void {
