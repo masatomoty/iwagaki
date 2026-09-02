@@ -722,7 +722,7 @@ async function boot() {
     const seq = ++sectionSeq
     secLine = [from, to]
     // 手動 2 点は 1 点目からの仮測線が既にそこにあるので伸ばさず即出し（U4）
-    showSectionLine(viewer, from, to, false)
+    showSectionLine(viewer, from, to, false, geoid)
     secEl.style.display = 'flex'
     document.body.classList.add('section-open')
     // 注記の div をやめたので、読み込み中は canvas に出す
@@ -775,7 +775,7 @@ async function boot() {
     const to = line[line.length - 1]
     secLine = [from, to]
     // クリック無しの自動測線。仮測線が無いので from→to へ伸ばす（U4）
-    showSectionLine(viewer, from, to, true)
+    showSectionLine(viewer, from, to, true, geoid)
     secEl.style.display = 'flex'
     document.body.classList.add('section-open')
     drawSectionMessage(secCanvas, '読み込み中…')
@@ -814,7 +814,7 @@ async function boot() {
     onLine: (a, b) => void buildSection(a, b),
     // 1 点目を置いてから 2 点目までカーソルに追従する仮測線（U4）
     onPreview: (from, to) => {
-      if (from) showSectionPreview(viewer, from, to)
+      if (from) showSectionPreview(viewer, from, to, geoid)
       else hideSectionPreview(viewer)
     },
     onState: ({ active, hasFirst }) => {

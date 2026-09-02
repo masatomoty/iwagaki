@@ -222,11 +222,17 @@ export function attachViewCube(v: Viewer): ViewCube {
  * `grow`（`docs/todo.md` U4）: true のとき from→to へリボンが伸びる。手動 2 点は
  * 1 点目から仮の測線（`showSectionPreview`）がカーソルに追従して既にそこにあるので
  * `false` で即出し、主流路の自動測線（クリック無し）は `true` で伸ばす。
+ *
+ * `planeZ`: リボンを置くワールド z。**`sectionTool` がクリック光線を交える平面と
+ * 同じ値（ジオイド高）を渡すこと。** ここを大きな定数にすると、透視投影では
+ * その高さぶん画面上でリボンが上にずれ、「クリックした場所と線が全然違う」状態に
+ * なる（仮測線でカーソル追従にして初めて露見した）。
  */
 export function showSectionLine(
-  v: Viewer, from: [number, number], to: [number, number], grow = true,
+  v: Viewer, from: [number, number], to: [number, number], grow = true, planeZ = 0,
 ): void {
   hideSectionPreview(v)
+  ribbonZ = planeZ
   const [ax, ay] = lngLatToWorld(v.frame, from[0], from[1])
   const [bx, by] = lngLatToWorld(v.frame, to[0], to[1])
 
@@ -282,8 +288,13 @@ const RIBBON_PX = [7, 3]
 /** 仮の測線の太さ [px] と 1 点目マーカーの一辺 [px] */
 const PREVIEW_PX = 2
 const MARKER_PX = 9
-/** 地形より十分上。depthTest を切っているので見えかたには影響しない */
-const RIBBON_Z = 300
+/**
+ * リボン・仮測線・マーカーを置くワールド z。**`sectionTool` のクリック平面
+ * （ジオイド高）と一致させる** — `showSectionLine` / `showSectionPreview` が
+ * `planeZ` から設定する。`depthTest: false` なので地物に隠れることはないが、
+ * z を大きくすると透視投影で画面上の位置がその高さぶんずれる。
+ */
+let ribbonZ = 0
 
 /**
  * 測線が確定してからリボンを from→to へ伸ばすアニメーション（`docs/todo.md` U4）。
@@ -336,8 +347,9 @@ function ribbonGeometry(): BufferGeometry {
  * `to` が null（カーソルがまだ動いていない）ときは起点マーカーだけ出す。
  */
 export function showSectionPreview(
-  v: Viewer, from: [number, number], to: [number, number] | null,
+  v: Viewer, from: [number, number], to: [number, number] | null, planeZ = 0,
 ): void {
+  ribbonZ = planeZ
   const [ax, ay] = lngLatToWorld(v.frame, from[0], from[1])
   const [ex, ey] = to ? lngLatToWorld(v.frame, to[0], to[1]) : [ax, ay]
 
@@ -380,8 +392,8 @@ function redrawPreview(v: Viewer): void {
   // 起点マーカーは向きを持たない小さな正方形
   const h = (MARKER_PX * mpp) / 2
   ;((marker.geometry.getAttribute('position')) as BufferAttribute).copyArray(new Float32Array([
-    ax - h, ay - h, RIBBON_Z, ax + h, ay - h, RIBBON_Z,
-    ax - h, ay + h, RIBBON_Z, ax + h, ay + h, RIBBON_Z,
+    ax - h, ay - h, ribbonZ, ax + h, ay - h, ribbonZ,
+    ax - h, ay + h, ribbonZ, ax + h, ay + h, ribbonZ,
   ]))
   ;(marker.geometry.getAttribute('position') as BufferAttribute).needsUpdate = true
   v.invalidate()
@@ -396,10 +408,10 @@ function writeRibbon(
   const ny = (ex - ax) / len
   const pos = mesh.geometry.getAttribute('position') as BufferAttribute
   pos.copyArray(new Float32Array([
-    ax + nx * half, ay + ny * half, RIBBON_Z,
-    ax - nx * half, ay - ny * half, RIBBON_Z,
-    ex + nx * half, ey + ny * half, RIBBON_Z,
-    ex - nx * half, ey - ny * half, RIBBON_Z,
+    ax + nx * half, ay + ny * half, ribbonZ,
+    ax - nx * half, ay - ny * half, ribbonZ,
+    ex + nx * half, ey + ny * half, ribbonZ,
+    ex - nx * half, ey - ny * half, ribbonZ,
   ]))
   pos.needsUpdate = true
 }
