@@ -21,6 +21,7 @@
 import type { Area, AreaIndex } from '../domain/areas'
 import type { Catalog } from '../domain/catalog'
 import type { AreaFloodRow } from '../domain/flood'
+import type { TideForecastState } from '../domain/tideForecast'
 import type { TideSeries } from '../domain/tideSeries'
 import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
 import { comparisonPair } from '../domain/terrain'
@@ -32,7 +33,7 @@ import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
 } from '../view/buildingColor'
 import { ATTR_EMPTY_HINT } from './inspector'
-import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
+import { getTidePlaybackHandle, mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
          type PlaybackStats } from './tidePlayback'
 
 /** `[` `]` キーが回る段。UI には出さない（`__iwagaki` かキー操作のみ） */
@@ -622,6 +623,8 @@ export function renderControls(
   tideCurves: TideSeries[] = [], playbackStats?: PlaybackStats,
   areaFlood: AreaFloodRow[] = [],
   walkIsochroneInfo: WalkIsochroneInfo | null = null,
+  tideForecast: TideForecastState = { status: 'idle' },
+  onRefreshForecast: () => void = () => {},
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
@@ -701,11 +704,14 @@ export function renderControls(
       wisel.value = String(s.walkIsochroneIndex ?? 0)
     }
     if (tideCurves.length && !el.querySelector('#playback')) {
+      const initialSelected = catalog.water_level.tide_series?.default ?? tideCurves[0].id
       el.querySelector('#playbackslot')?.insertAdjacentHTML('beforeend',
-        tidePlaybackHtml(tideCurves,
-          catalog.water_level.tide_series?.default ?? tideCurves[0].id))
-      mountTidePlayback(el, tideCurves,
-        catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+        tidePlaybackHtml(tideCurves, initialSelected, tideForecast))
+      mountTidePlayback(el, tideCurves, initialSelected, store, onRefreshForecast)
+    } else {
+      // 潮位再生パネルは初回構築後に作り直さない。更新ボタン・状態行だけ反映する
+      // （曲線そのものの追加/差し替えは main.ts が handle.upsertCurve で直接行う）
+      getTidePlaybackHandle(el)?.setForecastStatus(tideForecast)
     }
     updateTidePlayback(el, playbackStats)
     return
@@ -830,7 +836,8 @@ export function renderControls(
         <p class="subhead" data-tip="押すと潮位をその値（平均海面・朔望平均満潮位・高潮想定・既往最高など）に合わせる。高潮想定・既往最高は台風由来（各項目にホバーで内訳）">参照潮位</p>
         ${tideRefListHtml(refs, catalog.water_level.reference_levels_detail)}
 
-        <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}</div>
+        <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves,
+          catalog.water_level.tide_series?.default ?? tideCurves[0].id, tideForecast) : ''}</div>
 
         <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
           <p class="subhead" data-tip="いまの潮位・モデルで浸水する建物を、国勢調査の小地域（町丁・字等）ごとに集計。浸水棟数の多い順">地域別の浸水建物</p>
@@ -850,7 +857,7 @@ export function renderControls(
   el.dataset.built = '1'
   if (tideCurves.length) {
     mountTidePlayback(el, tideCurves,
-      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
+      catalog.water_level.tide_series?.default ?? tideCurves[0].id, store, onRefreshForecast)
     updateTidePlayback(el, playbackStats)
   }
 

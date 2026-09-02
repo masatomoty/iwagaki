@@ -2,6 +2,7 @@
 // requestAnimationFrame で曲線の時刻を進め、その時刻の潮位を state.waterLevel に置くだけ。
 // h_conn 評価は定数時間なので、サーバ往復もタイルの作り直しも発生しない。
 
+import type { TideForecastState } from '../domain/tideForecast'
 import { advancedTime, formatJst, tideAt, timeValue,
          type TidePoint, type TideSeries } from '../domain/tideSeries'
 import type { Store } from '../state'
@@ -54,12 +55,40 @@ function options(curves: TideSeries[], selected: string): string {
   return curves.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${c.label}</option>`).join('')
 }
 
-export function tidePlaybackHtml(curves: TideSeries[], selected: string): string {
+/** `s.error` 等は Worker 応答（同一オリジンだが外部データ由来）の文字列をそのまま出す
+ * ことがあるので、innerHTML に埋める前にエスケープする */
+const escHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * 更新ボタン・状態行。**「更新中・成功・失敗」を必ず出す。**
+ * 失敗時も直前の成功情報（最終更新日時・出典）は消さない
+ * （`domain/tideForecast.ts` の `failTideForecastFetch` が状態を保つのに合わせる）。
+ */
+function forecastStatusHtml(s: TideForecastState): string {
+  const busy = s.status === 'loading'
+  const updated = s.retrievedAt
+    ? `<span>最終更新 <b>${formatJst(timeValue(s.retrievedAt))}</b> JST</span>`
+      + `<span class="sub">${escHtml(s.sourceLabel ?? '気象庁')}</span>`
+    : ''
+  const msg = s.status === 'loading' ? '<span class="pb-forecast-msg">更新中…</span>'
+    : s.status === 'error' ? `<span class="pb-forecast-msg err">更新に失敗しました：${escHtml(s.error ?? '')}`
+      + `${s.retrievedAt ? '（直前の予測を表示中）' : ''}</span>`
+      : s.warning ? `<span class="pb-forecast-msg warn">${escHtml(s.warning)}</span>` : ''
+  return `<button id="tide-refresh" type="button" aria-label="気象庁の最新の潮位予測（舞鶴・7日間）に更新"
+      aria-busy="${busy}" ${busy ? 'disabled' : ''}>${busy ? '更新中…' : '⟳ 最新情報に更新'}</button>
+    <div id="tide-status" class="pb-forecast-status" aria-live="polite">${updated}${msg}</div>`
+}
+
+export function tidePlaybackHtml(
+  curves: TideSeries[], selected: string, forecast: TideForecastState = { status: 'idle' },
+): string {
   const points = curves.find((c) => c.id === selected)?.points ?? []
   return `
-    <p class="grouplabel" data-tip="実測の台風イベント（および気象擾乱を含まない天文潮）の毎時潮位を再生し、水位が上がるにつれ浸水域がどう広がるかを見る。モデルの時間発展ではなく、各時刻を静水位で解いたもの。最高潮位で自動で止まる">潮位の記録を再生</p>
+    <p class="grouplabel" data-tip="実測の台風イベント（および気象擾乱を含まない天文潮）や気象庁の潮位予測の毎時潮位を再生し、水位が上がるにつれ浸水域がどう広がるかを見る。モデルの時間発展ではなく、各時刻を静水位で解いたもの。最高潮位で自動で止まる">潮位の記録を再生</p>
     <div id="playback" data-curve="${selected}">
       <select id="pcurve" aria-label="再生する潮位の記録">${options(curves, selected)}</select>
+      <div class="pb-forecast">${forecastStatusHtml(forecast)}</div>
       <div class="pb-graph">
         <svg class="tidecurve" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" aria-hidden="true">
           <path id="curve-fill" d="${fillPath(points)}"></path>
@@ -83,12 +112,35 @@ export function tidePlaybackHtml(curves: TideSeries[], selected: string): string
     </div>`
 }
 
+export interface TidePlaybackHandle {
+  /**
+   * 曲線を選択肢に追加、または（既存 id なら）差し替える。
+   * `selectIt` で選択も一緒に行う（既定は選択を奪わない — 更新ボタン連打で
+   * ユーザーが見ている曲線が勝手に切り替わらないようにする）。
+   */
+  upsertCurve(curve: TideSeries, opts?: { selectIt?: boolean }): void
+  /** 更新ボタン・状態行の見た目だけを反映する（DOM は作り直さない） */
+  setForecastStatus(state: TideForecastState): void
+}
+
+const HANDLES = new WeakMap<HTMLElement, TidePlaybackHandle>()
+
+/** `mountTidePlayback` が返したハンドルを取り出す（未 mount なら undefined） */
+export function getTidePlaybackHandle(parent: HTMLElement): TidePlaybackHandle | undefined {
+  const el = parent.querySelector<HTMLElement>('#playback')
+  return el ? HANDLES.get(el) : undefined
+}
+
 /** 初回構築後だけ呼ぶ。以後の refresh では DOM を作り直さない */
 export function mountTidePlayback(
   parent: HTMLElement, curves: TideSeries[], selected: string, store: Store,
-): void {
+  onRefreshForecast: () => void = () => {},
+): TidePlaybackHandle {
   const el = parent.querySelector<HTMLElement>('#playback')
-  if (!el) return
+  if (!el) {
+    // 呼び出し側の防御用。`tidePlaybackHtml` を先に挿入していれば通常ここには来ない
+    return { upsertCurve: () => {}, setForecastStatus: () => {} }
+  }
   let curve = curves.find((c) => c.id === selected) ?? curves[0]
   let currentMs = timeValue(curve.points[0].time)
   let speed = 300
@@ -196,19 +248,53 @@ export function mountTidePlayback(
       x.setAttribute('aria-pressed', String(x === b))
     }
   })
-  q<HTMLSelectElement>('#pcurve')?.addEventListener('change', (e) => {
-    const next = curves.find((c) => c.id === (e.target as HTMLSelectElement).value) ?? curves[0]
+  /** 曲線を切り替える（ユーザーの select 操作、または `upsertCurve({selectIt:true})` から） */
+  const selectCurve = (next: TideSeries) => {
     curve = next
     currentMs = timeValue(next.points[0].time)
     playing = false
     cancelAnimationFrame(raf)
     stopAtPeak = true
     el.dataset.curve = next.id
+    const sel = q<HTMLSelectElement>('#pcurve')
+    if (sel && sel.value !== next.id) sel.value = next.id
     setCurveGeometry()
     store.set({ waterLevel: tideAt(next.points, currentMs) })
     paint()
+  }
+  q<HTMLSelectElement>('#pcurve')?.addEventListener('change', (e) => {
+    const next = curves.find((c) => c.id === (e.target as HTMLSelectElement).value) ?? curves[0]
+    selectCurve(next)
   })
+  q<HTMLButtonElement>('#tide-refresh')?.addEventListener('click', () => onRefreshForecast())
   setCurveGeometry(); paint()
+
+  const handle: TidePlaybackHandle = {
+    upsertCurve(next, opts) {
+      const i = curves.findIndex((c) => c.id === next.id)
+      if (i === -1) curves.push(next); else curves.splice(i, 1, next)
+      const sel = q<HTMLSelectElement>('#pcurve')
+      if (sel) sel.innerHTML = options(curves, curve.id)
+      if (opts?.selectIt) {
+        selectCurve(next)
+      } else if (curve.id === next.id) {
+        // いま表示中の曲線が更新された。選択は変えず、データだけ差し替えて描き直す
+        curve = next
+        const start = timeValue(next.points[0].time)
+        const end = timeValue(next.points[next.points.length - 1].time)
+        currentMs = Math.min(Math.max(currentMs, start), end)
+        setCurveGeometry()
+        paint()
+      }
+    },
+    setForecastStatus(state) {
+      const wrap = q('.pb-forecast')
+      if (wrap) wrap.innerHTML = forecastStatusHtml(state)
+      q<HTMLButtonElement>('#tide-refresh')?.addEventListener('click', () => onRefreshForecast())
+    },
+  }
+  HANDLES.set(el, handle)
+  return handle
 }
 
 /** refresh ごとに**出力だけ**を書き換える。入力 DOM は保持する */

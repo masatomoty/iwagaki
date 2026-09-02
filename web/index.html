@@ -285,6 +285,18 @@
      縦書きになっていた（2026-09） */
   #playback { display: flex; flex-direction: column; gap: 9px; }
   #playback #pcurve { font-size: 12.5px; }
+  /* 舞鶴の潮位予測（気象庁, Worker 経由）の更新ボタンと状態行 */
+  .pb-forecast { display: flex; flex-direction: column; gap: 4px; }
+  #tide-refresh { align-self: flex-start; background: var(--control); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px;
+    font-size: 12px; line-height: 1.2; cursor: pointer; }
+  #tide-refresh:hover:not(:disabled) { border-color: var(--accent); }
+  #tide-refresh:disabled { opacity: .55; cursor: default; }
+  .pb-forecast-status { display: flex; flex-wrap: wrap; gap: 3px 10px;
+    font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .pb-forecast-status b { color: var(--fg); font-variant-numeric: tabular-nums; }
+  .pb-forecast-msg.err { color: #f28b82; flex-basis: 100%; }
+  .pb-forecast-msg.warn { color: #ffcf7a; flex-basis: 100%; }
   .pb-graph { display: flex; flex-direction: column; gap: 3px; }
   svg.tidecurve { display: block; width: 100%; height: 54px; overflow: visible; }
   #curve { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
