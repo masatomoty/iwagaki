@@ -41,7 +41,8 @@ function options(curves: TideSeries[], selected: string): string {
 
 export function tidePlaybackHtml(curves: TideSeries[], selected: string): string {
   return `
-    <p class="grouplabel">潮位の再生</p>
+    <p class="grouplabel" data-tip="観測された潮位の時系列を再生し、水位が上がるにつれ浸水域がどう広がるかを見る。モデルの時間発展ではなく、各時刻を静水位で解いたもの。最高潮位で自動で止まる">潮位の再生</p>
+    <div id="playback" data-curve="${selected}">
     <div id="playback" data-curve="${selected}">
       <div class="wlrow"><button id="play" type="button" aria-pressed="false">再生</button>
         <input id="ptime" type="range" min="0" max="1000" value="0" step="1"
