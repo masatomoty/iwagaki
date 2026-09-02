@@ -37,6 +37,19 @@ import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 
 /**
+ * `data-tip="${hint}"` を innerHTML 文字列に埋めるとき用。現状の hint 群
+ * （CONDITIONS / FLOOD_MODELS など）に引用符は無いが、将来 `"` が入っても
+ * 属性が壊れないように通しておく（`ui/tooltip.ts` は `data-tip` を読むだけ）。
+ */
+const escAttr = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** 地形データ（`#cond`）の select 自体に張るツールチップ。現在値の説明を出す */
+const condHintOf = (id: TerrainCondition): string =>
+  CONDITIONS.find((c) => c.id === id)?.hint ?? ''
+
+/**
  * 建物の塗り分けでメニューに出すもの。`class`（普通建物・堅ろう建物）は
  * 浸水の話に効かないので出さない（`__iwagaki.setBuildingColor('class')` で触れる。
  * `perf/bldgcolor.mjs` は全モードを回すので値そのものは残す）。
@@ -444,7 +457,8 @@ const REF_ALIAS: Record<string, string> = {
  */
 function tideRefListHtml(refs: [string, number][]): string {
   return `<div class="reflist" id="refs">${refs.map(([k, v]) =>
-    `<button data-h="${v}" type="button" title="${k} — T.P. ${v.toFixed(3)} m"
+    `<button data-h="${v}" type="button"
+    data-tip="${escAttr(`押すと潮位を ${k}（T.P. ${v.toFixed(3)} m）に合わせる`)}"
     >${REF_ALIAS[k] ?? k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
 }
 
@@ -475,17 +489,21 @@ export interface AreaChoice {
 function topbarHtml(
   a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
 ): string {
+  // `<option>` にはツールチップを出せないので、select 要素自体に張って
+  // 現在値の説明を出す（`syncTopbar` が change ごとに `data-tip` を更新する）
+  const areaTip = a
+    ? escAttr(`${a.current.areaHa} ha${a.current.hasPointcloud
+        ? '・地上点群あり' : '・0.5m DEM のみ'}。切り替えるとページを読み直す`)
+    : ''
   const areaSel = a && a.index.areas.length >= 2
-    ? `<label class="tbsel">対象地域<select id="area" aria-label="対象地域">${
+    ? `<label class="tbsel">対象地域<select id="area" aria-label="対象地域" data-tip="${areaTip}">${
         a.index.areas.map((x) =>
           `<option value="${x.id}" ${x.id === a.current.id ? 'selected' : ''}
-                   title="${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}"
           >${x.label}</option>`).join('')}</select></label>`
     : ''
-  const condSel = `<label class="tbsel">地形データ<select id="cond" aria-label="地形データ">${
+  const condSel = `<label class="tbsel">地形データ<select id="cond" aria-label="地形データ" data-tip="${escAttr(condHintOf(cond))}">${
     conditionsOf(catalog).map((c) =>
-      `<option value="${c.id}" title="${c.hint}"
-               ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
+      `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">投影 <kbd>O</kbd>　視点 <kbd>1–6</kbd>　'
     + '計測パネル <kbd>P</kbd></span>'
@@ -509,6 +527,8 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
   if (topbar.dataset.built === '1') {
     const sel = topbar.querySelector<HTMLSelectElement>('#cond')
     if (sel && sel.value !== cond) sel.value = cond
+    // select 自体に張った説明は現在値に追従させる（`<option>` には出せない）
+    if (sel) sel.dataset.tip = condHintOf(cond)
     const ar = topbar.querySelector<HTMLSelectElement>('#area')
     if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
     return
@@ -540,7 +560,7 @@ function syncToolbar() {
   if (!row || row.dataset.built === '1') return
   row.innerHTML = '<b>断面</b>'
     + '<button id="secbtn" type="button" aria-pressed="false"'
-    + ' title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>'
+    + ' data-tip="地図を 2 点クリックして測線を引く。断面図が下に開く。Esc で中止">測線を引く</button>'
   row.dataset.built = '1'
 }
 
@@ -571,7 +591,8 @@ export function renderControls(
       const target = DIFF_OF[cond]
       diffBtn.disabled = !target
       diffBtn.setAttribute('aria-pressed', String(isDiff(s.surface) && s.surface !== 'diff_drainage'))
-      diffBtn.title = target ? '2 条件の判定差で塗る'
+      diffBtn.dataset.tip = target
+        ? 'いま見ている地形データと基準（PLATEAU 5m）で、浸水するかどうかの判定が割れる場所を塗り分ける'
         : 'この条件の差分タイルは配信していないので出せない'
     }
     const assumBtn = el.querySelector<HTMLButtonElement>('#assumbtn')
@@ -649,7 +670,7 @@ export function renderControls(
          ＋凡例。見出しは付けない（3 ボタンで自明）。旧 nowline は廃止 -->
     <div class="panel" id="controls-top">
       <div class="seg" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
-          `<button data-p="${m.id}" type="button" title="${m.hint}"
+          `<button data-p="${m.id}" type="button" data-tip="${escAttr(m.hint)}"
                    aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
       <!-- 凡例は 2 列。左＝画面の色（地形＋レイヤ）、右＝建物の色の内訳（棟数）。
            右列は「建物の色」を none 以外にしたときだけ中央固定の縦線を挟んで出る -->
@@ -680,7 +701,7 @@ export function renderControls(
         <p class="subhead">表示対象</p>
         <div class="layergrid">
         ${layersOf(catalog).map((l) =>
-          `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
+          `<label class="row"${l.hint ? ` data-tip="${escAttr(l.hint)}"` : ''}
             ${l.key === 'ponded' && s.floodModel !== 'connected' ? 'hidden' : ''}
             ><input type="checkbox" data-l="${l.key}"
             ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
@@ -715,13 +736,14 @@ export function renderControls(
         <p class="subhead">比較表示</p>
         <div class="compare-row">
           <button id="diffbtn" type="button" aria-pressed="${isDiff(s.surface) && s.surface !== 'diff_drainage'}"
-                  ${DIFF_OF[cond] ? '' : 'disabled'} title="地形データ同士の判定差">地形条件の判定差</button>
+                  ${DIFF_OF[cond] ? '' : 'disabled'}
+                  data-tip="いま見ている地形データと基準（PLATEAU 5m）で、浸水するかどうかの判定が割れる場所を塗り分ける">地形条件の判定差</button>
           <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
                   ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                  title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
+                  data-tip="海から地表面をたどって届く浸水と、仮想排水路を逆流して届く浸水の差を塗り分ける">排水モデルの差</button>
           <button id="assumbtn" type="button" aria-pressed="${s.surface === 'assumption'}"
                   ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                  title="その土地が浸かると言うのに、どこまで仮定を置いているか。配信物は増えない"
+                  data-tip="その土地が浸かると言うのに、どこまで仮定を置いているか（連結 ⊆ 仮想排水 ⊆ 潮位以下）。配信物は増えない"
           >仮定の段階</button>
         </div>
 
@@ -735,7 +757,7 @@ export function renderControls(
         <div class="seg models" id="fmodel">${FLOOD_MODELS
           .filter((m) => m.id !== 'drainage' || !!catalog.terrain.diff_drainage)
           .map((m) =>
-          `<button data-f="${m.id}" type="button" title="${m.hint}"
+          `<button data-f="${m.id}" type="button" data-tip="${escAttr(m.hint)}"
                    aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
 
         <p class="grouplabel">潮位</p>

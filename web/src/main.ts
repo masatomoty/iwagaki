@@ -51,6 +51,7 @@ import {
   updatePointBufferPanel, type PointBufferPanelState,
 } from './ui/pointBufferPanel'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
+import { mountTooltip } from './ui/tooltip'
 import { easeOutCubic, prefersReducedMotion } from './view/anim'
 import {
   createColorScheme, depthLegend, FLOOR_ABOVE_DEPTH_M, legendOf, type ColorScheme,
@@ -150,6 +151,10 @@ const OPT = {
 async function boot() {
   const scheduler = new Scheduler()
   const perf = new PerfRecorder(scheduler)
+
+  // ボタン／トグル／select の説明ツールチップ（`docs/todo.md` U2）。
+  // document に委譲リスナを 1 組張るだけ。対象は `[data-tip]` を持つ要素
+  mountTooltip()
 
   // **入口は範囲の索引。** 範囲は 3 つあり（`domain/areas.ts`）、それぞれに
   // catalog が 1 枚ある。索引が無い配信物（`areas.json` を焼く前の世代）では
