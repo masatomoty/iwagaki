@@ -148,10 +148,10 @@
   .tag.warn { background: #40351a; border-color: #6b5722; color: #f0d48a; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
   /* 凡例は「地形の色」（浸水／地盤高／水みち）と重ねるレイヤで行数が変わる。
-     頭の高さがそれで上下すると下のタブの並びまで動いて読みづらいので、
-     表示域を固定して中でスクロールさせる。高さは既定（浸水＋既定レイヤ）が
-     ちょうど収まるぶん（2026-09） */
-  #legend { height: 148px; overflow-y: auto; overscroll-behavior: contain; }
+     地形の色を切り替えても縦位置が動かないよう min-height を既定 3 モードの
+     最大（浸水＋既定レイヤ、線路行あり）に合わせる。スクロールはさせず、
+     レイヤを増やしたぶんだけ下へ伸ばす。上下に余白（2026-09） */
+  #legend { min-height: 172px; padding: 10px 0; }
   .note { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
   #perf table td { padding: 1px 0; }
   .bad { color: #ff9a9a; } .ok { color: #9fd6ac; }

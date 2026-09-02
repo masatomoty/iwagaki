@@ -181,13 +181,13 @@ type LayerKey = 'waterSurface' | 'ponded' | 'pourPoints' | 'roads' | 'railway'
 const LAYERS: { key: LayerKey; label: string; hint?: string }[] = [
   { key: 'waterSurface', label: '水面',
     hint: '潮位の高さに水平な水面を張る。切ると浸水域を地面の色だけで見る' },
-  { key: 'ponded', label: '窪地（逆流で浸水しうる）',
+  { key: 'ponded', label: '窪地',
     hint: '標高は潮位より低いが、地表面をたどると海に出ない土地。'
       + '排水路の吐口にフラップゲートが無いので、管路を逆流して浸水しうる。'
       + '逆流はモデルに含まないので、印だけを重ねている' },
   { key: 'pourPoints', label: '窪地の越流点',
     hint: 'DEM だけで決まる、海に通じない窪地とその鞍部（越流点）。'
-      + '潮位を使わない原理版で、上の「窪地（逆流で…）」とは別物。'
+      + '潮位を使わない原理版で、上の「窪地」（潮位依存の印）とは別物。'
       + '「地形の色」を水みちにすると窪地が水色で出る。面積の大きい順に上位のみ' },
   { key: 'roads', label: '道路（PLATEAU）',
     hint: '浸かると通行支障クラスで塗る。閾値は解析側の 0.1 / 0.3 / 0.5 m' },
@@ -234,10 +234,9 @@ function roadsLegend(s: Store['state']): string {
       + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
   }
   if (s.roadColor === 'regulation') {
-    return '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
-      + '<i style="background:#995cd6"></i>通行規制検討 &nbsp;'
-      + '<i style="background:#5b2a86"></i>通行止め相当</div>'
-      + '<div class="sub">単純モデル（潮位−地盤高）で判定。安全側に広く出す</div>'
+    return '<div><i style="background:#c9a3e0"></i>徐行</div>'
+      + '<div><i style="background:#995cd6"></i>通行規制検討</div>'
+      + '<div><i style="background:#5b2a86"></i>通行止め相当</div>'
   }
   return '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>'
 }
@@ -336,10 +335,12 @@ function legendHtml(
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
   if (s.layers.railway && s.catalog.railway) {
     // 濃灰の縁 ＋ 濃灰/生成りの刻み（`three/railwayLine.ts` と同じ濃さ）
+    // 事業者名（「（西日本旅客鉄道）」）は "JR 線路" と重複するので落として短く
+    const lines = s.catalog.railway.lines.map((n) => n.replace(/（[^（）]*）\s*$/, '')).join(' / ')
     rows.push('<div><i style="background:'
       + 'repeating-linear-gradient(90deg,#242830 0 2px,#e0e3e9 2px 5px);'
       + 'box-shadow:inset 0 0 0 1px #242830"></i>'
-      + `JR 線路<span class="sub"> ${s.catalog.railway.lines.join(' / ')}</span></div>`)
+      + `JR 線路<span class="sub"> ${lines}</span></div>`)
   }
   // 徒歩圏（T2）。潮位非依存の別レイヤなので、浸水系の色とは独立に出す
   if (s.layers.walkIsochrone && s.catalog.walk_isochrones?.length) {
@@ -481,7 +482,7 @@ function topbarHtml(
   a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
 ): string {
   const areaSel = a && a.index.areas.length >= 2
-    ? `<label class="tbsel">対象範囲<select id="area" aria-label="対象範囲">${
+    ? `<label class="tbsel">対象地域<select id="area" aria-label="対象地域">${
         a.index.areas.map((x) =>
           `<option value="${x.id}" ${x.id === a.current.id ? 'selected' : ''}
                    title="${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}"
@@ -631,7 +632,9 @@ export function renderControls(
     return
   }
 
-  const wl = catalog.water_level
+  // 潮位スライダの上限は 2.0 m T.P. で頭打ち（配信物の max は 3.0 だが、
+  // 既往最高 0.93・高潮想定 0.69 に対して 3 m は目盛りが間延びしすぎる）
+  const wl = { ...catalog.water_level, max: Math.min(catalog.water_level.max, 2) }
   const refs = Object.entries(wl.reference_levels_m_tp).sort((a, b) => a[1] - b[1])
 
   el.innerHTML = `
