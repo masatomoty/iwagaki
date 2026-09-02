@@ -712,11 +712,15 @@ export function renderControls(
         >${label}<b>${v.toFixed(2)}</b></button>`).join('')}</div>
 
       <div class="nowline" id="nowline">${nowLine(s)}</div>
-      ${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}
-      <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
     </div>
 
+    <!-- 本体（スクロール）。潮位再生と凡例は「いま何が見えているか」の説明であって
+         入力ではないので、頭から外してここに置く（頭が肥大化して他の操作が
+         スクロールの奥に埋もれていたため。2026-09） -->
     <div class="body">
+      ${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}
+      <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
+
       <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
         <p class="subhead" style="margin-top:0">地域別の浸水建物</p>
         <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
