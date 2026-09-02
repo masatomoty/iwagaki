@@ -226,6 +226,23 @@ export class Viewer {
     if (o.zoom !== undefined) this.setZoom(o.zoom)
   }
 
+  /**
+   * 注視点を画面ピクセル分だけ送る（ドラッグ・パンと同じ換算）。
+   * 起動時に既定視点をパネルの隙間（右下）へ寄せるのに使う。
+   */
+  panByPixels(dx: number, dy: number) {
+    const mpp = this.metresPerPixel()
+    const b = (this.cam.bearing * Math.PI) / 180
+    const sx = -dx * mpp
+    const sy = dy * mpp / Math.max(0.25, Math.cos((this.cam.pitch * Math.PI) / 180))
+    this.setCamera({
+      target: [
+        this.cam.target[0] + sx * Math.cos(b) + sy * Math.sin(b),
+        this.cam.target[1] - sx * Math.sin(b) + sy * Math.cos(b),
+      ],
+    }, false)
+  }
+
   get camera(): PerspectiveCamera | OrthographicCamera {
     return this.projection === 'perspective' ? this.persp : this.ortho
   }

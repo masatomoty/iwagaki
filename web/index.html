@@ -6,25 +6,83 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>iwagaki — 舞鶴・吉原 高潮浸水ビューア</title>
 <style>
-  :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff; }
+  :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff;
+          /* #controls-top と section 展開時 #toolbar の共通・固定高さ。
+             西舞鶴で「道路の色＝交通規制」を選んだとき（凡例が一番長い）に合わせてある */
+          --toppanel-h: 248px; }
   * { box-sizing: border-box; }
   html, body, #map { height: 100%; margin: 0; }
   body { background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
   #map { position: absolute; inset: 0; }
   .panel { position: absolute; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line);
            border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(8px); }
-  /* 操作パネル。**頭（地形データ・水位）は固定し、本体だけスクロールする。**
-     このアプリの入力はその 2 つだけなので、スクロールで消えてはいけない */
-  /* **下まで伸ばす。** 断面はこのパネルの右から始まるので、高さを譲る必要がない。
-     頭（地形データ・水位）は固定で、本体だけスクロールする */
-  #controls { top: 12px; left: 12px; width: 318px; bottom: 34px;
-              display: flex; flex-direction: column; padding: 0; }
-  #controls .head { flex: 0 0 auto; padding: 11px 13px 10px; border-bottom: 1px solid var(--line);
-                    background: color-mix(in srgb, var(--panel) 96%, #000);
-                    border-radius: 10px 10px 0 0; }
-  #controls .body { flex: 1 1 auto; overflow: auto; padding: 10px 13px 12px; }
-  /* ビューキューブ。左の操作パネルと下辺の凡例から離して右上に置く */
-  #viewcube { position: absolute; top: 8px; right: 8px; z-index: 5; }
+  /* 画面上部に横幅いっぱいで**固定**する帯（浮かせない）。見出しと「何の上の
+     何を見ているか」の 2 択（対象範囲・地形データ）＋出典だけ。サイドバーの外
+     なので、どのタブを開いていても、サイドバーをスクロールしても常に見える。
+     高さは 46px で、地図・サイドバー・ビューキューブはすべてこの下から始まる
+     （2026-09。以前は見出しと 2 択もサイドバーの頭に積んでいた） */
+  #topbar { position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 10;
+            display: flex; align-items: center; gap: 16px; padding: 0 14px;
+            background: color-mix(in srgb, var(--panel) 96%, transparent);
+            border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
+  #topbar h1 { margin: 0; flex: 0 0 auto; white-space: nowrap; }
+  #topbar .tbsel { display: flex; align-items: center; gap: 7px; min-width: 0;
+    font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
+  #topbar .tbsel select { width: auto; flex: 0 1 auto; min-width: 90px;
+    padding: 5px 26px 5px 9px; font-size: 12.5px; }
+  /* 右端はキー操作案内 ＋ 縦線 ＋ 出典。キー案内が余白を吸って右へ寄せる */
+  #topbar .tb-keys { margin-left: auto; flex: 0 0 auto; font-size: 11px;
+    color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
+  #topbar .tb-keys kbd { margin: 0 1px; }
+  /* 出典は畳んで置く。ホバー／フォーカスで全文（下に垂らす） */
+  #topbar .tb-src { flex: 0 0 auto; position: relative; cursor: help;
+    padding-left: 15px; border-left: 1px solid var(--line);
+    font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
+  #topbar .tb-src-lbl { text-decoration: underline dotted; text-underline-offset: 3px; }
+  #topbar .tb-src:hover, #topbar .tb-src:focus-visible { color: var(--fg); outline: none; }
+  #topbar .tb-src-pop { position: absolute; top: calc(100% + 9px); right: 0;
+    width: 520px; max-width: 78vw; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 13px;
+    font-size: 11.5px; line-height: 1.6; color: var(--muted); letter-spacing: 0;
+    white-space: normal; box-shadow: 0 10px 30px rgba(0,0,0,.45); z-index: 6;
+    visibility: hidden; opacity: 0; transition: opacity .12s; }
+  #topbar .tb-src:hover .tb-src-pop, #topbar .tb-src:focus-within .tb-src-pop {
+    visibility: visible; opacity: 1; }
+
+  /* 操作パネル（サイドバー）は**2 枚のパネルに分ける**。上＝地形の色＋凡例
+     （＝今どの面を見ているか）、下＝タブ（＝何を重ね・どう調べるか）。
+     #controls 自体は枠なしのレイアウト箱で、中の2枚が .panel */
+  #controls { position: absolute; top: 58px; left: 12px; width: 318px; bottom: 12px;
+              display: flex; flex-direction: column; gap: 10px; }
+  /* 中の 2 枚は .panel の見た目だけ借りて、位置は flex に任せる */
+  #controls-top, #controls-tabs { position: static; }
+  /* 高さは固定（凡例の行数が変わっても上下しない）。はみ出す極端な組み合わせだけ
+     凡例内でスクロールする */
+  #controls-top { flex: 0 0 auto; height: var(--toppanel-h);
+                  display: flex; flex-direction: column; }
+  #controls-top > #tpaint { flex: 0 0 auto; margin-bottom: 9px; }
+  #controls-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+                   overflow: hidden; }
+  #controls-tabs > .tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  /* 断面ツール。「測線を引く」とグラフを 1 枚のパネルにまとめ、サイドバー（左）と
+     ビューキューブ（右）の間に置く。線を引くと下にグラフが開き、パネルの高さは
+     左の #controls-top（地形の色＋凡例）と揃う（2026-09 指示） */
+  #toolbar { position: absolute; top: 58px; left: 342px; right: 180px;
+             display: flex; flex-direction: column; padding: 8px 12px; gap: 8px; }
+  body.section-open #toolbar { height: var(--toppanel-h); }
+  #toolbar-row { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  #toolbar-row b { flex: 0 0 auto; font-size: 12px; font-weight: 600; color: var(--muted);
+    letter-spacing: .04em; }
+  #toolbar #secbtn { flex: 0 0 auto; background: #232936; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px;
+    font-size: 12.5px; cursor: pointer; }
+  #toolbar #secbtn:hover { border-color: #3d4657; }
+  #toolbar #secbtn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
+    color: #07101d; font-weight: 600; }
+
+  /* ビューキューブ。トップバー（高さ 46px）の下・右端に置く。
+     キューブの上隅がバー下辺に食い込まないよう十分下げる */
+  #viewcube { position: absolute; top: 66px; right: 8px; z-index: 5; }
   #viewcube-home {
     position: absolute; top: 0; left: 0; width: 30px; height: 30px;
     background: transparent; border: none; padding: 0; cursor: pointer;
@@ -32,53 +90,36 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.65); transition: color .12s;
   }
   #viewcube-home:hover { color: rgba(255,255,255,.98); }
-  /* 断面。**左メニューの右から右端まで**の帯にする。左右両方を避けて中央に寄せると
-     測線が短く描かれ、0〜3 m の起伏がまた読めなくなる（以前は左 292 / 右 176 だった）。
-     出典バー（下辺）の上に載せ、右の枠と角は落とす */
-  #section {
-    display: none; left: 342px; right: 0; bottom: 28px; height: 268px;
-    padding: 8px 14px 4px; border-radius: 0; border-right: 0;
-  }
-  #section .sec-head { display: flex; justify-content: space-between; align-items: center;
-    font-size: 13.5px; margin-bottom: 4px; }
+  /* 断面グラフ。#toolbar の中で「測線を引く」行の下に開く。測線が短いと
+     0〜3 m の起伏が読めないので、canvas は残りの高さいっぱいに広げる */
+  #section { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
+  #section .sec-head { display: flex; justify-content: flex-end; align-items: center;
+    gap: 6px; margin-bottom: 4px; flex: 0 0 auto; }
   #sec-close { background: transparent; border: none; color: rgba(226,232,240,.6);
     font-size: 19px; cursor: pointer; padding: 0 4px; }
   #sec-close:hover { color: #fff; }
   #sec-fit { background: rgba(148,163,184,.14); border: 1px solid rgba(148,163,184,.3);
-    color: rgba(226,232,240,.85); font-size: 12.5px; border-radius: 4px;
-    padding: 4px 10px; cursor: pointer; margin-right: 6px; }
+    color: rgba(226,232,240,.85); font-size: 11.5px; border-radius: 4px;
+    padding: 3px 8px; cursor: pointer; margin-right: 6px; }
   #sec-fit:hover { background: rgba(148,163,184,.26); }
-  #sec-canvas { width: 100%; height: 222px; display: block; }
-  #section .note { margin-top: 2px; }
-  /* インスペクタ。**ビューキューブ（右上 8px / 128px 角）の下に置く。**
-     以前は top:12 right:53 で幅 300 だったので右端 53〜136px がキューブと重なり、
-     z-index:5 のキューブがパネルの上に乗っていた */
-  #inspector { top: 146px; right: 12px; width: 330px; bottom: 34px;
-               overflow: auto; display: none; }
-  /* 断面を出している間は、その上に収める */
-  body.section-open #inspector { bottom: 296px; }
-  #inspector .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
+  #sec-canvas { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
+  #section .note { margin-top: 2px; flex: 0 0 auto; }
+  /* 属性情報（#panel-attr）。地物クリックの中身。以前は右上に浮くパネルだった */
+  #panel-attr .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
   #insp-close { background: transparent; border: none; color: rgba(226,232,240,.55);
     font-size: 19px; line-height: 1; cursor: pointer; padding: 0 2px; }
   #insp-close:hover { color: #fff; }
-  /* 出典。**常時表示する。** PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めている。
-     MapLibre の AttributionControl が担っていた分で、描画層を外した以上ここで持つ */
-  #attrib {
-    position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-    background: rgba(6,8,12,.82); border-top: 1px solid var(--line);
-    color: var(--muted); font-size: 11.5px; line-height: 1.5;
-    padding: 6px 12px; backdrop-filter: blur(6px);
-  }
-  #attrib a { color: var(--muted); }
+  /* 出典は下辺の常時バーをやめ、トップバー右端の「出典」に畳んだ（`#topbar .tb-src`）。
+     PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めているが、ラベルは常に見え、
+     ホバー／フォーカスで全文に到達できる（MapLibre の畳んだ AttributionControl と同じ） */
   /* 計測パネルは開発者向け。既定は隠す（?perf=1 / P キーで開く）。
      左下は操作パネルが下まで占めるので、その右隣の上に置く */
-  #perf { display: none; top: 12px; left: 342px; width: 300px; max-height: 40%; overflow: auto;
+  #perf { display: none; top: 58px; left: 342px; width: 300px; max-height: 40%; overflow: auto;
            font-variant-numeric: tabular-nums; }
   /* 地点＋徒歩圏（T1）。既定は隠す（`catalog.point_buffer` が無い配信物では出さない）。
-     左メニューの右・断面帯の上に置く。断面を開いている間は場所を譲る */
-  #point-buffer { display: none; left: 342px; bottom: 34px; width: 300px; max-height: 46%;
+     左メニューの右下に置く */
+  #point-buffer { display: none; left: 342px; bottom: 12px; width: 300px; max-height: 46%;
                   overflow: auto; }
-  body.section-open #point-buffer { bottom: 296px; }
   h1 { font-size: 14.5px; margin: 0 0 2px; letter-spacing: .02em; }
   .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
   fieldset { border: 0; padding: 0; margin: 0 0 12px; }
@@ -90,6 +131,10 @@
   label.row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; }
   /* display を持つ規則は [hidden] の display:none に勝ってしまうので明示する */
   label.row[hidden] { display: none; }
+  /* 重ねる（レイヤー）は縦一列だと6〜8項目でかなりの高さになる。2列にして詰める。
+     長いラベルは折り返してよい（"窪地（逆流で浸水しうる）" 等） */
+  .layergrid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; }
+  .layergrid label.row { padding: 2px 0; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
   /* ドラッグだけだと 0.05 m 刻みを合わせにくい。−/＋ で 1 段ずつ動かせるようにする */
   .wlrow { display: flex; align-items: center; gap: 6px; }
@@ -120,6 +165,20 @@
   .tag.same { background: #1f2a22; border-color: #2f4636; color: #9fd6ac; }
   .tag.warn { background: #40351a; border-color: #6b5722; color: #f0d48a; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  /* 凡例は 2 列。左（#legend-main）＝画面の色（地形＋レイヤ）、
+     右（#legend-bldg）＝建物の色の内訳（棟数）。建物の色が none 以外のときだけ
+     右列が出て、**中央固定の縦線**で下端まで仕切る（両列とも 50%）。
+     高さは #controls-top（固定）の残りを埋める。凡例が極端に長いときだけ内部スクロール */
+  #legend { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    display: flex; align-items: stretch; padding: 10px 0;
+    font-size: 11.5px; line-height: 1.5; }
+  #legend .sub { font-size: 11px; }
+  #legend-main { flex: 1 1 auto; min-width: 0; }
+  #legend-bldg:empty { display: none; }
+  #legend-bldg { flex: 1 1 50%; min-width: 0; padding-left: 13px; }
+  #legend:has(#legend-bldg:not(:empty)) #legend-main {
+    flex-basis: 50%; padding-right: 13px; border-right: 1px solid var(--line);
+  }
   .note { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.5; }
   #perf table td { padding: 1px 0; }
   .bad { color: #ff9a9a; } .ok { color: #9fd6ac; }
@@ -135,10 +194,6 @@
   .seg button:disabled { opacity: .38; cursor: default; }
   .seg button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
 
-  /* いま何を見ているか。**これが主張そのもの**なので muted の注記にしない */
-  .nowline { margin-top: 10px; padding-top: 9px; font-size: 13px; line-height: 1.45;
-    border-top: 1px dashed rgba(148,163,184,.22); }
-
   /* 地域別の浸水建物（要望③）。表を主にする。潮位再生パネルのすぐ下に置く。
      幅が狭いので数値列は詰め、小地域名だけ折り返しを許す */
   .areatab { table-layout: fixed; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
@@ -151,12 +206,11 @@
   .areatab tr.at td { border-top: 1px solid var(--line); color: var(--fg); font-weight: 600; }
 
 
-  /* 地形データは 1 つ選ぶだけなので select。ボタン 4 つを 2 行に折り返すより、
-     頭が 1 行分空く。判定差は「差分タイルが無い条件では押せない」を見せたいので
-     ボタンのまま隣に置く */
-  .condrow { display: flex; gap: 4px; align-items: stretch; }
-  .condrow select {
-    flex: 1 1 auto; min-width: 0; appearance: none;
+  /* select は全部同じ見た目にする。**要素セレクタでかける。** 同じ条件を選ぶ
+     道路の色・徒歩圏の起点・建物の色・対象範囲・地形データがブラウザ既定の
+     素の見た目のまま混在しないように（2026-09） */
+  select {
+    width: 100%; flex: 1 1 auto; min-width: 0; appearance: none;
     background: #232936 no-repeat right 7px center;
     background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
                       linear-gradient(135deg, var(--muted) 50%, transparent 50%);
@@ -165,11 +219,7 @@
     color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
     padding: 7px 26px 7px 9px; font: 13.5px/1.3 inherit; cursor: pointer;
   }
-  .condrow select:hover { border-color: #3d4657; }
-  .condrow button {
-    flex: 0 0 auto; background: #232936; color: var(--fg); border: 1px solid var(--line);
-    border-radius: 6px; padding: 7px 11px; font-size: 12.5px; cursor: pointer;
-  }
+  select:hover { border-color: #3d4657; }
   .compare-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
   .compare-row button { min-width: 0; background: #232936; color: var(--fg); border: 1px solid var(--line);
     border-radius: 6px; padding: 7px 4px; font-size: 11.5px; line-height: 1.25; cursor: pointer; }
@@ -177,28 +227,20 @@
   .compare-row button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
     color: #07101d; font-weight: 600; }
   .compare-row button:disabled { opacity: .38; cursor: default; }
-  .condrow button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
-  .condrow button[aria-pressed="true"] {
-    background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600;
-  }
-  .condrow button:disabled { opacity: .38; cursor: default; }
 
-  .chips { display: flex; gap: 4px; margin-top: 6px; }
-  .chips button { flex: 1; background: transparent; color: var(--muted); cursor: pointer;
-    border: 1px solid var(--line); border-radius: 5px; padding: 5px 4px; font-size: 12px; }
-  .chips button:hover { color: var(--fg); border-color: #3d4657; }
-  .chips button b { font-variant-numeric: tabular-nums; margin-left: 4px; }
-
-  .reflist { display: grid; gap: 3px; }
+  /* 参照潮位＝押すとその潮位に飛ぶ一覧（旧チップと統合）。スライダ直下に置く */
+  .reflist { display: grid; gap: 3px; margin-top: 4px; }
   .reflist button { display: flex; justify-content: space-between; background: transparent;
     color: var(--muted); border: 1px solid var(--line); border-radius: 5px;
     padding: 5px 8px; font-size: 12px; cursor: pointer; text-align: left; }
   .reflist button:hover { color: var(--fg); border-color: #3d4657; }
   .reflist button b { font-variant-numeric: tabular-nums; color: var(--fg); }
 
-  /* 下位オプションは入れ子にする（PLATEAU 建物の色は独立した節ではない） */
+  /* 下位オプションは入れ子にする（徒歩圏の起点など） */
   .nested { margin: 3px 0 2px 19px; padding-left: 9px;
     border-left: 1px solid rgba(148,163,184,.2); }
+  /* 道路の色・建物の色は入れ子にしない＝表示対象と同じ左端。上下に余白 */
+  .colsel { margin: 12px 0; }
   label.row.off { color: #5f6875; }
   label.row.off input { opacity: .45; }
   .whyoff { font-size: 11.5px; color: #6b7480; margin: 0 0 3px 22px; }
@@ -219,22 +261,55 @@
   .btnwide[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
     color: #07101d; font-weight: 600; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* タブ（本体側を3節に分ける）。選択中＝太字＋アクセント色の下線バー、
+     未選択は hover で下線が出る。role=tablist・矢印キー移動に対応。
+     タブの並び（.tablist）は伸縮しない固定行。中身が長いタブだけ
+     .tabpanels の中でスクロールし、タブ自体は常に見えたまま動かない */
+  .tabs .tablist { flex: 0 0 auto; display: flex; border-bottom: 1px solid var(--line); }
+  .tabs .tab {
+    appearance: none; flex: 1 1 auto; background: transparent; border: none;
+    color: var(--muted); font: inherit; font-size: 12.5px; letter-spacing: .01em;
+    padding: 7px 4px 8px; cursor: pointer; position: relative; text-align: center;
+  }
+  .tabs .tab:hover { color: var(--fg); }
+  .tabs .tab[aria-selected="true"] { color: var(--fg); font-weight: 600; }
+  .tabs .tab[aria-selected="true"]::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    background: var(--accent);
+  }
+  .tabs .tabpanels { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .tabs .tabpanel { padding-top: 12px; }
+  .tabs .tabpanel[hidden] { display: none; }
+  /* タブ内のセクション境界。余白＋ヘアラインで「どこからどこまで」を出す。
+     .nested の中の見出しには効かせない（直下の子だけ） */
+  .tabpanel > .grouplabel:not(:first-child),
+  .tabpanel > .subhead:not(:first-child),
+  .tabpanel > #playbackslot:not(:empty),
+  .tabpanel > #areagroup:not([hidden]) {
+    margin-top: 17px; padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  .tabpanel > #playbackslot > .grouplabel { margin-top: 0; padding-top: 0; border-top: 0; }
 </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="controls" class="panel"></div>
-  <div id="inspector" class="panel"></div>
+  <div id="topbar"></div>
+  <!-- 断面ツール。「測線を引く」とグラフを 1 枚のパネルにまとめる。
+       #toolbar-row は controls.ts が組む。#section は線を引くまで hidden -->
+  <div id="toolbar" class="panel">
+    <div id="toolbar-row"></div>
+    <div id="section">
+      <div class="sec-head">
+        <button id="sec-fit" type="button" title="縦の範囲を切り替える">全体を見る</button>
+        <button id="sec-close" type="button" title="閉じる">×</button>
+      </div>
+      <canvas id="sec-canvas"></canvas>
+    </div>
+  </div>
+  <div id="controls"></div>
   <div id="perf" class="panel"></div>
   <div id="point-buffer" class="panel"></div>
-  <div id="attrib"></div>
-  <div id="section" class="panel">
-    <div class="sec-head"><b>断面</b>
-      <span><button id="sec-fit" type="button" title="縦の範囲を切り替える">全体を見る</button>
-      <button id="sec-close" type="button" title="閉じる">×</button></span>
-    </div>
-    <canvas id="sec-canvas"></canvas>
-    </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

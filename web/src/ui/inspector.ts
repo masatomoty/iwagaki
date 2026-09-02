@@ -86,7 +86,6 @@ function currentTable(
  * **潮位非依存の別オーバーレイ**で、浸水判定・h_conn とは無関係。
  */
 function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selectedCatchment']>) {
-  el.style.display = 'block'
   const ha = (v: number) => `${v.toFixed(2)} ha`
   // 出すのは**ハイライトしている面の面積**だけ。吐口の D-inf 集水（`maxAccumM2`）は
   // 主 receiver で切った流域境界を跨いで出入りするので面積とは別物になり、数字で
@@ -116,15 +115,18 @@ function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selecte
   `
 }
 
+/**
+ * 「属性情報」タブ（`#panel-attr`）の中身。地図で地物をクリックすると入る。
+ * 何も選ばれていなければ案内文だけ（以前は右上に浮くパネルで、非選択時は非表示だった）。
+ */
 export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog) {
   const a = store.state.selected
   if (!a) {
     const c = store.state.selectedCatchment
     if (c && store.state.terrainPaint === 'catchment') renderCatchment(el, c)
-    else el.style.display = 'none'
+    else el.innerHTML = '<p class="sub">地図で建築物・道路をクリックすると属性を表示します。</p>'
     return
   }
-  el.style.display = 'block'
   const H = store.state.waterLevel
   const th = catalog.semantics.road_depth_classes_m
   const pair = comparisonPair(store.state.surface)
@@ -162,10 +164,5 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
       ${a.sectionTypeLabel
         ? `<tr><td>区間種別</td><td class="num">${a.sectionTypeLabel}</td></tr>` : ''}
     </table>
-
-    <div class="note">${model === 'connected'
-      ? `h_conn = 海側と連結して浸水し始める最小水位。`
-      : `浸水深 = 潮位 − 地盤高（単純モデル）。`}
-      水位を動かしてもサーバには問い合わせず、その場で計算している。</div>
   `
 }
