@@ -30,6 +30,7 @@ import type { Store } from '../state'
 import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
 } from '../view/buildingColor'
+import { ATTR_EMPTY_HINT } from './inspector'
 import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
          type PlaybackStats } from './tidePlayback'
 
@@ -827,7 +828,7 @@ export function renderControls(
       <!-- 属性情報。地図で地物をクリックすると中身が入る（renderInspector）。
            以前は右上に浮くパネルだった。既定は「選択してください」だけ -->
       <div class="tabpanel" id="panel-attr" role="tabpanel" aria-labelledby="tab-attr" hidden>
-        <p class="sub">地図で建築物・道路をクリックすると属性を表示します。</p>
+        ${ATTR_EMPTY_HINT}
       </div>
       </div>
       </div>

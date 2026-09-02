@@ -121,6 +121,13 @@
   #sec-canvas { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
   #section .note { margin-top: 2px; flex: 0 0 auto; }
   /* 属性情報（#panel-attr）。地物クリックの中身。以前は右上に浮くパネルだった */
+  /* 非選択時の案内。テキストだけだと気づかれないので i アイコン＋枠線で囲う */
+  .emptyhint { display: flex; gap: 9px; align-items: flex-start;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    padding: 11px 12px; }
+  .emptyhint-i { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; color: var(--accent); }
+  .emptyhint p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
   #panel-attr .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
   #insp-close { background: transparent; border: none; color: rgba(226,232,240,.55);
     font-size: 19px; line-height: 1; cursor: pointer; padding: 0 2px; }
