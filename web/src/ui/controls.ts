@@ -26,6 +26,7 @@ import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
               TerrainCondition, TerrainPaint } from '../domain/types'
+import { nudgeWaterLevel, waterLevelRange } from '../domain/waterLevel'
 import type { Store } from '../state'
 import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
@@ -69,8 +70,8 @@ const BUILDING_COLOR_MENU_TIP =
   + '浸水深（床下・床上）＝地盤面から 0.50 m を境に（既定）'
 
 const WATER_LEVEL_TIP =
-  'T.P.（東京湾平均海面）基準の潮位。スライダか −／＋ で動かす。'
-  + '動かしてもサーバ往復やタイルの再取得は起きない'
+  'T.P.（東京湾平均海面）基準の潮位。スライダ・−／＋・キーボードの ← → で動かす'
+  + '（Shift ＋ ← → で 5 段ずつ）。動かしてもサーバ往復やタイルの再取得は起きない'
 
 /**
  * 建物の塗り分けでメニューに出すもの。`class`（普通建物・堅ろう建物）は
@@ -534,6 +535,7 @@ export interface AreaChoice {
  */
 function topbarHtml(
   a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
+  waterLevel: number,
 ): string {
   // **ツールチップは `<select>`（現在値）ではなくメニュー名（label）に張る。**
   // `<option>` には出せないうえ、選択肢を変えないと中身が分からないのは微妙なので、
@@ -547,16 +549,21 @@ function topbarHtml(
   const condSel = `<label class="tbsel" data-tip="${escAttr(condMenuTip(catalog))}">地形データ<select id="cond" aria-label="地形データ">${
     conditionsOf(catalog).map((c) =>
       `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
+  // いま解いている潮位。**このアプリの主変数**なので、タブを開いていなくても
+  // トップバーに出す。値は `syncTopbar` が refresh ごとに書き換える。
+  // ← → キーで動かせることをキー操作案内にも足す（Shift 併用で 5 段は data-tip に）
+  const wlv = `<span class="tb-wl" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位`
+    + ` <b id="tb-wl-v">${waterLevel.toFixed(2)}</b> m<span class="tb-wl-u"> T.P.</span></span>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
-  const keys = '<span class="tb-keys">投影 <kbd>O</kbd>　視点 <kbd>1–6</kbd>　'
-    + '計測パネル <kbd>P</kbd></span>'
+  const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　投影 <kbd>O</kbd>　'
+    + '視点 <kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
   // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
   // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
   // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）
   const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
     + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${keys}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${keys}${src}`
 }
 
 /**
@@ -572,9 +579,12 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
     if (sel && sel.value !== cond) sel.value = cond
     const ar = topbar.querySelector<HTMLSelectElement>('#area')
     if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
+    const wlv = topbar.querySelector<HTMLElement>('#tb-wl-v')
+    const wlText = store.state.waterLevel.toFixed(2)
+    if (wlv && wlv.textContent !== wlText) wlv.textContent = wlText
     return
   }
-  topbar.innerHTML = topbarHtml(area, catalog, cond)
+  topbar.innerHTML = topbarHtml(area, catalog, cond, store.state.waterLevel)
   topbar.dataset.built = '1'
   topbar.querySelector('#area')?.addEventListener('change', (e) => {
     // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す
@@ -700,10 +710,12 @@ export function renderControls(
     return
   }
 
-  // 潮位スライダの上限は 2.0 m T.P. で頭打ち（配信物の max は 3.0 だが、
-  // 既往最高 0.93・高潮想定 0.69 に対して 3 m は目盛りが間延びしすぎる）
-  const wl = { ...catalog.water_level, max: Math.min(catalog.water_level.max, 2) }
-  const refs = Object.entries(wl.reference_levels_m_tp).sort((a, b) => a[1] - b[1])
+  // 潮位スライダの値域・刻み（`domain/waterLevel.ts`）。上限は 2.0 m T.P. で
+  // 頭打ち（配信物の max は 3.0 だが、既往最高 0.93・高潮想定 0.69 に対して
+  // 3 m は目盛りが間延びしすぎる）
+  const wl = waterLevelRange(catalog)
+  const refs = Object.entries(catalog.water_level.reference_levels_m_tp)
+    .sort((a, b) => a[1] - b[1])
 
   el.innerHTML = `
     <!-- サイドバーは 2 枚のパネルに分ける。1 枚目＝地形の色（今どの面を見ているか）
@@ -896,11 +908,9 @@ export function renderControls(
     store.set({ waterLevel: Number(range.value) })
   })
   // **ドラッグだけでは 0.05 m 刻みを合わせにくい。** 1 段ずつ動かせるようにする
-  const nudge = (d: number) => {
-    const v = Math.min(wl.max, Math.max(wl.min, store.state.waterLevel + d * wl.step))
-    // 端で刻みからずれた値（既定は MSL 0.124）でも、刻みの格子に乗せ直さない。
-    // 参照潮位はそのままの値で意味があるので、丸めると出典と合わなくなる
-    store.set({ waterLevel: Math.round(v * 1000) / 1000 })
+  // （左右キーも `main.ts` で同じ `nudgeWaterLevel` を呼ぶ）
+  const nudge = (d: -1 | 1) => {
+    store.set({ waterLevel: nudgeWaterLevel(store.state.waterLevel, d, wl) })
   }
   el.querySelector('#wl-down')!.addEventListener('click', () => nudge(-1))
   el.querySelector('#wl-up')!.addEventListener('click', () => nudge(1))

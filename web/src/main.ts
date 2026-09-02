@@ -21,6 +21,7 @@ import {
   resolveFlowBasins, type FlowBasins,
 } from './domain/flow'
 import { parsePointBufferIndex, type PointBufferIndex } from './domain/pointBuffer'
+import { nudgeWaterLevel, WATER_LEVEL_FAST_STEPS, waterLevelRange } from './domain/waterLevel'
 import type { BuildingColorMode, FeatureAssertion, FloodModel, RoadColorMode,
               SurfaceMode, TerrainCondition } from './domain/types'
 import type { WalkIsochroneGeoJSON } from './domain/walkIsochrone'
@@ -1167,6 +1168,24 @@ async function boot() {
     const next = EXAGGERATIONS[Math.min(EXAGGERATIONS.length - 1, Math.max(0, i + d))]
     store.set({ exaggeration: next })
   }, () => refresh())
+
+  // 潮位を左右キーで動かす。スライダの −／＋（`ui/controls.ts` の `nudge`）と
+  // 同じ刻み・同じクランプ。**Shift を押しながらだと 1 打鍵で
+  // `WATER_LEVEL_FAST_STEPS` 段**進めて速く掃ける。入力欄・select・ボタン
+  // （タブリストの矢印移動を含む）にフォーカスがあるときは横取りしない。
+  // 値はヘッダー（`#tb-wl-v`）と潮位パネルに出る
+  const wlRange = waterLevelRange(catalog)
+  window.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    const t = e.target
+    if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement
+        || t instanceof HTMLTextAreaElement || t instanceof HTMLButtonElement) return
+    e.preventDefault()
+    const steps = (e.key === 'ArrowRight' ? 1 : -1)
+      * (e.shiftKey ? WATER_LEVEL_FAST_STEPS : 1)
+    store.set({ waterLevel: nudgeWaterLevel(store.state.waterLevel, steps, wlRange) })
+  })
 
   // 地物のクリック選択（deck.gl の pickable の置き換え）。
   // 断面の作図中は測線の端点を取りに来ているので、選択には使わない
