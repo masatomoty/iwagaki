@@ -268,13 +268,17 @@ export function showSectionLine(
 }
 
 /**
- * 断面パネルを閉じたときに呼ぶ。伸びかけのリボンを止めて確定形に落とす
- * （閉じたあとにリボンが伸び続けるのを防ぐ。`docs/todo.md` U4 のレビュー指摘）。
+ * 断面パネルを閉じたときに呼ぶ。**測線（3D リボン）も一緒に消す**（2026-09 指示）。
+ * 伸びかけのアニメも止める。
  */
-export function cancelSectionLineReveal(v: Viewer): void {
+export function hideSectionLine(v: Viewer): void {
   if (ribbonRaf !== null) { cancelAnimationFrame(ribbonRaf); ribbonRaf = null }
   ribbonReveal = 1
-  if (sectionEnds) redrawRibbons(v, sectionEnds[0], sectionEnds[1], sectionEnds[2], sectionEnds[3])
+  sectionEnds = null
+  const g = v.world.getObjectByName(SECTION_LINE) as Group | undefined
+  if (g) g.visible = false
+  hideSectionPreview(v)
+  v.invalidate()
 }
 
 const SECTION_LINE = 'section-line'

@@ -56,7 +56,7 @@ import {
   createColorScheme, depthLegend, FLOOR_ABOVE_DEPTH_M, legendOf, type ColorScheme,
 } from './view/buildingColor'
 import {
-  applyPreset, attachViewCube, bindCameraKeys, cancelSectionLineReveal, createViewer,
+  applyPreset, attachViewCube, bindCameraKeys, createViewer, hideSectionLine,
   hideSectionPreview, initialZoom, showSectionLine, showSectionPreview,
 } from './view/map'
 import { PointPickTool } from './view/pointPickTool'
@@ -897,7 +897,7 @@ async function boot() {
     if (t.id === 'sec-close') {
       sectionSeq++   // 進行中の断面リクエスト（手動・流域とも）があれば無効化する
       cancelSectionReveal()
-      cancelSectionLineReveal(viewer)   // 伸びかけの 3D リボンも止める（U4 レビュー指摘）
+      hideSectionLine(viewer)   // 測線（3D リボン）も一緒に消す
       secEl.style.display = 'none'
       document.body.classList.remove('section-open')
       secSeries = []; secLine = null
