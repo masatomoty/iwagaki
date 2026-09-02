@@ -552,7 +552,7 @@ function topbarHtml(
       `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
   // いま解いている潮位。**このアプリの主変数**なので、タブを開いていなくても
   // トップバーに出す。値は `syncTopbar` が refresh ごとに書き換える。
-  // ← → キーで動かせることをキー操作案内にも足す（Shift 併用で 5 段は data-tip に）
+  // ← → キーで動かせることはキー操作案内にも足す（刻みの詳細は data-tip に）
   const wlv = `<span class="tb-wl" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位`
     + ` <b id="tb-wl-v">${waterLevel.toFixed(2)}</b> m<span class="tb-wl-u"> T.P.</span></span>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
