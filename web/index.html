@@ -49,6 +49,21 @@
   #topbar .tb-src:hover .tb-src-pop, #topbar .tb-src:focus-within .tb-src-pop {
     visibility: visible; opacity: 1; }
 
+  /* ボタン／トグル／select の説明（U2）。`[data-tip]` を持つ要素にホバー／
+     フォーカスすると `ui/tooltip.ts` が単一ノードを body 直下へ position:fixed で
+     出す（サイドバー #controls-tabs が overflow スクロールでクリップするため）。
+     z-index は #topbar(10) より上。**地図（暗い背景）や操作パネルの上に重なるので、
+     パネル地色（ほぼ黒）だと文字が沈む。1 段持ち上げた地に明るい文字で出す。** */
+  #ui-tooltip {
+    position: fixed; left: 0; top: 0; z-index: 20; max-width: 320px;
+    background: #313949; border: 1px solid #454f63; border-radius: 8px;
+    padding: 10px 13px; font-size: 13px; line-height: 1.65; color: #f2f4f8;
+    letter-spacing: 0; white-space: pre-line; pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    opacity: 0; transition: opacity .12s; }
+  #ui-tooltip.is-shown { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #ui-tooltip { transition: none; } }
+
   /* 操作パネル（サイドバー）は**2 枚のパネルに分ける**。上＝地形の色＋凡例
      （＝今どの面を見ているか）、下＝タブ（＝何を重ね・どう調べるか）。
      #controls 自体は枠なしのレイアウト箱で、中の2枚が .panel */
@@ -301,8 +316,8 @@
     <div id="toolbar-row"></div>
     <div id="section">
       <div class="sec-head">
-        <button id="sec-fit" type="button" title="縦の範囲を切り替える">全体を見る</button>
-        <button id="sec-close" type="button" title="閉じる">×</button>
+        <button id="sec-fit" type="button" data-tip="断面図の縦の表示範囲を、起伏に合わせた拡大と全体表示で切り替える">全体を見る</button>
+        <button id="sec-close" type="button" data-tip="断面図を閉じて測線を消す">×</button>
       </div>
       <canvas id="sec-canvas"></canvas>
     </div>

@@ -37,6 +37,41 @@ import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 
 /**
+ * `data-tip="${hint}"` を innerHTML 文字列に埋めるとき用。現状の hint 群
+ * （CONDITIONS / FLOOD_MODELS など）に引用符は無いが、将来 `"` が入っても
+ * 属性が壊れないように通しておく（`ui/tooltip.ts` は `data-tip` を読むだけ）。
+ */
+const escAttr = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * メニュー全体の説明ツールチップ。**`<select>`（現在値）ではなくメニュー名に張る。**
+ * 選択肢を変えないと中身が分からないのを避けたいので、選べるもの全部を 1 行ずつ挙げる
+ * （`ui/tooltip.ts` の `#ui-tooltip` は `white-space: pre-line` で改行を活かす）。
+ */
+const condMenuTip = (catalog: Catalog): string =>
+  '地形の標高データ。選ぶと地図全体がその測り方に変わる。\n'
+  + conditionsOf(catalog).map((c) => `${c.label}＝${c.hint}`).join('\n')
+
+const areaMenuTip = (a: AreaChoice): string =>
+  '舞鶴の対象範囲。切り替えるとページを読み直す。\n'
+  + a.index.areas.map((x) =>
+    `${x.label}＝${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}`).join('\n')
+
+const ROAD_COLOR_MENU_TIP =
+  '道路レイヤの塗り分け。\n一律＝どこが道路かだけ（既定）\n'
+  + '通行支障＝浸水深 0.1 / 0.3 / 0.5 m で 4 段\n交通規制＝徐行 / 通行規制検討 / 通行止め相当'
+
+const BUILDING_COLOR_MENU_TIP =
+  '建物レイヤの塗り分け。\n用途＝11 種の用途色\n'
+  + '浸水深（床下・床上）＝地盤面から 0.50 m を境に（既定）'
+
+const WATER_LEVEL_TIP =
+  'T.P.（東京湾平均海面）基準の潮位。スライダか −／＋ で動かす。'
+  + '動かしてもサーバ往復やタイルの再取得は起きない'
+
+/**
  * 建物の塗り分けでメニューに出すもの。`class`（普通建物・堅ろう建物）は
  * 浸水の話に効かないので出さない（`__iwagaki.setBuildingColor('class')` で触れる。
  * `perf/bldgcolor.mjs` は全モードを回すので値そのものは残す）。
@@ -444,7 +479,8 @@ const REF_ALIAS: Record<string, string> = {
  */
 function tideRefListHtml(refs: [string, number][]): string {
   return `<div class="reflist" id="refs">${refs.map(([k, v]) =>
-    `<button data-h="${v}" type="button" title="${k} — T.P. ${v.toFixed(3)} m"
+    `<button data-h="${v}" type="button"
+    data-tip="${escAttr(`押すと潮位を ${k}（T.P. ${v.toFixed(3)} m）に合わせる`)}"
     >${REF_ALIAS[k] ?? k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
 }
 
@@ -475,17 +511,18 @@ export interface AreaChoice {
 function topbarHtml(
   a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
 ): string {
+  // **ツールチップは `<select>`（現在値）ではなくメニュー名（label）に張る。**
+  // `<option>` には出せないうえ、選択肢を変えないと中身が分からないのは微妙なので、
+  // メニュー名にホバー／フォーカスすると選べるもの全部が出る（2026-09-02 指示）
   const areaSel = a && a.index.areas.length >= 2
-    ? `<label class="tbsel">対象地域<select id="area" aria-label="対象地域">${
+    ? `<label class="tbsel" data-tip="${escAttr(areaMenuTip(a))}">対象地域<select id="area" aria-label="対象地域">${
         a.index.areas.map((x) =>
           `<option value="${x.id}" ${x.id === a.current.id ? 'selected' : ''}
-                   title="${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}"
           >${x.label}</option>`).join('')}</select></label>`
     : ''
-  const condSel = `<label class="tbsel">地形データ<select id="cond" aria-label="地形データ">${
+  const condSel = `<label class="tbsel" data-tip="${escAttr(condMenuTip(catalog))}">地形データ<select id="cond" aria-label="地形データ">${
     conditionsOf(catalog).map((c) =>
-      `<option value="${c.id}" title="${c.hint}"
-               ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
+      `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">投影 <kbd>O</kbd>　視点 <kbd>1–6</kbd>　'
     + '計測パネル <kbd>P</kbd></span>'
@@ -538,9 +575,8 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
 function syncToolbar() {
   const row = document.getElementById('toolbar-row')
   if (!row || row.dataset.built === '1') return
-  row.innerHTML = '<b>断面</b>'
-    + '<button id="secbtn" type="button" aria-pressed="false"'
-    + ' title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>'
+  row.innerHTML = '<b data-tip="地図を 2 点クリックして測線を引くと、その線の地形・浸水の断面図が下に開く。Esc で中止">断面</b>'
+    + '<button id="secbtn" type="button" aria-pressed="false">測線を引く</button>'
   row.dataset.built = '1'
 }
 
@@ -571,7 +607,8 @@ export function renderControls(
       const target = DIFF_OF[cond]
       diffBtn.disabled = !target
       diffBtn.setAttribute('aria-pressed', String(isDiff(s.surface) && s.surface !== 'diff_drainage'))
-      diffBtn.title = target ? '2 条件の判定差で塗る'
+      diffBtn.dataset.tip = target
+        ? 'いま見ている地形データと基準（PLATEAU 5m）で、浸水するかどうかの判定が割れる場所を塗り分ける'
         : 'この条件の差分タイルは配信していないので出せない'
     }
     const assumBtn = el.querySelector<HTMLButtonElement>('#assumbtn')
@@ -649,7 +686,7 @@ export function renderControls(
          ＋凡例。見出しは付けない（3 ボタンで自明）。旧 nowline は廃止 -->
     <div class="panel" id="controls-top">
       <div class="seg" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
-          `<button data-p="${m.id}" type="button" title="${m.hint}"
+          `<button data-p="${m.id}" type="button" data-tip="${escAttr(m.hint)}"
                    aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
       <!-- 凡例は 2 列。左＝画面の色（地形＋レイヤ）、右＝建物の色の内訳（棟数）。
            右列は「建物の色」を none 以外にしたときだけ中央固定の縦線を挟んで出る -->
@@ -677,17 +714,17 @@ export function renderControls(
 
       <div class="tabpanels">
       <div class="tabpanel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
-        <p class="subhead">表示対象</p>
+        <p class="subhead" data-tip="地図に重ねるレイヤの ON/OFF。その範囲に無いレイヤ（点群・線路など）は出ない">表示対象</p>
         <div class="layergrid">
         ${layersOf(catalog).map((l) =>
-          `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
+          `<label class="row"${l.hint ? ` data-tip="${escAttr(l.hint)}"` : ''}
             ${l.key === 'ponded' && s.floodModel !== 'connected' ? 'hidden' : ''}
             ><input type="checkbox" data-l="${l.key}"
             ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
         </div>
         <!-- 道路の色・建物の色は**チェックボックスの ON/OFF に関わらず常時出す**。
              入れ子（.nested）にはしない＝表示対象と同じ左端に揃える（2026-09 指示） -->
-        <div class="colsel" id="rcolwrap">
+        <div class="colsel" id="rcolwrap" data-tip="${escAttr(ROAD_COLOR_MENU_TIP)}">
           <p class="grouplabel">道路の色</p>
           <select id="rcol" aria-label="道路の色">${MENU_ROAD_COLORS.map((m) =>
             `<option value="${m.id}" ${s.roadColor === m.id ? 'selected' : ''}
@@ -700,7 +737,7 @@ export function renderControls(
             `<option value="${i}" ${(s.walkIsochroneIndex ?? 0) === i ? 'selected' : ''}
             >${w.label ?? `${w.minutes} 分（${i}）`}</option>`).join('')}</select>
         </div>` : ''}
-        <div class="colsel" id="bcolwrap">
+        <div class="colsel" id="bcolwrap" data-tip="${escAttr(BUILDING_COLOR_MENU_TIP)}">
           <!-- **チェックボックスから select にした。** 塗り分けが 3 通りになり、
                浸水深（床下・床上）は「用途で塗る」の on/off では表せない。
                **見出しを付ける。** 無いと「用途」とだけ書かれた裸のドロップダウンに
@@ -712,35 +749,36 @@ export function renderControls(
             >${m.id === 'none' ? '塗り分けない' : m.label}</option>`).join('')}</select>
         </div>
 
-        <p class="subhead">比較表示</p>
+        <p class="subhead" data-tip="地図の塗り方を『浸水するか』から『地形データや排水モデルで判定がどう割れるか』に替える。ボタンごとの説明は各ボタンに">比較表示</p>
         <div class="compare-row">
           <button id="diffbtn" type="button" aria-pressed="${isDiff(s.surface) && s.surface !== 'diff_drainage'}"
-                  ${DIFF_OF[cond] ? '' : 'disabled'} title="地形データ同士の判定差">地形条件の判定差</button>
+                  ${DIFF_OF[cond] ? '' : 'disabled'}
+                  data-tip="いま見ている地形データと基準（PLATEAU 5m）で、浸水するかどうかの判定が割れる場所を塗り分ける">地形条件の判定差</button>
           <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
                   ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                  title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
+                  data-tip="海から地表面をたどって届く浸水と、仮想排水路を逆流して届く浸水の差を塗り分ける">排水モデルの差</button>
           <button id="assumbtn" type="button" aria-pressed="${s.surface === 'assumption'}"
                   ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                  title="その土地が浸かると言うのに、どこまで仮定を置いているか。配信物は増えない"
+                  data-tip="その土地が浸かると言うのに、どこまで仮定を置いているか（連結 ⊆ 仮想排水 ⊆ 潮位以下）。配信物は増えない"
           >仮定の段階</button>
         </div>
 
-        <p class="subhead">絞り込む</p>
-        <label class="row"><input type="checkbox" id="cb-changed"
+        <p class="subhead" data-tip="判定が変わる地物だけを残して、ほかを減光する">絞り込む</p>
+        <label class="row" data-tip="判定が変わる地物だけを残して、ほかを減光する"><input type="checkbox" id="cb-changed"
           ${s.layers.changedOnly ? 'checked' : ''}/>判定が変わる地物のみ</label>
       </div>
 
       <div class="tabpanel" id="panel-display" role="tabpanel" aria-labelledby="tab-display" hidden>
-        <p class="grouplabel">シミュレーション条件</p>
+        <p class="grouplabel" data-tip="${escAttr('浸水をどう決めるか。単純（潮位−地盤高）／海からつながる（既定）／仮想排水路の 3 択。選択肢ごとの説明は各ボタンに')}">シミュレーション条件</p>
         <div class="seg models" id="fmodel">${FLOOD_MODELS
           .filter((m) => m.id !== 'drainage' || !!catalog.terrain.diff_drainage)
           .map((m) =>
-          `<button data-f="${m.id}" type="button" title="${m.hint}"
+          `<button data-f="${m.id}" type="button" data-tip="${escAttr(m.hint)}"
                    aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
 
-        <p class="grouplabel">潮位</p>
+        <p class="grouplabel" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位</p>
         <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
-        <div class="wlrow">
+        <div class="wlrow" data-tip="${escAttr(WATER_LEVEL_TIP)}">
           <button class="stepbtn" id="wl-down" type="button"
                   aria-label="潮位を ${wl.step} m 下げる">−</button>
           <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}"
@@ -752,13 +790,13 @@ export function renderControls(
           `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${v.toFixed(3)} m"></i>`).join('')}</div>
         <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
 
-        <p class="subhead">参照潮位</p>
+        <p class="subhead" data-tip="押すと潮位をその値（平均海面・朔望平均満潮位・高潮想定・既往最高など）に合わせる">参照潮位</p>
         ${tideRefListHtml(refs)}
 
         <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}</div>
 
         <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
-          <p class="subhead">地域別の浸水建物</p>
+          <p class="subhead" data-tip="いまの潮位・モデルで浸水する建物を、国勢調査の小地域（町丁・字等）ごとに集計。浸水棟数の多い順">地域別の浸水建物</p>
           <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
         </div>
       </div>

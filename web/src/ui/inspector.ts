@@ -93,7 +93,7 @@ function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selecte
   el.innerHTML = `
     <div class="insp-head">
       <h1>集水域</h1>
-      <button id="insp-close" type="button" title="選択を外す">×</button>
+      <button id="insp-close" type="button" data-tip="選択を外して地図のハイライトを消す">×</button>
     </div>
     <p class="sub">水みち（一様降雨・地形のみ）。潮位に依存しない</p>
     <table>
@@ -139,7 +139,7 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
   el.innerHTML = `
     <div class="insp-head">
       <h1>${a.featureType === 'bldg:Building' ? '建築物' : isRoad ? '道路' : a.featureType}</h1>
-      <button id="insp-close" type="button" title="選択を外す">×</button>
+      <button id="insp-close" type="button" data-tip="選択を外して地図のハイライトを消す">×</button>
     </div>
     <p class="sub" style="word-break:break-all">${a.gmlId}</p>
     ${a.unreliable

@@ -457,6 +457,47 @@ z=0 前提でずれを `parallax()` で自前に補正しているので、既�
 操作パネルは下辺まで伸ばし、断面はその右から右端まで。計測パネル（`P`）は
 左下が空かなくなったので、操作パネルの右隣の上に置く。
 
+#### ツールチップは body へポータルする **[実測]**（2026-09-02・`docs/todo.md` U2）
+
+ボタン／トグル／select の説明はネイティブ `title` 1 行しか無かった。DADS を
+参考にした自前実装（依存は足さない。`ui/tooltip.ts`）に置き換えた。
+
+- **サイドバー（`#controls-tabs`）は `overflow` スクロールコンテナ**なので、
+  その中に `position: absolute` でツールチップを出すとクリップされる。
+  **単一ノードを `document.body` 直下に `position: fixed` で置き**、
+  トリガーの `getBoundingClientRect()` から JS で位置を決める。
+- 位置決め（`placeTip`）は描画に依らない純関数に切り出してテストする
+  （既定はトリガーの上、上に収まらなければ下へフリップ、左右は viewport に
+  クランプ）。`web/test/tooltip.test.mjs`。**上辺の余白は `#topbar`（固定・
+  z-index 10）の下端まで広げる** — 帯の直下にあるトリガー（浸水深ボタン・断面）で
+  上に出すと帯に潜るので、そのぶん下へフリップさせる（`placeTip` の `insets` 引数、
+  `reposition()` が `#topbar` の `bottom` を渡す）。
+- 委譲リスナ 1 組（`pointerover` / `focusin` / `pointerout` / `focusout` /
+  `keydown[Escape]`）を `document` に張り、`[data-tip]` を持つ要素を対象にする。
+  ホバーは ~400ms 遅延、フォーカスは遅延なし。非表示は即時
+  （`hidden` で `display:none` にするのでフェードしない）。
+  `prefers-reduced-motion: reduce` は CSS 側でフェードを消す。
+- `role="tooltip"` ＋ 表示中だけトリガーに `aria-describedby` を張る。
+- 見た目は既存の唯一の自前ポップオーバー `#topbar .tb-src-pop`（出典）に
+  合わせる（`var(--panel)`/`var(--line)`・角丸 8px・box-shadow・小フォント）。
+  CSS は `web/index.html` に集約（`#ui-tooltip`）。
+- **選択肢メニューのツールチップは `<select>`（現在値）ではなくメニュー名に張る。**
+  `<option>` には出せないうえ、**選択肢を変えないと中身が分からないのは微妙**なので、
+  地形データ（`#cond`）・対象地域（`#area`）・道路の色・建物の色は、メニュー名
+  （topbar は `<label class="tbsel">`、サイドバーは `<div class="colsel">`。
+  どちらも `<select>` を内包するので、select にフォーカスすると `focusin` が
+  バブルして出る）に `data-tip` を張り、**選べるもの全部を 1 行ずつ**並べる
+  （`#ui-tooltip` は `white-space: pre-line`）。地形データは
+  `conditionsOf(catalog)` から作るので、範囲によって出せる条件が違っても合う。
+  「0.5m とは何のデータか」（外部から実際に来た質問）はここに寄せた。
+- **セクション見出し**（`.subhead` / `.grouplabel`）にもグループの説明を張る
+  （表示対象・比較表示・絞り込む・シミュレーション条件・潮位・参照潮位・
+  潮位の再生・地域別の浸水建物）。個々のボタンに `data-tip` があるものは
+  見出し側はグループの俯瞰だけにとどめる。
+- `controls.ts` は innerHTML 文字列組み立てなので、`data-tip="${hint}"` に
+  引用符が入っても壊れないよう小さな `escAttr()` を通す（現状の hint 群に
+  引用符は無いが将来のため）。
+
 #### 選択とホバーの見せ方
 
 選択は状態としてしか扱っていなかった時期があり、**画面側の出力が 0 個**だった

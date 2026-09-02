@@ -128,7 +128,7 @@ export function mountPointBufferPanel(
   el.innerHTML = `
     <p class="subhead" style="margin-top:0">地点＋徒歩圏</p>
     <button class="btnwide" id="pbbtn" type="button" aria-pressed="${state.pickActive}"
-            title="地図を 1 点クリックして中心を指定する">地点を選ぶ</button>
+            data-tip="地図を 1 点クリックして集計の中心を指定する。Esc で中止">地点を選ぶ</button>
     <p class="grouplabel" style="margin-top:9px">半径</p>
     <div class="seg" id="pbradius">${POINT_BUFFER_RADII.map((r) =>
       `<button data-r="${r}" type="button"
