@@ -6,16 +6,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>iwagaki — 舞鶴・吉原 高潮浸水ビューア</title>
 <style>
-  :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff;
+  :root {
+    color-scheme: dark;
+    --bg:#0b111c;
+    --panel:#121d2d;
+    --control:#1b2b40;
+    --control-hover:#253a55;
+    --line:#3b4d64;
+    --fg:#eaf0f7;
+    --muted:#a5b1c0;
+    --accent:#1478ff;
+    --focus:#6bb0ff;
+    --font-ui: "Noto Sans JP", "Roboto", Arial, sans-serif;
+    --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
           /* #controls-top と section 展開時 #toolbar の共通・固定高さ。
              西舞鶴で「道路の色＝交通規制」を選んだとき（凡例が一番長い）に合わせてある */
           --toppanel-h: 248px; }
   * { box-sizing: border-box; }
   html, body, #map { height: 100%; margin: 0; }
-  body { background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.55 var(--font-ui); }
   #map { position: absolute; inset: 0; }
-  .panel { position: absolute; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line);
-           border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(8px); }
+  .panel { position: absolute; background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--line);
+           border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
   /* 画面上部に横幅いっぱいで**固定**する帯（浮かせない）。見出しと「何の上の
      何を見ているか」の 2 択（対象範囲・地形データ）＋出典だけ。サイドバーの外
      なので、どのタブを開いていても、サイドバーをスクロールしても常に見える。
@@ -23,8 +35,9 @@
      （2026-09。以前は見出しと 2 択もサイドバーの頭に積んでいた） */
   #topbar { position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 10;
             display: flex; align-items: center; gap: 16px; padding: 0 14px;
-            background: color-mix(in srgb, var(--panel) 96%, transparent);
-            border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
+            background: color-mix(in srgb, var(--panel) 97%, transparent);
+            border-bottom: 1px solid var(--line);
+            backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,.22); }
   #topbar h1 { margin: 0; flex: 0 0 auto; white-space: nowrap; }
   #topbar .tbsel { display: flex; align-items: center; gap: 7px; min-width: 0;
     font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
@@ -63,7 +76,7 @@
      パネル地色（ほぼ黒）だと文字が沈む。1 段持ち上げた地に明るい文字で出す。** */
   #ui-tooltip {
     position: fixed; left: 0; top: 0; z-index: 20; max-width: 320px;
-    background: #313949; border: 1px solid #454f63; border-radius: 8px;
+    background: #263342; border: 1px solid #425368; border-radius: 8px;
     padding: 10px 13px; font-size: 13px; line-height: 1.65; color: #f2f4f8;
     letter-spacing: 0; white-space: pre-line; pointer-events: none;
     box-shadow: 0 10px 30px rgba(0,0,0,.5);
@@ -95,12 +108,12 @@
   #toolbar-row { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
   #toolbar-row b { flex: 0 0 auto; font-size: 12px; font-weight: 600; color: var(--muted);
     letter-spacing: .04em; }
-  #toolbar #secbtn { flex: 0 0 auto; background: #232936; color: var(--fg);
+  #toolbar #secbtn { flex: 0 0 auto; background: var(--control); color: var(--fg);
     border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px;
     font-size: 12.5px; cursor: pointer; }
-  #toolbar #secbtn:hover { border-color: #3d4657; }
+  #toolbar #secbtn:hover { border-color: var(--accent); }
   #toolbar #secbtn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
-    color: #07101d; font-weight: 600; }
+    color: #fff; font-weight: 600; }
 
   /* ビューキューブ。トップバー（高さ 46px）の下・右端に置く。
      キューブの上隅がバー下辺に食い込まないよう十分下げる */
@@ -118,13 +131,13 @@
   #section .sec-head { display: flex; justify-content: flex-end; align-items: center;
     gap: 6px; margin-bottom: 4px; flex: 0 0 auto; }
   /* 「全体を見る」「×」は #toolbar の「測線を引く」（#secbtn）と同じ高さ・見た目に揃える */
-  #sec-fit, #sec-close { background: #232936; color: var(--fg);
+  #sec-fit, #sec-close { background: var(--control); color: var(--fg);
     border: 1px solid var(--line); border-radius: 6px; line-height: 1.55;
     padding: 6px 14px; cursor: pointer; }
   #sec-fit, #sec-close { font-size: 12.5px; }
   #sec-fit { margin-right: 6px; }
   #sec-close { padding: 6px 12px; }
-  #sec-fit:hover, #sec-close:hover { border-color: #3d4657; color: #fff; }
+  #sec-fit:hover, #sec-close:hover { border-color: var(--accent); color: var(--fg); }
   #sec-canvas { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
   #section .note { margin-top: 2px; flex: 0 0 auto; }
   /* 属性情報（#panel-attr）。地物クリックの中身。以前は右上に浮くパネルだった */
@@ -155,9 +168,9 @@
   fieldset { border: 0; padding: 0; margin: 0 0 12px; }
   legend { font-size: 12.5px; color: var(--muted); padding: 0; margin-bottom: 5px; letter-spacing: .04em; text-transform: uppercase; }
   .seg { display: flex; gap: 4px; }
-  .seg button { flex: 1; background: #232936; color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
+  .seg button { flex: 1; background: var(--control); color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
                 padding: 7px 5px; font-size: 12.5px; cursor: pointer; }
-  .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #07101d; font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
   label.row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13.5px; }
   /* display を持つ規則は [hidden] の display:none に勝ってしまうので明示する */
   label.row[hidden] { display: none; }
@@ -170,12 +183,12 @@
   .wlrow { display: flex; align-items: center; gap: 6px; }
   .wlrow input[type=range] { flex: 1 1 auto; min-width: 0; }
   .stepbtn {
-    flex: 0 0 auto; width: 30px; height: 30px; background: #232936; color: var(--fg);
+    flex: 0 0 auto; width: 30px; height: 30px; background: var(--control); color: var(--fg);
     border: 1px solid var(--line); border-radius: 6px; font-size: 16px; line-height: 1;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
-  .stepbtn:hover { border-color: #3d4657; }
-  .stepbtn:active { background: var(--accent); color: #07101d; }
+  .stepbtn:hover { border-color: var(--accent); }
+  .stepbtn:active { background: var(--accent); color: #fff; }
   .tickbar { position: relative; height: 6px; margin: -4px 0 2px; }
   .tickbar i { position: absolute; top: 0; width: 1px; height: 6px; background: var(--muted); }
   .seg.wrap { flex-wrap: wrap; gap: 3px; }
@@ -184,16 +197,16 @@
   .seg.models { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .seg.models button { min-width: 0; line-height: 1.25; padding: 5px 2px; font-size: 11.5px; }
   .wl { display: flex; justify-content: space-between; align-items: baseline; }
-  .wl b { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .wl b { font-size: 22px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
   .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   td { padding: 2px 0; vertical-align: top; }
   td:first-child { color: var(--muted); white-space: nowrap; padding-right: 8px; }
-  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; letter-spacing: -.02em; }
   .tag { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 11.5px; border: 1px solid var(--line); }
-  .tag.chg { background: #4a1f22; border-color: #7d3238; color: #ffb4b4; }
-  .tag.same { background: #1f2a22; border-color: #2f4636; color: #9fd6ac; }
-  .tag.warn { background: #40351a; border-color: #6b5722; color: #f0d48a; }
+  .tag.chg { background: #4a2529; border-color: #87434a; color: #ffb8bb; }
+  .tag.same { background: #22372b; border-color: #3c604b; color: #a8d8b8; }
+  .tag.warn { background: #44371e; border-color: #725d2d; color: #f1d58b; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
   /* 凡例は 2 列。左（#legend-main）＝画面の色（地形＋レイヤ）、
      右（#legend-bldg）＝建物の色の内訳（棟数）。建物の色が none 以外のときだけ
@@ -222,7 +235,7 @@
     margin: 12px 0 5px; }
   .subhead:first-child { margin-top: 0; }
   .seg button:disabled { opacity: .38; cursor: default; }
-  .seg button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
+  .seg button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: var(--accent); }
 
   /* 地域別の浸水建物（要望③）。表を主にする。潮位再生パネルのすぐ下に置く。
      幅が狭いので数値列は詰め、小地域名だけ折り返しを許す */
@@ -241,7 +254,7 @@
      素の見た目のまま混在しないように（2026-09） */
   select {
     width: 100%; flex: 1 1 auto; min-width: 0; appearance: none;
-    background: #232936 no-repeat right 7px center;
+    background: var(--control) no-repeat right 7px center;
     background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
                       linear-gradient(135deg, var(--muted) 50%, transparent 50%);
     background-size: 5px 5px, 5px 5px;
@@ -249,13 +262,13 @@
     color: var(--fg); border: 1px solid var(--line); border-radius: 6px;
     padding: 7px 26px 7px 9px; font: 13.5px/1.3 inherit; cursor: pointer;
   }
-  select:hover { border-color: #3d4657; }
+  select:hover { border-color: var(--accent); }
   .compare-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-  .compare-row button { min-width: 0; background: #232936; color: var(--fg); border: 1px solid var(--line);
+  .compare-row button { min-width: 0; background: var(--control); color: var(--fg); border: 1px solid var(--line);
     border-radius: 6px; padding: 7px 4px; font-size: 11.5px; line-height: 1.25; cursor: pointer; }
-  .compare-row button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: #3d4657; }
+  .compare-row button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: var(--accent); }
   .compare-row button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
-    color: #07101d; font-weight: 600; }
+    color: #fff; font-weight: 600; }
   .compare-row button:disabled { opacity: .38; cursor: default; }
 
   /* 参照潮位＝押すとその潮位に飛ぶ一覧（旧チップと統合）。スライダ直下に置く */
@@ -263,7 +276,7 @@
   .reflist button { display: flex; justify-content: space-between; background: transparent;
     color: var(--muted); border: 1px solid var(--line); border-radius: 5px;
     padding: 5px 8px; font-size: 12px; cursor: pointer; text-align: left; }
-  .reflist button:hover { color: var(--fg); border-color: #3d4657; }
+  .reflist button:hover { color: var(--fg); border-color: var(--accent); }
   .reflist button b { font-variant-numeric: tabular-nums; color: var(--fg); }
 
   /* 潮位の再生（U3）。曲線そのものを主にする＝スクラブ用のスライダは曲線の
@@ -280,20 +293,20 @@
   #peakdot { fill: #ffcf7a; stroke: var(--panel); stroke-width: 1; }
   #playback #ptime { width: 100%; margin: 0; }
   .pb-bar { display: flex; align-items: center; gap: 8px; }
-  #play { flex: 0 0 auto; min-width: 76px; background: #232936; color: var(--fg);
+  #play { flex: 0 0 auto; min-width: 76px; background: var(--control); color: var(--fg);
     border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
     font-size: 12.5px; line-height: 1.2; cursor: pointer; white-space: nowrap; }
   #play:hover { border-color: #3d4657; }
   #play[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
-    color: #07101d; font-weight: 600; }
+    color: #fff; font-weight: 600; }
   .pb-bar .seg { flex: 1 1 auto; }
   .pb-bar .seg button { font-size: 11px; padding: 6px 3px; }
   .pb-read { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
   .pb-read > div { display: contents; }
   .pb-read dt { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
-  .pb-read dd { margin: 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .pb-read dd { margin: 0; font-size: 12.5px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .pb-stats { font-size: 11.5px; color: var(--muted); line-height: 1.6;
-    font-variant-numeric: tabular-nums; }
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .pb-stats b { color: var(--fg); }
   .pb-stats .pb-fig { white-space: nowrap; }
 
@@ -308,19 +321,20 @@
   /* 畳む機能は持たない。**常に見えている。** 節が 4 つしか無く、
      畳むと「押さないと分からない」ものが増えるだけだった */
   .group { padding-left: 2px; }
-  kbd { font: 500 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-    background: #232936; border: 1px solid var(--line); border-radius: 3px;
+  kbd { font: 500 11px/1.4 var(--font-mono);
+    background: var(--control); border: 1px solid var(--line); border-radius: 3px;
     padding: 1px 4px; color: var(--muted); }
   .keyrow { display: flex; justify-content: space-between; gap: 8px;
     font-size: 12px; color: var(--muted); padding: 3px 0; }
   .srcnote { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 7px 0 0; }
-  .srcnote b { color: #c3cad7; font-weight: 500; }
-  .btnwide { width: 100%; background: #232936; color: var(--fg); cursor: pointer;
+  .srcnote b { color: var(--fg); font-weight: 600; }
+  .btnwide { width: 100%; background: var(--control); color: var(--fg); cursor: pointer;
     border: 1px solid var(--line); border-radius: 6px; padding: 7px 5px; font-size: 12.5px; }
-  .btnwide:hover { border-color: #3d4657; }
+  .btnwide:hover { border-color: var(--accent); }
   .btnwide[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
-    color: #07101d; font-weight: 600; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    color: #fff; font-weight: 600; }
+  button:hover:not(:disabled), select:hover { background-color: var(--control-hover); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   /* タブ（本体側を3節に分ける）。選択中＝太字＋アクセント色の下線バー、
      未選択は hover で下線が出る。role=tablist・矢印キー移動に対応。
@@ -396,10 +410,10 @@
   #startup-modal .intro-btns { display: flex; gap: 10px; margin-left: auto; }
   #startup-modal .intro-btns button { border-radius: 8px; padding: 11px 22px;
     font-size: 15px; cursor: pointer; border: 1px solid var(--line); }
-  #startup-modal .intro-secondary { background: #232936; color: var(--fg); }
-  #startup-modal .intro-secondary:hover { border-color: #3d4657; }
+  #startup-modal .intro-secondary { background: var(--control); color: var(--fg); }
+  #startup-modal .intro-secondary:hover { border-color: var(--accent); }
   #startup-modal .intro-primary { background: var(--accent); border-color: var(--accent);
-    color: #07101d; font-weight: 700; }
+    color: #fff; font-weight: 700; }
   #startup-modal .intro-primary:hover { filter: brightness(1.06); }
   #startup-modal :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
