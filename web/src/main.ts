@@ -51,6 +51,7 @@ import {
   updatePointBufferPanel, type PointBufferPanelState,
 } from './ui/pointBufferPanel'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
+import { mountStartupModal, resolveCarriedModel, takePendingStartup } from './ui/startupModal'
 import { mountTooltip } from './ui/tooltip'
 import { easeOutCubic, prefersReducedMotion } from './view/anim'
 import {
@@ -181,6 +182,18 @@ async function boot() {
 
   const store = new Store(initialState(catalog))
   if (OPT.pointcloud) store.setLayer({ pointcloud: true })
+  // 起動時モーダル（U6）で対象地域を替えたときは `?area=` で読み直す。その読み直し
+  // をまたいで運ばれたモデル・潮位の選択をここで 1 度だけ取り込む。取り込んだ
+  // ときはこの読み込みでモーダルを出さない（利用者はもう選び終えている）
+  const pendingStartup = takePendingStartup()
+  if (pendingStartup) {
+    // 運ばれてきたモデルが移動先の配信物で使えなければ落とす（drainage → connected）
+    store.set({
+      floodModel: resolveCarriedModel(
+        pendingStartup.floodModel, !!catalog.terrain.diff_drainage),
+      waterLevel: pendingStartup.waterLevel,
+    })
+  }
   const geoid = catalog.vertical.geoid_undulation_m
   /** ローカル ENU の原点 [lon, lat]。カメラの換算に使う */
   const localOrigin = catalog.local_frame.origin_wgs84
@@ -1258,6 +1271,13 @@ async function boot() {
 
   buildTerrain()
   refresh()
+
+  // 初見者向けの起動時モーダル（U6）。地形の読み込みは裏で走らせたまま、
+  // その上に条件（対象地域・浸水の決め方・潮位）の選択を出す。読み直しをまたいで
+  // 選択が運ばれてきた読み込み（`pendingStartup`）では出さない
+  if (!pendingStartup) {
+    mountStartupModal({ store, catalog, areaIndex, currentAreaId: area.id })
+  }
 
   // ---- 計測パネル --------------------------------------------------------
   // PerfRecorder は常時走らせるが、パネルは既定で隠す。内訳を読むのは開発者だけで、
