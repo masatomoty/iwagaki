@@ -60,6 +60,12 @@ export class Viewer {
   private needsRender = true
   private disposed = false
   private renderCbs = new Set<Handler>()
+  /**
+   * ポインタでのカメラ操作（パン・回転）を受けるか。測線ツールなど「地図の上に
+   * 点を置く」操作の最中は false にして、置いている間に地図が動かないようにする
+   * （動くと、狙った画面位置と確定した地点がずれる）。ホイールズームは対象外。
+   */
+  private dragEnabled = true
 
   constructor(o: ViewerOptions) {
     this.frame = o.frame
@@ -308,6 +314,12 @@ export class Viewer {
   /** 次のフレームで描き直す。レイヤ側が内容を変えたときに呼ぶ */
   invalidate() { this.needsRender = true }
 
+  /**
+   * ポインタでのカメラ操作（パン・回転）の有効・無効。測線ツールが作図中は
+   * 無効にして、点を置いている最中に地図が動かないようにする。
+   */
+  setDragEnabled(on: boolean) { this.dragEnabled = on }
+
   dispose() {
     this.disposed = true
     this.renderer.dispose()
@@ -419,6 +431,7 @@ export class Viewer {
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
     canvas.addEventListener('pointerdown', (e) => {
+      if (!this.dragEnabled) return
       canvas.setPointerCapture(e.pointerId)
       mode = e.button === 2 || e.shiftKey ? 'rotate' : 'pan'
       lastX = e.clientX; lastY = e.clientY
