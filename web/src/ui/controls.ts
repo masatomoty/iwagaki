@@ -646,7 +646,7 @@ export function renderControls(
                  aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
     <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
 
-    <!-- タブは2つ。「基本情報＝重ねる・比較表示・絞り込む・断面（何をどう見るか）」
+    <!-- タブは2つ。「基本情報＝表示レイヤー・比較表示・絞り込む・断面（何をどう見るか）」
          「条件＝シミュレーション条件・潮位・参照潮位・潮位再生・地域別集計
          （何を動かして数字で調べるか）」。対象範囲と地形データはトップバー、
          地形の色と凡例はこのすぐ上。断面とキー操作案内は基本情報に吸収し、
@@ -663,7 +663,7 @@ export function renderControls(
 
       <div class="tabpanels">
       <div class="tabpanel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
-        <p class="subhead">重ねる</p>
+        <p class="subhead">表示レイヤー</p>
         <div class="layergrid">
         ${layersOf(catalog).map((l) =>
           `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}

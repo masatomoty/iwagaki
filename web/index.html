@@ -52,8 +52,9 @@
   #controls > #tpaint, #controls > #legend { flex: 0 0 auto; }
   #controls > #tpaint { margin-bottom: 9px; }
   #controls > .tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  /* ビューキューブ。トップバー（高さ 46px）の下・右端に置く */
-  #viewcube { position: absolute; top: 54px; right: 8px; z-index: 5; }
+  /* ビューキューブ。トップバー（高さ 46px）の下・右端に置く。
+     キューブの上隅がバー下辺に食い込まないよう十分下げる */
+  #viewcube { position: absolute; top: 66px; right: 8px; z-index: 5; }
   #viewcube-home {
     position: absolute; top: 0; left: 0; width: 30px; height: 30px;
     background: transparent; border: none; padding: 0; cursor: pointer;
