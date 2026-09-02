@@ -642,12 +642,11 @@ async function boot() {
   // 複数条件を同時に描ける唯一の場所である。`control`（源だけを替えた 5 m）を
   // 入れると、源の効果と解像度の効果を横から読み分けられる。
   // 代償は測線ごとにもう 1 条件ぶんタイルを引くこと（docs/todo.md 低 7 で測った）
-  // 断面図は明るい背景なので、線は暗めの色にする（`ui/section.ts`）
   const SECTION_SERIES: { condition: TerrainCondition; label: string; color: string }[] = [
-    { condition: 'highres', label: '0.5m', color: '#1f2937' },
-    { condition: 'baseline', label: 'PLATEAU 5m', color: '#b45309' },
-    { condition: 'control', label: '5m 対照', color: '#c2410c' },
-    { condition: 'pointcloud', label: '0.5m ＋ 点群', color: '#15803d' },
+    { condition: 'highres', label: '0.5m', color: '#e2e8f0' },
+    { condition: 'baseline', label: 'PLATEAU 5m', color: '#f7d129' },
+    { condition: 'control', label: '5m 対照', color: '#fb923c' },
+    { condition: 'pointcloud', label: '0.5m ＋ 点群', color: '#4ade80' },
   ]
   const secEl = document.getElementById('section')!
   const secCanvas = document.getElementById('sec-canvas') as HTMLCanvasElement
