@@ -557,8 +557,8 @@ function topbarHtml(
   const wlv = `<span class="tb-wl" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位`
     + ` <b id="tb-wl-v">${waterLevel.toFixed(2)}</b> m<span class="tb-wl-u"> T.P.</span></span>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
-  const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　投影 <kbd>O</kbd>　'
-    + '視点 <kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
+  const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
+    + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
   // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
   // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
   // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）
@@ -575,6 +575,18 @@ function topbarHtml(
 function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined) {
   const topbar = document.getElementById('topbar')
   if (!topbar) return
+  if (topbar.dataset.pointerBlurBound !== '1') {
+    // クリック後に select のフォーカスが残ると、←→が select の操作に使われて
+    // 潮位変更へ届かない。ポインター操作だけ解除し、キーボード操作時の
+    // フォーカス（タブ移動など）はアクセシビリティのため維持する。
+    topbar.addEventListener('pointerup', (e) => {
+      const target = e.target
+      if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
+        target.blur()
+      }
+    })
+    topbar.dataset.pointerBlurBound = '1'
+  }
   const cond = surfaceCondition(store.state.surface)
   if (topbar.dataset.built === '1') {
     const sel = topbar.querySelector<HTMLSelectElement>('#cond')
@@ -631,6 +643,17 @@ export function renderControls(
 
   syncTopbar(store, catalog, area)
   syncToolbar()
+  if (el.dataset.pointerBlurBound !== '1') {
+    // タブ・ボタン・select のクリック後は、直後の潮位キー操作を使えるよう
+    // ポインター操作時だけフォーカスを外す。キー操作のフォーカスは残す。
+    el.addEventListener('pointerup', (e) => {
+      const target = e.target
+      if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
+        target.blur()
+      }
+    })
+    el.dataset.pointerBlurBound = '1'
+  }
 
   if (el.dataset.built === '1') {
     const v = el.querySelector<HTMLElement>('#wlv')

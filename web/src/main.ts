@@ -147,8 +147,6 @@ const OPT = {
   coalesce: qs.get('coalesce') !== '0',
   // 点群は既定 OFF。?pc=1 で有効化
   pointcloud: qs.get('pc') === '1',
-  /** ?ortho=1 で正射投影から始める */
-  ortho: qs.get('ortho') === '1',
   /**
    * 点の色に COPC の RGB を使うか。**計測専用**（`?rgb=0` で標高ランプに戻す）。
    * RGB を読む decode コストを `perf/ab.mjs` の形で交互に測るために置いてある
@@ -217,8 +215,11 @@ async function boot() {
   if (!qs.has('target')) {
     viewer.panByPixels(viewer.canvas.clientWidth * 0.17, viewer.canvas.clientHeight * 0.12)
   }
-  if (OPT.ortho) viewer.setProjection('orthographic')
   attachViewCube(viewer)
+  const initialCamera = {
+    ...viewer.cameraState,
+    target: [...viewer.cameraState.target] as [number, number],
+  }
 
   // 地物の属性は左サイドバーの「属性情報」タブに出す（旧・右上の浮きパネルは廃止）
 
@@ -372,6 +373,9 @@ async function boot() {
     }
     refresh()
   }
+  // 非同期の初期読み込みが `refresh()` を先に呼ぶことがあるため、
+  // `refresh()` が参照する補助レイヤの状態は async 処理より前に宣言する。
+  let coverage: import('three').LineSegments | undefined
   if (catalog.water_level.tide_series) {
     void (async () => {
       await Promise.all(catalog.water_level.tide_series!.series.map(async (entry) => {
@@ -519,6 +523,18 @@ async function boot() {
     } finally {
       plateauLoading = false
     }
+    // 読み込み中に建物の色や地形条件が変更された場合、変更時の
+    // ensurePlateau() は plateauLoading によって早期 return している。
+    // そのままにすると、初期の浸水深モードで読み込んだ建物が「用途」へ
+    // 切り替わらないため、完了後の最新状態と比較して再構築する。
+    const latestMode = store.state.buildingColor
+    const latestCond = latestMode === 'depth'
+      ? (store.state.floodModel === 'drainage' ? 'drainage'
+        : resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres')
+      : ''
+    if (latestMode !== plateauMode || latestCond !== plateauCondition) {
+      void ensurePlateau()
+    }
     refresh()
   }
 
@@ -528,7 +544,6 @@ async function boot() {
    * 無くても地図は成立し、有ると「点群がどこに効いているか」が分かる、という性質の情報。
    * AOI 100 ha に対し点群は 3.17 ha しかない（docs/results.md）。
    */
-  let coverage: import('three').LineSegments | undefined
   async function loadPcCoverage() {
     const a = catalog.pointcloud_coverage
     if (!a?.url || coverage) return
@@ -1236,7 +1251,7 @@ async function boot() {
     const i = EXAGGERATIONS.indexOf(store.state.exaggeration as never)
     const next = EXAGGERATIONS[Math.min(EXAGGERATIONS.length - 1, Math.max(0, i + d))]
     store.set({ exaggeration: next })
-  }, () => refresh())
+  }, () => viewer.easeTo(initialCamera, 600))
 
   // 潮位を左右キーで動かす。**← → は 0.01 m 刻み**（スライダより細かく追い込める）、
   // **Shift ＋ ← → は 0.05 m 刻み**（スライダと同じで速く掃く）。クランプは共通

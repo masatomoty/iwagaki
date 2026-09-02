@@ -11,7 +11,7 @@ import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicMaterial } from 
 
 import type { Catalog } from '../domain/catalog'
 import { createLocalFrame, lngLatToWorld, type LocalFrame } from '../three/mercator'
-import { Viewer, type ProjectionMode } from '../three/viewer'
+import { Viewer } from '../three/viewer'
 import { easeOutCubic, lerp, prefersReducedMotion } from './anim'
 import { ViewCube } from './viewCube'
 
@@ -123,15 +123,15 @@ export function initialZoom(catalog: Catalog): number {
  *
  * `ortho` は正射投影に切り替えるもの（docs/todo.md B1）。MapLibre は透視投影しか
  * 持たないので、6 方向のプリセットを入れても「断面のように」は見えていなかった。
- * three.js の OrthographicCamera でようやく要求を満たす。
+ * 視点プリセットは投影方式を変えず、現在の表示方式のまま向きだけを変える。
  */
 export const CAMERA_PRESETS = [
-  { key: '1', id: 'top', label: '平面', pitch: 0, bearing: 0, ortho: true },
-  { key: '2', id: 'south', label: '南↑', pitch: 84, bearing: 0, ortho: true },
-  { key: '3', id: 'west', label: '西→', pitch: 84, bearing: 90, ortho: true },
-  { key: '4', id: 'north', label: '北↓', pitch: 84, bearing: 180, ortho: true },
-  { key: '5', id: 'east', label: '東←', pitch: 84, bearing: 270, ortho: true },
-  { key: '6', id: 'iso', label: '俯瞰', pitch: 52, bearing: -28, ortho: false },
+  { key: '1', id: 'top', label: '平面', pitch: 0, bearing: 0 },
+  { key: '2', id: 'south', label: '南↑', pitch: 84, bearing: 0 },
+  { key: '3', id: 'west', label: '西→', pitch: 84, bearing: 90 },
+  { key: '4', id: 'north', label: '北↓', pitch: 84, bearing: 180 },
+  { key: '5', id: 'east', label: '東←', pitch: 84, bearing: 270 },
+  { key: '6', id: 'iso', label: '俯瞰', pitch: 52, bearing: -28 },
 ] as const
 
 export type CameraPresetId = (typeof CAMERA_PRESETS)[number]['id']
@@ -139,30 +139,23 @@ export type CameraPresetId = (typeof CAMERA_PRESETS)[number]['id']
 export function applyPreset(v: Viewer, id: CameraPresetId) {
   const p = CAMERA_PRESETS.find((x) => x.id === id)
   if (!p) return
-  // 軸方向のプリセットは正射に切り替える。断面として読めないと意味が無い
-  v.setProjection(p.ortho ? 'orthographic' : 'perspective')
   v.easeTo({ pitch: p.pitch, bearing: p.bearing }, 500)
 }
 
-/** 1〜6 で視点、[ ] で鉛直強調、O で投影切り替え */
+/** 1〜6 で視点、[ ] で鉛直強調 */
 export function bindCameraKeys(
   v: Viewer,
   onExaggeration: (delta: number) => void,
-  onProjection?: (mode: ProjectionMode) => void,
+  onHome?: () => void,
 ) {
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement) return
     if (e.metaKey || e.ctrlKey || e.altKey) return
     const p = CAMERA_PRESETS.find((x) => x.key === e.key)
-    if (p) { applyPreset(v, p.id); onProjection?.(v.projectionMode); return }
+    if (p) { applyPreset(v, p.id); return }
+    if (e.key === '0') { onHome?.(); return }
     if (e.key === ']') onExaggeration(1)
     if (e.key === '[') onExaggeration(-1)
-    if (e.key === 'o' || e.key === 'O') {
-      const next: ProjectionMode =
-        v.projectionMode === 'perspective' ? 'orthographic' : 'perspective'
-      v.setProjection(next)
-      onProjection?.(next)
-    }
   })
 }
 
@@ -191,11 +184,9 @@ export function attachViewCube(v: Viewer): ViewCube {
   const home = document.createElement('button')
   home.id = 'viewcube-home'
   home.type = 'button'
-  home.textContent = '⌂'
-  home.title = 'ホーム（起動時の俯瞰に戻る）'
+  home.textContent = '0'
+  home.title = '初期視点に戻る（0）'
   home.addEventListener('click', () => {
-    // 軸方向プリセットで正射に切り替わっていることがある。俯瞰は透視で見る
-    v.setProjection('perspective')
     v.easeTo(home0, 600)
   })
   host.appendChild(home)

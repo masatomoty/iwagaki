@@ -158,6 +158,25 @@ const HEX: Record<string, Record<string, string>> = {
   },
 }
 
+// 配信済みの b3dm は codelist が無い世代でも、属性値をコードではなく
+// CityGML の日本語表示名で持つことがある。catalog.semantics.codelists が
+// 空でも用途別の色を失わないよう、標準コードの表示名をフォールバックで
+// 対応させる（数値コードが来る配信物は従来どおり上の HEX で対応する）。
+const LABEL_CODE: Record<string, Record<string, string>> = {
+  'bldg:usage': {
+    '業務施設': '401', '商業施設': '402', '宿泊施設': '403',
+    '商業系複合施設': '404', '住宅': '411', '共同住宅': '412',
+    '店舗等併用住宅': '413', '店舗等併用共同住宅': '414',
+    '作業所併用住宅': '415', '官公庁施設': '421', '文教厚生施設': '422',
+    '運輸倉庫施設': '431', '工場': '441', '農林漁業用施設': '451',
+    '供給処理施設': '452', '防衛施設': '453', 'その他': '454', '不明': '461',
+  },
+  'bldg:class': {
+    '分類しない建物': '3000', '普通建物': '3001', '堅ろう建物': '3002',
+    '普通無壁舎': '3003', '堅ろう無壁舎': '3004',
+  },
+}
+
 export function hexToRgb(hex: string): Rgb {
   const n = parseInt(hex.replace('#', ''), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
@@ -182,6 +201,10 @@ export function createColorScheme(catalog: Catalog, mode: 'class' | 'usage'): Co
   const hexes = HEX[attribute] ?? {}
   const byValue = new Map<string, string>()
   for (const [code, hex] of Object.entries(hexes)) byValue.set(code, hex)
+  for (const [label, code] of Object.entries(LABEL_CODE[attribute] ?? {})) {
+    const hex = hexes[code]
+    if (hex) byValue.set(label, hex)
+  }
   for (const [code, label] of Object.entries(labels)) {
     if (hexes[code]) byValue.set(label, hexes[code])
   }
