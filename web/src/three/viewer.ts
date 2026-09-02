@@ -445,8 +445,10 @@ export class Viewer {
       const dy = e.clientY - lastY
       lastX = e.clientX; lastY = e.clientY
       if (mode === 'rotate') {
+        // 横（bearing）はドラッグと同じ向きに景色が回るよう +dx。ビューキューブの
+        // `onDrag`（`view/map.ts`）と符号を揃える。縦（pitch）は手前に引くと寝る
         this.setCamera({
-          bearing: this.cam.bearing - dx * 0.3,
+          bearing: this.cam.bearing + dx * 0.3,
           pitch: this.cam.pitch - dy * 0.3,
         }, false)
       } else {
