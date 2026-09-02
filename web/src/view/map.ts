@@ -12,6 +12,7 @@ import { BufferAttribute, BufferGeometry, Group, Mesh, MeshBasicMaterial } from 
 import type { Catalog } from '../domain/catalog'
 import { createLocalFrame, lngLatToWorld, type LocalFrame } from '../three/mercator'
 import { Viewer, type ProjectionMode } from '../three/viewer'
+import { easeOutCubic, prefersReducedMotion } from './anim'
 import { ViewCube } from './viewCube'
 
 /**
@@ -245,7 +246,7 @@ export function showSectionLine(
     })
   }
   sectionEnds = [ax, ay, bx, by]
-  redrawRibbons(v, ax, ay, bx, by)
+  startRibbonReveal(v)
 }
 
 const SECTION_LINE = 'section-line'
@@ -255,6 +256,39 @@ let sectionEnds: [number, number, number, number] | null = null
 const RIBBON_PX = [7, 3]
 /** 地形より十分上。depthTest を切っているので見えかたには影響しない */
 const RIBBON_Z = 300
+
+/**
+ * 測線が確定してからリボンを from→to へ伸ばすアニメーション（`docs/todo.md` U4）。
+ *
+ * `redrawRibbons` はカメラが動くたびに `metresPerPixel` から板を作り直しているので、
+ * ここは終点までの進捗 `ribbonReveal`（0〜1）を持つだけでよい。実際の終点の lerp は
+ * `redrawRibbons` 側でやる。こうしておくとアニメ中にカメラの 'move' 再描画が
+ * 走っても、そのフレームの進捗のまま正しく引き直される（喧嘩しない）。
+ */
+const RIBBON_REVEAL_MS = 320
+/** いま描くべき from→to の割合。1 = 全体。'move' 再描画もこれを見る */
+let ribbonReveal = 1
+let ribbonRaf: number | null = null
+
+function startRibbonReveal(v: Viewer): void {
+  if (ribbonRaf !== null) { cancelAnimationFrame(ribbonRaf); ribbonRaf = null }
+  const draw = () => {
+    const e = sectionEnds
+    if (e) redrawRibbons(v, e[0], e[1], e[2], e[3])
+  }
+  // 重い処理（地形サンプリング）は呼び出し側で済んでいる。ここは板を作り直すだけ
+  if (prefersReducedMotion()) { ribbonReveal = 1; draw(); return }
+  ribbonReveal = 0
+  draw()   // 前の測線を残さず、まず起点だけの状態から始める
+  const t0 = performance.now()
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / RIBBON_REVEAL_MS)
+    ribbonReveal = easeOutCubic(k)
+    draw()
+    ribbonRaf = k < 1 ? requestAnimationFrame(tick) : null
+  }
+  ribbonRaf = requestAnimationFrame(tick)
+}
 
 function ribbonGeometry(): BufferGeometry {
   const g = new BufferGeometry()
@@ -268,9 +302,12 @@ function redrawRibbons(
 ): void {
   const g = v.world.getObjectByName(SECTION_LINE) as Group | undefined
   if (!g) return
-  const len = Math.hypot(bx - ax, by - ay) || 1
-  const nx = -(by - ay) / len          // 線に直交する単位ベクトル
-  const ny = (bx - ax) / len
+  // アニメ中は終点を from→to の途中まで lerp する（`startRibbonReveal`）
+  const ex = ax + (bx - ax) * ribbonReveal
+  const ey = ay + (by - ay) * ribbonReveal
+  const len = Math.hypot(ex - ax, ey - ay) || 1
+  const nx = -(ey - ay) / len          // 線に直交する単位ベクトル
+  const ny = (ex - ax) / len
   const mpp = v.metresPerPixel()
   g.children.forEach((child, i) => {
     const half = (RIBBON_PX[i] * mpp) / 2
@@ -278,8 +315,8 @@ function redrawRibbons(
     pos.copyArray(new Float32Array([
       ax + nx * half, ay + ny * half, RIBBON_Z,
       ax - nx * half, ay - ny * half, RIBBON_Z,
-      bx + nx * half, by + ny * half, RIBBON_Z,
-      bx - nx * half, by - ny * half, RIBBON_Z,
+      ex + nx * half, ey + ny * half, RIBBON_Z,
+      ex - nx * half, ey - ny * half, RIBBON_Z,
     ]))
     pos.needsUpdate = true
   })

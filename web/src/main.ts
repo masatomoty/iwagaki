@@ -51,6 +51,7 @@ import {
   updatePointBufferPanel, type PointBufferPanelState,
 } from './ui/pointBufferPanel'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
+import { easeOutCubic, prefersReducedMotion } from './view/anim'
 import {
   createColorScheme, depthLegend, FLOOR_ABOVE_DEPTH_M, legendOf, type ColorScheme,
 } from './view/buildingColor'
@@ -671,14 +672,43 @@ async function boot() {
    */
   let pendingChannelRetry: { basinId: number; seq: number } | undefined
 
-  const redrawSection = () => {
+  const drawSectionNow = (reveal = 1) => {
     if (secSeries.length === 0) return
     // いま選んでいる条件を先頭にする。塗り（連結して浸水する区間）はそれで判定する
     const cur = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
     const ordered = [...secSeries].sort((a, b) =>
       (a.condition === cur ? -1 : 0) - (b.condition === cur ? -1 : 0))
-    drawSection(secCanvas, ordered, store.state.waterLevel, secFit, store.state.floodModel)
+    drawSection(secCanvas, ordered, store.state.waterLevel, secFit, store.state.floodModel, reveal)
   }
+
+  /**
+   * 測線を引いた直後の 1 回だけ、断面を左から立ち上げる（`docs/todo.md` U4）。
+   * 進捗中に別の測線・流域選択・パネル閉じなど（= `sectionSeq` の変化）が来たら
+   * その場で打ち切る。resize / secFit 切替の再描画は `redrawSection()`（即時）を通る
+   * ので、立ち上がりは確定直後だけになる。
+   */
+  const SEC_REVEAL_MS = 340
+  let secRevealRaf: number | null = null
+  const cancelSectionReveal = () => {
+    if (secRevealRaf !== null) { cancelAnimationFrame(secRevealRaf); secRevealRaf = null }
+  }
+  function animateSectionReveal(seq: number) {
+    cancelSectionReveal()
+    if (secSeries.length === 0 || seq !== sectionSeq) return
+    // 地形サンプリングはここまでで完了済み。以降は canvas を描き直すだけ
+    if (prefersReducedMotion()) { drawSectionNow(1); return }
+    drawSectionNow(easeOutCubic(0))   // 「読み込み中…」を残さず、目盛りだけの状態から始める
+    const t0 = performance.now()
+    const tick = () => {
+      if (seq !== sectionSeq || secSeries.length === 0) { secRevealRaf = null; return }
+      const k = Math.min(1, (performance.now() - t0) / SEC_REVEAL_MS)
+      drawSectionNow(easeOutCubic(k))
+      secRevealRaf = k < 1 ? requestAnimationFrame(tick) : null
+    }
+    secRevealRaf = requestAnimationFrame(tick)
+  }
+
+  const redrawSection = () => { cancelSectionReveal(); drawSectionNow(1) }
 
   async function buildSection(from: LonLat, to: LonLat) {
     const seq = ++sectionSeq
@@ -706,7 +736,7 @@ async function boot() {
     const why = catalog.default_section?.from && secLine
       && secLine[0][0] === catalog.default_section.from[0]
       ? `${catalog.default_section.why}。` : ''
-    redrawSection()
+    animateSectionReveal(seq)
   }
 
   /**
@@ -761,7 +791,7 @@ async function boot() {
     }))
     if (seq !== sectionSeq) return   // 待っている間に別の流域が選ばれた
     secSeries = got.filter((x): x is SectionSeries => x !== null)
-    redrawSection()
+    animateSectionReveal(seq)
   }
 
   // 断面は**起動時には出さない**（2026-09 指示）。ユーザーが「測線を引く」を
@@ -851,6 +881,7 @@ async function boot() {
     }
     if (t.id === 'sec-close') {
       sectionSeq++   // 進行中の断面リクエスト（手動・流域とも）があれば無効化する
+      cancelSectionReveal()
       secEl.style.display = 'none'
       document.body.classList.remove('section-open')
       secSeries = []; secLine = null

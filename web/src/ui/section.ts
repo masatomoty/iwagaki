@@ -77,6 +77,12 @@ function niceStep(span: number): number {
 export function drawSection(
   canvas: HTMLCanvasElement, series: SectionSeries[], waterLevel: number,
   fit: 'water' | 'all' = 'water', model: FloodModel = 'simple',
+  /**
+   * 測線を引いた直後の立ち上がり（`docs/todo.md` U4）。0〜1 で、地形ライン・
+   * 浸水塗り・水位線を左から `reveal` の割合だけ見せる。**目盛りと凡例は
+   * 動かさない**（読む足場なので即座に出す）。1 = 通常の即時描画。
+   */
+  reveal = 1,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -130,6 +136,16 @@ export function drawSection(
   ctx.textAlign = 'right'
   ctx.fillText('距離 m', w - PAD.right, h - PAD.bottom + 5)
 
+  // ここから下（塗り・水位線・地形ライン）は測線を引いた直後だけ左から現れる。
+  // 目盛りは上で描き終えているので clip の外側で、立ち上がっても動かない
+  const revealing = reveal < 1
+  if (revealing) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, PAD.left + reveal * (w - PAD.left - PAD.right), h)
+    ctx.clip()
+  }
+
   // 浸水する区間を塗る。**先頭の条件（いま画面に出ているもの）で判定する**
   const main = withData[0]
   ctx.fillStyle = 'rgba(56,132,222,.30)'
@@ -182,6 +198,8 @@ export function drawSection(
     }
     ctx.stroke()
   }
+
+  if (revealing) ctx.restore()
 
   // 凡例
   ctx.font = FONT.axis
