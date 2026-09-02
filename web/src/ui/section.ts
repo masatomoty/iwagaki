@@ -98,10 +98,28 @@ export function drawSection(
 
   const withData = series.filter((s) => s.points.some((p) => Number.isFinite(p.elev)))
   if (withData.length === 0) {
+    // 測線が丸ごと水域（航空レーザは水面から反射が返らない）か、タイル範囲の外。
+    // 空の canvas を出すのではなく、水位線と理由を描く（`docs/web_design.md`
+    // 「海が一枚も描かれていなかった」と同じ扱い）。陸側から引き直せば断面は出る。
+    const anyWet = series.some((s) => s.points.some((p) => p.hConn <= waterLevel))
+    const yW = h * 0.5
+    ctx.strokeStyle = 'rgba(96,165,250,.9)'
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([5, 4])
+    ctx.beginPath(); ctx.moveTo(PAD.left, yW); ctx.lineTo(w - PAD.right, yW); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = 'rgba(96,165,250,.95)'
+    ctx.font = FONT.legend
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
+    ctx.fillText(`H = ${waterLevel.toFixed(2)} m T.P.`, PAD.left + 4, yW - 3)
     ctx.fillStyle = 'rgba(226,232,240,.6)'
     ctx.font = FONT.axis
-    ctx.textAlign = 'center'
-    ctx.fillText('この測線には地形データがありません', w / 2, h / 2)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+    ctx.fillText(
+      anyWet ? '水域 — 水面から下の地形データはありません（陸側から引き直してください）'
+             : 'この測線には地形データがありません（タイル範囲の外）',
+      w / 2, yW + 10,
+    )
     return
   }
 
