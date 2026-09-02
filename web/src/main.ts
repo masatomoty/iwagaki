@@ -197,9 +197,8 @@ async function boot() {
   placeInspector()
   window.addEventListener('resize', placeInspector)
 
-  // 出典。**必ず出す。** MapLibre の AttributionControl が担っていた分で、
-  // PLATEAU / 京都府 DEM / 気象庁はいずれも表示を求めている
-  document.getElementById('attrib')!.textContent = catalog.attribution.join(' / ')
+  // 出典はトップバー右端の「出典」に畳んで置く（`ui/controls.ts::topbarHtml`）。
+  // ラベルは常に見え、ホバー／フォーカスで全文に到達できる
 
   // ---- 地形 -------------------------------------------------------------
   const extent = catalog.aoi.bbox_wgs84

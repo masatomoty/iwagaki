@@ -57,7 +57,6 @@ export function tidePlaybackHtml(curves: TideSeries[], selected: string): string
         `<button data-s="${s}" type="button" aria-pressed="${i === 1}">×${s}</button>`).join('')}</div>
       <select id="pcurve" aria-label="潮位曲線">${options(curves, selected)}</select>
       <div id="pstats" class="livecounts">—</div>
-      <div class="sub"><b>各時刻を静水位で解いた掃引</b>。時間発展・流量・波は解いていない</div>
     </div>`
 }
 
@@ -196,5 +195,4 @@ export function updateTidePlayback(
   // viewer の地図配色は connected 既定なので、食い違いを明示して残す
   out.innerHTML = `床下 <b>${stats.under}</b> 棟 / 床上 <b>${stats.above}</b> 棟`
     + ` / 規制対象道路 <b>${stats.regulatedRoads}</b> 本`
-    + '<span class="sub">棟数・規制は単純モデルで評価</span>'
 }

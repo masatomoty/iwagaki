@@ -33,11 +33,8 @@ import {
 import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
          type PlaybackStats } from './tidePlayback'
 
-/** `[` `]` キーが回る段。**キーは 5 段すべて**、メニューは 3 段だけ出す */
+/** `[` `]` キーが回る段。UI には出さない（`__iwagaki` かキー操作のみ） */
 export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
-
-/** メニューに出す段。×2 と ×10 を押し分ける判断が発生しないので落とした */
-const MENU_EXAGGERATIONS = [1, 5, 20] as const
 
 /**
  * 建物の塗り分けでメニューに出すもの。`class`（普通建物・堅ろう建物）は
@@ -223,6 +220,28 @@ function walkIsochroneLegend(info: WalkIsochroneInfo | null): string {
     + `<div class="sub">${info.notOfficialNote}</div>`
 }
 
+/**
+ * 道路の凡例。**塗り分けモードで変わる**（`three/semanticsMesh.ts` の
+ * ROAD_PLAIN / ROAD_WET と同じ色）。地形の色が浸水深でも地盤高でも水みちでも、
+ * 道路レイヤが出ていれば同じ形で添える（以前は地盤高・浸水系にしか無かった）。
+ */
+function roadsLegend(s: Store['state']): string {
+  if (!s.layers.roads) return ''
+  if (s.roadColor === 'trafficability') {
+    return '<div><i style="background:#ffe699"></i>道路 &nbsp;'
+      + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
+        .map((h) => `<i style="background:${h}"></i>`).join('')
+      + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
+  }
+  if (s.roadColor === 'regulation') {
+    return '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
+      + '<i style="background:#995cd6"></i>通行規制検討 &nbsp;'
+      + '<i style="background:#5b2a86"></i>通行止め相当</div>'
+      + '<div class="sub">単純モデル（潮位−地盤高）で判定。安全側に広く出す</div>'
+  }
+  return '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>'
+}
+
 function legendHtml(
   s: Store['state'], buildingLegend: LegendEntry[], walkIsochroneInfo: WalkIsochroneInfo | null,
 ): string {
@@ -240,15 +259,7 @@ function legendHtml(
       '<div><i style="background:#ffffff"></i>いまの潮位の等高線'
       + `<span class="sub"> ${s.waterLevel.toFixed(2)} m T.P.</span></div>`)
     // 浸水を読む画面ではないので、以降の浸水系の行は足さずに返す
-    if (s.layers.roads) {
-      rows.push(s.roadColor === 'trafficability'
-        ? '<div><i style="background:#ffe699"></i>道路<span class="sub"> 通行支障</span></div>'
-        : s.roadColor === 'regulation'
-          ? '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
-            + '<i style="background:#995cd6"></i>規制検討 &nbsp;'
-            + '<i style="background:#5b2a86"></i>通行止め</div>'
-        : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
-    }
+    rows.push(roadsLegend(s))
     return `<div class="legend">${rows.join('')}</div>`
   }
 
@@ -256,19 +267,15 @@ function legendHtml(
   if (s.terrainPaint === 'catchment') {
     rows.push('<div><i style="width:36px;background:'
       + 'linear-gradient(90deg,#d9dbd1,#61b0bd 40%,#174a87 75%,#081538)'
-      + '"></i>地表流の集中<span class="sub"> 少ない 〜 多い（集水セル数の log）</span></div>',
-      '<div><i style="background:#70bfcc"></i>窪地'
-      + '<span class="sub"> 海に通じない・充填深で濃くなる</span></div>')
+      + '"></i>地表流の集中</div>',
+      '<div><i style="background:#70bfcc"></i>窪地</div>')
     if (s.layers.pourPoints && s.catalog.flow?.pits) {
-      rows.push('<div><i style="background:#70bfcc"></i>▽ 越流点'
-        + '<span class="sub"> 窪地から水が溢れ出す鞍部（面積上位のみ）</span></div>')
+      rows.push('<div><i style="background:#70bfcc"></i>▽ 越流点</div>')
     }
     if (s.catalog.flow?.basins) {
-      rows.push('<div><i style="background:#5ab7c9"></i>集水域'
-        + '<span class="sub"> 地図をクリックした地点の上流</span></div>')
+      rows.push('<div><i style="background:#5ab7c9"></i>集水域</div>')
     }
-    rows.push('<div class="sub">一様降雨・地形のみ。浸透・管路・実際の降雨分布は'
-      + '含まない。潮位判定には混ぜていない（FARR 取り込み）</div>')
+    rows.push(roadsLegend(s))
     return `<div class="legend">${rows.join('')}</div>`
   }
 
@@ -298,15 +305,15 @@ function legendHtml(
         `<div><i style="background:#2a5794"></i>どちらも浸水</div>`)
     }
   } else {
-    rows.push('<div><i style="background:#6bccf2"></i>浅い &nbsp;'
-      + '<i style="background:#0d2985"></i>深い（0〜3 m）</div>')
+    rows.push(
+      '<div><i style="background:#6bccf2"></i>浅い</div>',
+      '<div><i style="background:#0d2985"></i>深い<span class="sub"> 0〜3 m</span></div>')
   }
   // **水深が分からない水域は別に出す。** 航空レーザは水面から反射が返らないので
   // 港と湾は 0.5m DEM では nodata である。水面は張れる（連結しているかは
   // h_conn が知っている）が、深さは知らない。ランプの色で塗ると嘘になる
   if (s.layers.waterSurface) {
-    rows.push('<div><i style="background:#174c8c"></i>水深不明の水域'
-      + '<span class="sub"> 航空レーザが水面を計測しない</span></div>')
+    rows.push('<div><i style="background:#174c8c"></i>水深不明の水域</div>')
   }
   // **窪地は浸水域と並べない。** 根拠が違う（浸水 = 海から連結して到達する /
   // 窪地 = 標高が潮位以下なだけ）ので、色も斜線にして 1 段弱く出している。
@@ -315,34 +322,17 @@ function legendHtml(
   if (s.layers.ponded && s.floodModel === 'connected'
       && !isDiff(s.surface) && !isAssumption(s.surface)) {
     rows.push('<div><i style="background:'
-      + 'repeating-linear-gradient(135deg,#70bfcc 0 2px,#4c6068 2px 5px)"></i>'
-      + '窪地<span class="sub"> 標高は潮位より低いが海とつながらない</span></div>')
+      + 'repeating-linear-gradient(135deg,#70bfcc 0 2px,#4c6068 2px 5px)"></i>窪地</div>')
   }
   // 越流点マーカー。潮位非依存の別レイヤなので、どの塗りモードでも出る
   if (s.layers.pourPoints && s.catalog.flow?.pits) {
-    rows.push('<div><i style="background:#70bfcc"></i>▽ 窪地の越流点'
-      + '<span class="sub"> DEM だけで決まる鞍部。潮位非依存</span></div>')
+    rows.push('<div><i style="background:#70bfcc"></i>▽ 窪地の越流点</div>')
   }
   // 判定が変わる地物は、比較のペアが決まっているときだけ出る
   if (pair.from !== pair.to) {
-    rows.push(`<div><i style="background:#f24434"></i>判定が変わる地物`
-      + `<span class="sub"> ${label[pair.from]} → ${label[pair.to]}</span></div>`)
+    rows.push(`<div><i style="background:#f24434"></i>判定が変わる地物</div>`)
   }
-  // 道路。**塗り分けのモードで凡例が変わる**
-  // （`three/semanticsMesh.ts` の ROAD_PLAIN / ROAD_WET と同じ色）
-  if (s.layers.roads) {
-    rows.push(s.roadColor === 'trafficability'
-      ? '<div><i style="background:#ffe699"></i>道路 &nbsp;'
-        + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
-          .map((h) => `<i style="background:${h}"></i>`).join('')
-        + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
-      : s.roadColor === 'regulation'
-        ? '<div><i style="background:#c9a3e0"></i>徐行 &nbsp;'
-          + '<i style="background:#995cd6"></i>通行規制検討 &nbsp;'
-          + '<i style="background:#5b2a86"></i>通行止め相当</div>'
-          + '<div class="sub">単純モデル（潮位−地盤高）で判定。安全側に広く出す</div>'
-      : '<div><i style="background:#f0f5fa"></i>道路（PLATEAU）</div>')
-  }
+  rows.push(roadsLegend(s))
   // 線路。**catalog に無い範囲（吉原 100 ha）では出さない**
   if (s.layers.railway && s.catalog.railway) {
     // 濃灰の縁 ＋ 濃灰/生成りの刻み（`three/railwayLine.ts` と同じ濃さ）
@@ -366,12 +356,12 @@ function legendHtml(
 function buildingLegendHtml(s: Store['state'], entries: LegendEntry[]): string {
   if (s.buildingColor === 'none' || s.exaggeration > 1
       || !s.layers.plateau || entries.length === 0) return ''
-  // 浸水深モードは**属性ではなく潮位から決まる**ので、閾値を凡例に添える。
-  // PLATEAU LOD1 は床高を持たないため「地盤から 50 cm」の意味であることも書く
+  // 浸水深モードは**属性ではなく潮位から決まる**（床上 = 地盤面から 0.50 m 以上、
+  // PLATEAU LOD1 は床高を持たないので「地盤から」の意味）。詳細は docs 側に置く
   if (s.buildingColor === 'depth') {
     return `<div class="legend">${entries.map((e) =>
       `<div><i style="background:${e.hex}"></i>${e.label}<span class="sub"> ${e.count} 棟</span></div>`)
-      .join('')}<div class="sub">床上 = 地盤面から 0.50 m 以上（床高は考慮しない）</div></div>`
+      .join('')}</div>`
   }
   const top = entries.slice(0, 4)
   const rest = entries.length - top.length
@@ -429,8 +419,6 @@ function areaFloodHtml(rows: AreaFloodRow[]): string {
   return `<table class="areatab"><thead>${head}</thead><tbody>${body}${rest}${out}`
     + `<tr class="at"><td>合計</td>${cells(sum.flooded, sum.above, sum.under)}</tr>`
     + '</tbody></table>'
-    + '<div class="sub">現在の水位・モデルでその場で集計（サーバ往復なし）。'
-    + '合計は上の全体棟数と一致</div>'
 }
 
 /** 決め方の一行説明。 */
@@ -442,95 +430,27 @@ function floodModelNote(m: FloodModel): string {
 }
 
 /**
- * いま何を見ているか。1 行だけ。
- * データの由来（`CONDITIONS[].hint`）は画面に出さない。select の title に残す。
+ * 参照潮位のキーに添える通称。生のキー（MSL 等）だけだと庁内で伝わらないため。
+ * 無いキーはそのまま出す。
  */
-function nowLine(s: Store['state']): string {
-  const cond = surfaceCondition(s.surface)
-  const c = CONDITIONS.find((x) => x.id === cond)!
-  const pair = comparisonPair(s.surface)
-  const label = (id: TerrainCondition) => CONDITIONS.find((x) => x.id === id)!.label
-  if (s.terrainPaint === 'elevation') {
-    return `<b>${c.label} の地盤高</b> <span class="sub">白線 = 潮位</span>`
-      + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
-  }
-  if (s.terrainPaint === 'catchment') {
-    return `<b>${c.label} の水みち</b>`
-      + '<span class="sub">一様降雨・地形のみ。潮位は使わない</span>'
-  }
-  if (isAssumption(s.surface)) {
-    return '<b>浸水と言うのに要る仮定の段階</b>'
-      + '<span class="sub">連結 ⊆ 仮想排水 ⊆ 潮位以下</span>'
-      + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
-  }
-  if (s.surface === 'diff_drainage') {
-    return '<b>地表連結モデルと仮想排水モデルの判定差</b>'
-      + '<span class="sub">地形タイルのみ。地物判定は未配信</span>'
-      + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
-  }
-  const head = isDiff(s.surface)
-    ? `${label(pair.from)} と ${label(pair.to)} の判定差`
-    : `${c.label} の浸水`
-  // **単純モデルであることを常に画面に出す。** 何を計算しているのかは
-  // 凡例の色では分からず、ここでしか読めない
-  const how = s.floodModel === 'simple' ? '潮位 − 地盤高' : '海から連結'
-  return `<b>${head}</b> <span class="sub">${how}</span>`
-    + ` @ H = ${s.waterLevel.toFixed(2)} m T.P.`
+const REF_ALIAS: Record<string, string> = {
+  MSL: '普段（平均海面）',
+  '高潮想定の基準潮位': '高潮想定',
+  '既往最高潮位': '既往最高',
 }
 
 /**
- * 頭に出す参照潮位。**既定は「普段」（平均水面）**なので、上げたあと戻れるように
- * それも 1 つ置く。6 件全部と出典は「このデータについて」に置く。
- */
-const CHIPS: { key: string; label: string }[] = [
-  { key: 'MSL', label: '普段' },
-  { key: '高潮想定の基準潮位', label: '高潮想定' },
-  { key: '既往最高潮位', label: '既往最高' },
-]
-
-/** 将来海面上昇の仮置き [m]。IPCC 等の特定シナリオ值ではない */
-const SLR_PRESETS_M = [0.3, 0.6, 1.0]
-
-/**
- * 海面上昇は **高潮想定の基準潮位に足す**。いま開いている H に足すと、
- * チップを押す順序で意味が変わってしまう。京都府の想定は
- * 朔望平均満潮位＋異常潮位を起点に高潮偏差を足しているので、
- * **その起点が自然**である（`docs/data.md` §4）。
- */
-function slrChips(refs: [string, number][]): [string, number, string][] {
-  const base = refs.find(([key]) => key === '高潮想定の基準潮位')
-  if (!base) return []
-  return SLR_PRESETS_M.map((d) =>
-    [`海面上昇 +${d} m`, base[1] + d, `+${d}`] as [string, number, string])
-}
-
-function pickChips(refs: [string, number][]): [string, number, string][] {
-  const out: [string, number, string][] = []
-  for (const c of CHIPS) {
-    const hit = refs.find(([n]) => n === c.key)
-    if (hit) out.push([hit[0], hit[1], c.label])
-  }
-  // 名前が違う配信物でも黙って空にはしない。低い方と高い方を出す
-  if (out.length === 0 && refs.length >= 2) {
-    return [[refs[0][0], refs[0][1], refs[0][0]],
-            [refs[refs.length - 1][0], refs[refs.length - 1][1], refs[refs.length - 1][0]]]
-  }
-  // **海面上昇は想定起点に足す。** 単なる H オフセットとしても使える
-  return [...out, ...slrChips(refs)]
-}
-
-/**
- * 参照潮位の一覧。押すと水位が動く。
- * 頭のチップに出す 3 つ（普段・高潮想定・既往最高）以外もここから選べる。
+ * 参照潮位の一覧。押すと水位がその値に飛ぶ。**旧「チップ」（普段・高潮想定・
+ * 既往最高）と内容が被っていたのでここに一本化した**（2026-09）。
+ * 配信物の `reference_levels_m_tp` を低い順に全部。
  *
- * 出典と既知の限界の文章はここに置いていた。**画面には出さない**
- * （`README.md` と `docs/results.md` が持っている）。出典表記だけは
- * ライセンス上の要求なので画面下辺（`#attrib`）に常時出る。
+ * 出典と既知の限界の文章は画面に出さない（`README.md` / `docs/results.md`）。
+ * 出典表記はトップバー右端の「出典」（`topbarHtml`）に畳んである。
  */
-function refListHtml(refs: [string, number][]): string {
+function tideRefListHtml(refs: [string, number][]): string {
   return `<div class="reflist" id="refs">${refs.map(([k, v]) =>
-    `<button data-h="${v}" type="button" title="T.P. ${v.toFixed(3)} m"
-    >${k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
+    `<button data-h="${v}" type="button" title="${k} — T.P. ${v.toFixed(3)} m"
+    >${REF_ALIAS[k] ?? k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
 }
 
 /**
@@ -551,14 +471,63 @@ export interface AreaChoice {
   current: Area
 }
 
-function areaHtml(a: AreaChoice | undefined): string {
-  if (!a || a.index.areas.length < 2) return ''
-  return `
-      <p class="grouplabel">対象範囲</p>
-      <select id="area" aria-label="対象範囲">${a.index.areas.map((x) =>
-        `<option value="${x.id}" ${x.id === a.current.id ? 'selected' : ''}
-                 title="${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}"
-        >${x.label}</option>`).join('')}</select>`
+/**
+ * 画面上部の細い帯（`#topbar`）。見出しと「何の上の何を見ているか」の 2 択＝
+ * 対象範囲と地形データだけを置く。サイドバー（`#controls`）の外にあるので、
+ * どのタブを開いていても、サイドバーをスクロールしても常に見える（2026-09）。
+ * 1 範囲だけの配信物では対象範囲は消え、地形データだけが残る。
+ */
+function topbarHtml(
+  a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
+): string {
+  const areaSel = a && a.index.areas.length >= 2
+    ? `<label class="tbsel">対象範囲<select id="area" aria-label="対象範囲">${
+        a.index.areas.map((x) =>
+          `<option value="${x.id}" ${x.id === a.current.id ? 'selected' : ''}
+                   title="${x.areaHa} ha${x.hasPointcloud ? '・地上点群あり' : '・0.5m DEM のみ'}"
+          >${x.label}</option>`).join('')}</select></label>`
+    : ''
+  const condSel = `<label class="tbsel">地形データ<select id="cond" aria-label="地形データ">${
+    conditionsOf(catalog).map((c) =>
+      `<option value="${c.id}" title="${c.hint}"
+               ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
+  // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
+  // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
+  // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）
+  const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">出典`
+    + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${src}`
+}
+
+/**
+ * `#topbar` は `#controls` とは別の DOM。初回に組み、以後は select の値だけ同期。
+ * 対象範囲・地形データの change はここで拾う（`#controls` の外に出たため）。
+ */
+function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined) {
+  const topbar = document.getElementById('topbar')
+  if (!topbar) return
+  const cond = surfaceCondition(store.state.surface)
+  if (topbar.dataset.built === '1') {
+    const sel = topbar.querySelector<HTMLSelectElement>('#cond')
+    if (sel && sel.value !== cond) sel.value = cond
+    const ar = topbar.querySelector<HTMLSelectElement>('#area')
+    if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
+    return
+  }
+  topbar.innerHTML = topbarHtml(area, catalog, cond)
+  topbar.dataset.built = '1'
+  topbar.querySelector('#area')?.addEventListener('change', (e) => {
+    // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す
+    const u = new URL(location.href)
+    u.searchParams.set('area', (e.target as HTMLSelectElement).value)
+    location.href = u.toString()
+  })
+  topbar.querySelector('#cond')!.addEventListener('change', (e) => {
+    const c = (e.target as HTMLSelectElement).value as TerrainCondition
+    // 判定差を見ていたら、条件を替えてもその条件の判定差に移る（見方を保つ）
+    const next = isDiff(store.state.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
+    store.set({ surface: next })
+  })
 }
 
 export function renderControls(
@@ -572,6 +541,8 @@ export function renderControls(
   const s = store.state
   const cond = surfaceCondition(s.surface)
 
+  syncTopbar(store, catalog, area)
+
   if (el.dataset.built === '1') {
     const v = el.querySelector<HTMLElement>('#wlv')
     if (v) v.textContent = `${s.waterLevel.toFixed(2)} m`
@@ -579,10 +550,6 @@ export function renderControls(
     if (range && document.activeElement !== range && range.value !== String(s.waterLevel)) {
       range.value = String(s.waterLevel)
     }
-    const sel = el.querySelector<HTMLSelectElement>('#cond')
-    if (sel && sel.value !== cond) sel.value = cond
-    const ar = el.querySelector<HTMLSelectElement>('#area')
-    if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
     // 判定差は差分タイルがある条件だけ。無い条件では押せないことがそのまま出る
     const diffBtn = el.querySelector<HTMLButtonElement>('#diffbtn')
     if (diffBtn) {
@@ -615,8 +582,6 @@ export function renderControls(
     const pond = el.querySelector<HTMLInputElement>('input[data-l="ponded"]')
     const pondRow = pond?.closest('label') as HTMLElement | null
     if (pondRow) pondRow.hidden = s.floodModel !== 'connected'
-    const nl = el.querySelector<HTMLElement>('#nowline')
-    if (nl) nl.innerHTML = nowLine(s)
     const lg = el.querySelector<HTMLElement>('#legend')
     if (lg) lg.innerHTML = legendHtml(s, buildingLegend, walkIsochroneInfo)
     // 地域別の浸水建物。水位・モデル・地形条件の変更にその場で追従する
@@ -656,154 +621,141 @@ export function renderControls(
     const blg = el.querySelector<HTMLElement>('#bldglegend')
     if (blg) blg.innerHTML = buildingLegendHtml(s, buildingLegend)
     if (tideCurves.length && !el.querySelector('#playback')) {
-      el.querySelector('#legend')?.insertAdjacentHTML('beforebegin',
+      el.querySelector('#playbackslot')?.insertAdjacentHTML('beforeend',
         tidePlaybackHtml(tideCurves,
           catalog.water_level.tide_series?.default ?? tideCurves[0].id))
       mountTidePlayback(el, tideCurves,
         catalog.water_level.tide_series?.default ?? tideCurves[0].id, store)
     }
     updateTidePlayback(el, playbackStats)
-    for (const b of el.querySelectorAll<HTMLButtonElement>('#exag button')) {
-      b.setAttribute('aria-pressed', String(Number(b.dataset.x) === s.exaggeration))
-    }
     return
   }
 
   const wl = catalog.water_level
   const refs = Object.entries(wl.reference_levels_m_tp).sort((a, b) => a[1] - b[1])
-  const chips = pickChips(refs)
 
   el.innerHTML = `
-    <!-- 固定の頭。ここがこのアプリの入力で、スクロールで消えてはいけない -->
-    <div class="head">
-      <h1>舞鶴 高潮浸水</h1>
-      ${areaHtml(area)}
-
-      <p class="grouplabel" style="margin-top:11px">シミュレーション条件</p>
-      <div class="seg models" id="fmodel">${FLOOD_MODELS
-        .filter((m) => m.id !== 'drainage' || !!catalog.terrain.diff_drainage)
-        .map((m) =>
-        `<button data-f="${m.id}" type="button" title="${m.hint}"
-                 aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
-      <div class="whyoff" id="fmodel-note">${floodModelNote(s.floodModel)}</div>
-
-      <p class="grouplabel" style="margin-top:11px">地形データ</p>
-      <div class="condrow">
-        <select id="cond" aria-label="地形データ">${conditionsOf(catalog).map((c) =>
-          `<option value="${c.id}" title="${c.hint}"
-                   ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select>
-      </div>
-
-      <p class="grouplabel" style="margin-top:11px">潮位</p>
-      <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
-      <div class="wlrow">
-        <button class="stepbtn" id="wl-down" type="button"
-                aria-label="潮位を ${wl.step} m 下げる">−</button>
-        <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}"
-               value="${s.waterLevel}" aria-label="潮位（m T.P.）" />
-        <button class="stepbtn" id="wl-up" type="button"
-                aria-label="潮位を ${wl.step} m 上げる">＋</button>
-      </div>
-      <div class="tickbar">${refs.map(([k, v]) =>
-        `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${v.toFixed(3)} m"></i>`).join('')}</div>
-      <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
-      <div class="chips" id="chips">${chips.map(([k, v, label]) =>
-        `<button data-h="${v}" type="button" title="${k} — T.P. ${v.toFixed(3)} m"
-        >${label}<b>${v.toFixed(2)}</b></button>`).join('')}</div>
-
-      <div class="nowline" id="nowline">${nowLine(s)}</div>
-    </div>
-
-    <!-- 本体（スクロール）。潮位再生と凡例は「いま何が見えているか」の説明であって
-         入力ではないので、頭から外してここに置く（頭が肥大化して他の操作が
-         スクロールの奥に埋もれていたため。2026-09） -->
-    <div class="body">
-      ${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}
-      <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
-
-      <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
-        <p class="subhead" style="margin-top:0">地域別の浸水建物</p>
-        <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
-      </div>
-
-      <p class="subhead">比較表示</p>
-      <div class="compare-row">
-        <button id="diffbtn" type="button" aria-pressed="${isDiff(s.surface) && s.surface !== 'diff_drainage'}"
-                ${DIFF_OF[cond] ? '' : 'disabled'} title="地形データ同士の判定差">地形条件の判定差</button>
-        <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
-                ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
-        <button id="assumbtn" type="button" aria-pressed="${s.surface === 'assumption'}"
-                ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                title="その土地が浸かると言うのに、どこまで仮定を置いているか。配信物は増えない"
-        >仮定の段階</button>
-      </div>
-
-      <p class="subhead">表示方法</p>
-      <p class="grouplabel">地形の色</p>
-      <div class="seg" id="tpaint">${TERRAIN_PAINTS.map((m) =>
+    <!-- 地形の色（浸水深／地盤高／水みち）は「今どの面を見ているか」そのもの。
+         凡例の意味を決めるので、タブの外・サイドバー最上部に常時置く（2026-09）。
+         見出しは付けない（3 ボタンで自明）。旧 nowline（現況サマリ文）は廃止 -->
+    <div class="seg" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
         `<button data-p="${m.id}" type="button" title="${m.hint}"
                  aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
-      <div class="whyoff">「地盤高」「水みち」は潮位を使わず、地形だけを表示</div>
+    <div id="legend">${legendHtml(s, buildingLegend, walkIsochroneInfo)}</div>
 
-      <p class="subhead">絞り込む</p>
-      <label class="row"><input type="checkbox" id="cb-changed"
-        ${s.layers.changedOnly ? 'checked' : ''}/>判定が変わる地物のみ</label>
-
-      <p class="subhead">重ねる</p>
-      ${layersOf(catalog).map((l) =>
-        `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
-          ${l.key === 'ponded' && s.floodModel !== 'connected' ? 'hidden' : ''}
-          ><input type="checkbox" data-l="${l.key}"
-          ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
-      <div class="nested" id="rcolwrap" ${s.layers.roads ? '' : 'hidden'}>
-        <p class="grouplabel">道路の色</p>
-        <select id="rcol" aria-label="道路の色">${MENU_ROAD_COLORS.map((m) =>
-          `<option value="${m.id}" ${s.roadColor === m.id ? 'selected' : ''}
-          >${m.label}</option>`).join('')}</select>
-      </div>
-      ${(catalog.walk_isochrones?.length ?? 0) > 1 ? `
-      <div class="nested" id="wiwrap" ${s.layers.walkIsochrone ? '' : 'hidden'}>
-        <p class="grouplabel">徒歩圏の起点</p>
-        <select id="wisel" aria-label="徒歩圏の起点">${catalog.walk_isochrones!.map((w, i) =>
-          `<option value="${i}" ${(s.walkIsochroneIndex ?? 0) === i ? 'selected' : ''}
-          >${w.label ?? `${w.minutes} 分（${i}）`}</option>`).join('')}</select>
-      </div>` : ''}
-      <div class="whyoff" id="why-plateau" ${s.exaggeration > 1 ? '' : 'hidden'}
-        >高さを強調している間は隠す（建物は実高のまま）</div>
-      <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
-        <!-- **チェックボックスから select にした。** 塗り分けが 3 通りになり、
-             浸水深（床下・床上）は「用途で塗る」の on/off では表せない。
-             **見出しを付ける。** 無いと「用途」とだけ書かれた裸のドロップダウンに
-             なり、中に浸水深があることが画面から分からない（実際に
-             「床下/床上の色分けが入っていない」と受け取られた。2026-08） -->
-        <p class="grouplabel">建物の色</p>
-        <select id="bcol" aria-label="建物の色">${MENU_BUILDING_COLORS.map((m) =>
-          `<option value="${m.id}" ${s.buildingColor === m.id ? 'selected' : ''}
-          >${m.id === 'none' ? '塗り分けない' : m.label}</option>`).join('')}</select>
-        <div id="bldglegend">${buildingLegendHtml(s, buildingLegend)}</div>
+    <!-- タブは2つ。「基本情報＝重ねる・比較表示・絞り込む・断面（何をどう見るか）」
+         「条件＝シミュレーション条件・潮位・参照潮位・潮位再生・地域別集計
+         （何を動かして数字で調べるか）」。対象範囲と地形データはトップバー、
+         地形の色と凡例はこのすぐ上。断面とキー操作案内は基本情報に吸収し、
+         分析タブは畳んだ。高さを強調は UI から落としキー操作のみ（キー [ ]）。
+         タブの並びはスクロールしても常に見える。中身が長いタブはパネルの中だけが
+         スクロールする -->
+    <div class="tabs" id="ctabs">
+      <div class="tablist" role="tablist">
+        <button class="tab" id="tab-basic" type="button" role="tab"
+                aria-selected="true" aria-controls="panel-basic">基本情報</button>
+        <button class="tab" id="tab-display" type="button" role="tab"
+                aria-selected="false" aria-controls="panel-display" tabindex="-1">条件</button>
       </div>
 
-      <p class="subhead">見方</p>
-      <div class="group">
-          <p class="grouplabel">高さを強調</p>
-          <div class="seg" id="exag">${MENU_EXAGGERATIONS.map((x) =>
-            `<button data-x="${x}" type="button"
-                     aria-pressed="${s.exaggeration === x}">×${x}</button>`).join('')}</div>
-          <div class="keyrow">×2 ×10 <span>キー [ ]</span></div>
+      <div class="tabpanels">
+      <div class="tabpanel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
+        <p class="subhead">重ねる</p>
+        <div class="layergrid">
+        ${layersOf(catalog).map((l) =>
+          `<label class="row"${l.hint ? ` title="${l.hint}"` : ''}
+            ${l.key === 'ponded' && s.floodModel !== 'connected' ? 'hidden' : ''}
+            ><input type="checkbox" data-l="${l.key}"
+            ${s.layers[l.key] ? 'checked' : ''}/>${l.label}</label>`).join('')}
+        </div>
+        <div class="nested" id="rcolwrap" ${s.layers.roads ? '' : 'hidden'}>
+          <p class="grouplabel">道路の色</p>
+          <select id="rcol" aria-label="道路の色">${MENU_ROAD_COLORS.map((m) =>
+            `<option value="${m.id}" ${s.roadColor === m.id ? 'selected' : ''}
+            >${m.label}</option>`).join('')}</select>
+        </div>
+        ${(catalog.walk_isochrones?.length ?? 0) > 1 ? `
+        <div class="nested" id="wiwrap" ${s.layers.walkIsochrone ? '' : 'hidden'}>
+          <p class="grouplabel">徒歩圏の起点</p>
+          <select id="wisel" aria-label="徒歩圏の起点">${catalog.walk_isochrones!.map((w, i) =>
+            `<option value="${i}" ${(s.walkIsochroneIndex ?? 0) === i ? 'selected' : ''}
+            >${w.label ?? `${w.minutes} 分（${i}）`}</option>`).join('')}</select>
+        </div>` : ''}
+        <div class="whyoff" id="why-plateau" ${s.exaggeration > 1 ? '' : 'hidden'}
+          >高さを強調している間は隠す（建物は実高のまま）</div>
+        <div class="nested" id="bcolwrap" ${s.layers.plateau && s.exaggeration === 1 ? '' : 'hidden'}>
+          <!-- **チェックボックスから select にした。** 塗り分けが 3 通りになり、
+               浸水深（床下・床上）は「用途で塗る」の on/off では表せない。
+               **見出しを付ける。** 無いと「用途」とだけ書かれた裸のドロップダウンに
+               なり、中に浸水深があることが画面から分からない（実際に
+               「床下/床上の色分けが入っていない」と受け取られた。2026-08） -->
+          <p class="grouplabel">建物の色</p>
+          <select id="bcol" aria-label="建物の色">${MENU_BUILDING_COLORS.map((m) =>
+            `<option value="${m.id}" ${s.buildingColor === m.id ? 'selected' : ''}
+            >${m.id === 'none' ? '塗り分けない' : m.label}</option>`).join('')}</select>
+          <div id="bldglegend">${buildingLegendHtml(s, buildingLegend)}</div>
+        </div>
 
-          <p class="grouplabel" style="margin-top:11px">断面</p>
-          <button class="btnwide" id="secbtn" type="button"
-                  title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>
+        <p class="subhead">比較表示</p>
+        <div class="compare-row">
+          <button id="diffbtn" type="button" aria-pressed="${isDiff(s.surface) && s.surface !== 'diff_drainage'}"
+                  ${DIFF_OF[cond] ? '' : 'disabled'} title="地形データ同士の判定差">地形条件の判定差</button>
+          <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
+                  ${catalog.terrain.diff_drainage ? '' : 'hidden'}
+                  title="地表連結モデルと仮想排水モデルの判定差">排水モデルの差</button>
+          <button id="assumbtn" type="button" aria-pressed="${s.surface === 'assumption'}"
+                  ${catalog.terrain.diff_drainage ? '' : 'hidden'}
+                  title="その土地が浸かると言うのに、どこまで仮定を置いているか。配信物は増えない"
+          >仮定の段階</button>
+        </div>
 
-          <div class="keyrow" style="margin-top:11px">投影 <span>キー O</span></div>
-          <div class="keyrow">視点 <span>キー 1–6 ・ ビューキューブ</span></div>
-          <div class="keyrow">計測パネル <span>キー P</span></div>
+        <p class="subhead">絞り込む</p>
+        <label class="row"><input type="checkbox" id="cb-changed"
+          ${s.layers.changedOnly ? 'checked' : ''}/>判定が変わる地物のみ</label>
+
+        <p class="subhead">断面</p>
+        <button class="btnwide" id="secbtn" type="button"
+                title="地図を 2 点クリックして測線を引く。Esc で中止">測線を引く</button>
+        <div class="keyrow" style="margin-top:11px">投影 <span>キー O</span></div>
+        <div class="keyrow">視点 <span>キー 1–6 ・ ビューキューブ</span></div>
+        <div class="keyrow">計測パネル <span>キー P</span></div>
       </div>
 
-      <p class="subhead">参照潮位</p>
-      ${refListHtml(refs)}
-    </div>
+      <div class="tabpanel" id="panel-display" role="tabpanel" aria-labelledby="tab-display" hidden>
+        <p class="grouplabel">シミュレーション条件</p>
+        <div class="seg models" id="fmodel">${FLOOD_MODELS
+          .filter((m) => m.id !== 'drainage' || !!catalog.terrain.diff_drainage)
+          .map((m) =>
+          `<button data-f="${m.id}" type="button" title="${m.hint}"
+                   aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
+        <div class="whyoff" id="fmodel-note">${floodModelNote(s.floodModel)}</div>
+
+        <p class="grouplabel">潮位</p>
+        <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
+        <div class="wlrow">
+          <button class="stepbtn" id="wl-down" type="button"
+                  aria-label="潮位を ${wl.step} m 下げる">−</button>
+          <input id="wl" type="range" min="${wl.min}" max="${wl.max}" step="${wl.step}"
+                 value="${s.waterLevel}" aria-label="潮位（m T.P.）" />
+          <button class="stepbtn" id="wl-up" type="button"
+                  aria-label="潮位を ${wl.step} m 上げる">＋</button>
+        </div>
+        <div class="tickbar">${refs.map(([k, v]) =>
+          `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${v.toFixed(3)} m"></i>`).join('')}</div>
+        <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
+
+        <p class="subhead">参照潮位</p>
+        ${tideRefListHtml(refs)}
+
+        <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}</div>
+
+        <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
+          <p class="subhead">地域別の浸水建物</p>
+          <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
+        </div>
+      </div>
+      </div>
+      </div>
   `
   el.dataset.built = '1'
   if (tideCurves.length) {
@@ -812,18 +764,32 @@ export function renderControls(
     updateTidePlayback(el, playbackStats)
   }
 
-  el.querySelector('#area')?.addEventListener('change', (e) => {
-    // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す
-    const u = new URL(location.href)
-    u.searchParams.set('area', (e.target as HTMLSelectElement).value)
-    location.href = u.toString()
+  // タブ切り替え。role=tablist・矢印キーでの移動に対応した最小実装。
+  // パネルの hidden 切り替えだけで中身は再構築しない
+  const tabs = [...el.querySelectorAll<HTMLButtonElement>('.tabs .tab')]
+  const selectTab = (tab: HTMLButtonElement, focus = true) => {
+    for (const t of tabs) {
+      const on = t === tab
+      t.setAttribute('aria-selected', String(on))
+      t.tabIndex = on ? 0 : -1
+      const panel = el.querySelector<HTMLElement>(`#${t.getAttribute('aria-controls')}`)
+      if (panel) panel.hidden = !on
+    }
+    if (focus) tab.focus()
+  }
+  el.querySelector('.tablist')?.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLButtonElement>('.tab')
+    if (t) selectTab(t, false)
   })
-  el.querySelector('#cond')!.addEventListener('change', (e) => {
-    const c = (e.target as HTMLSelectElement).value as TerrainCondition
-    // 判定差を見ていたら、条件を替えてもその条件の判定差に移る（見方を保つ）
-    const next = isDiff(store.state.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
-    store.set({ surface: next })
+  el.querySelector('.tablist')?.addEventListener('keydown', (e) => {
+    const key = (e as KeyboardEvent).key
+    if (key !== 'ArrowRight' && key !== 'ArrowLeft') return
+    e.preventDefault()
+    const i = tabs.indexOf(document.activeElement as HTMLButtonElement)
+    if (i === -1) return
+    selectTab(tabs[(i + (key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length])
   })
+
   el.querySelector('#diffbtn')!.addEventListener('click', () => {
     const c = surfaceCondition(store.state.surface)
     store.set({ surface: isDiff(store.state.surface) ? c : (DIFF_OF[c] ?? c) })
@@ -835,12 +801,10 @@ export function renderControls(
     // 3 段はすべて diff_drainage タイルに入っている（domain/terrain.ts）
     if (catalog.terrain.diff_drainage) store.set({ surface: 'assumption' })
   })
-  for (const id of ['#chips', '#refs']) {
-    el.querySelector(id)!.addEventListener('click', (e) => {
-      const b = (e.target as HTMLElement).closest('button')
-      if (b) store.set({ waterLevel: Number(b.dataset.h) })
-    })
-  }
+  el.querySelector('#refs')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button')
+    if (b) store.set({ waterLevel: Number(b.dataset.h) })
+  })
   el.querySelector('#tpaint')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ terrainPaint: b.dataset.p as TerrainPaint })
@@ -848,10 +812,6 @@ export function renderControls(
   el.querySelector('#fmodel')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ floodModel: b.dataset.f as FloodModel })
-  })
-  el.querySelector('#exag')!.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest('button')
-    if (b) store.set({ exaggeration: Number(b.dataset.x) })
   })
   const range = el.querySelector<HTMLInputElement>('#wl')!
   range.addEventListener('input', () => {
