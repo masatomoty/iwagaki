@@ -433,7 +433,9 @@ export class Viewer {
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.dragEnabled) return
       canvas.setPointerCapture(e.pointerId)
-      mode = e.button === 2 || e.shiftKey ? 'rotate' : 'pan'
+      // 素のドラッグは回転（地形を横から覗く操作が主で、パンは二次的）。
+      // パンは右ドラッグか Shift＋ドラッグ。ズームはホイール／ピンチ。
+      mode = e.button === 2 || e.shiftKey ? 'pan' : 'rotate'
       lastX = e.clientX; lastY = e.clientY
       this.emit('movestart')
     })
