@@ -30,6 +30,13 @@
     font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
   #topbar .tbsel select { width: auto; flex: 0 1 auto; min-width: 90px;
     padding: 5px 26px 5px 9px; font-size: 12.5px; }
+  /* いま解いている潮位（`#tb-wl-v` を controls.ts が書き換える）。地形データの
+     右、キー操作案内の左。主変数なので値だけ 1 段大きく明るく出す */
+  #topbar .tb-wl { flex: 0 0 auto; font-size: 11px; color: var(--muted);
+    letter-spacing: .04em; white-space: nowrap; cursor: help; }
+  #topbar .tb-wl b { margin: 0 2px; font-size: 13.5px; color: var(--fg);
+    letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  #topbar .tb-wl-u { font-size: 10px; }
   /* 右端はキー操作案内 ＋ 縦線 ＋ 出典。キー案内が余白を吸って右へ寄せる */
   #topbar .tb-keys { margin-left: auto; flex: 0 0 auto; font-size: 11px;
     color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
@@ -358,7 +365,7 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
     padding: 22px 28px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
   #startup-modal h2 { margin: 0 0 7px; font-size: 20px; }
-  #startup-modal .intro-lead { margin: 0; font-size: 14px; line-height: 1.7;
+  #startup-modal .intro-lead { margin: 0 0 16px; font-size: 14px; line-height: 1.7;
     color: var(--fg); }
   #startup-modal .intro-cols { display: grid; grid-template-columns: 1.4fr 1fr;
     gap: 2px 44px; align-items: start; }
