@@ -21,6 +21,12 @@ export interface SectionToolOptions {
   onLine: (from: LonLat, to: LonLat) => void
   /** 作図中の状態が変わった（UI のボタン表示用） */
   onState: (s: { active: boolean; hasFirst: boolean }) => void
+  /**
+   * 仮の測線（`docs/todo.md` U4: 「1 点目を設定するところから」）。1 点目を置いた
+   * 瞬間に `(from, null)`、カーソルが動くたびに `(from, cursor)`、2 点目確定・
+   * Esc・停止で `(null, null)`。地図側は `null` で仮の測線を消す。
+   */
+  onPreview?: (from: LonLat | null, to: LonLat | null) => void
 }
 
 /** クリックとドラッグを分ける閾値 [px]。回転操作で測線を引いてしまわないため */
@@ -50,10 +56,18 @@ export class SectionTool {
       if (!this.first) {
         this.first = p
         this.o.onState({ active: true, hasFirst: true })
+        this.o.onPreview?.(p, null)
         return
       }
-      this.o.onLine(this.first, p)
-      this.stop()
+      this.o.onLine(this.first, p)   // この中で確定リボンが描かれる
+      this.stop()                    // stop() が仮の測線を消す
+    })
+    // 1 点目を置いたあと、カーソルに追従する仮の測線を出す
+    canvas.addEventListener('pointermove', (e) => {
+      if (!this.active || !this.first) return
+      const r = canvas.getBoundingClientRect()
+      const p = o.viewer.unproject(e.clientX - r.left, e.clientY - r.top, o.planeZ ?? 0)
+      if (p) this.o.onPreview?.(this.first, p)
     })
     // 作図中は Esc で抜ける。地物クリックと取り合いになるので、抜け道を用意する
     window.addEventListener('keydown', (e) => {
@@ -71,10 +85,12 @@ export class SectionTool {
   }
 
   stop() {
+    const hadFirst = this.first !== null
     this.active = false
     this.first = null
     this.o.viewer.canvas.style.cursor = ''
     this.o.onState({ active: false, hasFirst: false })
+    if (hadFirst) this.o.onPreview?.(null, null)
   }
 
   toggle() { this.active ? this.stop() : this.start() }
