@@ -7,7 +7,9 @@
 <title>iwagaki — 舞鶴・吉原 高潮浸水ビューア</title>
 <style>
   :root { color-scheme: dark; --bg:#12141a; --panel:#1b1f28; --line:#2c3240; --fg:#e6e9ef; --muted:#98a2b3; --accent:#4da3ff;
-          --toppanel-h: 232px; /* #controls-top と section 展開時 #toolbar の共通高さ */ }
+          /* #controls-top と section 展開時 #toolbar の共通・固定高さ。
+             西舞鶴で「道路の色＝交通規制」を選んだとき（凡例が一番長い）に合わせてある */
+          --toppanel-h: 248px; }
   * { box-sizing: border-box; }
   html, body, #map { height: 100%; margin: 0; }
   body { background: var(--bg); color: var(--fg); font: 14px/1.55 -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
@@ -54,8 +56,11 @@
               display: flex; flex-direction: column; gap: 10px; }
   /* 中の 2 枚は .panel の見た目だけ借りて、位置は flex に任せる */
   #controls-top, #controls-tabs { position: static; }
-  #controls-top { flex: 0 0 auto; min-height: var(--toppanel-h); }
-  #controls-top > #tpaint { margin-bottom: 9px; }
+  /* 高さは固定（凡例の行数が変わっても上下しない）。はみ出す極端な組み合わせだけ
+     凡例内でスクロールする */
+  #controls-top { flex: 0 0 auto; height: var(--toppanel-h);
+                  display: flex; flex-direction: column; }
+  #controls-top > #tpaint { flex: 0 0 auto; margin-bottom: 9px; }
   #controls-tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
                    overflow: hidden; }
   #controls-tabs > .tabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -99,14 +104,8 @@
   #sec-fit:hover { background: rgba(148,163,184,.26); }
   #sec-canvas { width: 100%; flex: 1 1 auto; min-height: 0; display: block; }
   #section .note { margin-top: 2px; flex: 0 0 auto; }
-  /* インスペクタ。**ビューキューブ（右上 8px / 128px 角）の下に置く。**
-     以前は top:12 right:53 で幅 300 だったので右端 53〜136px がキューブと重なり、
-     z-index:5 のキューブがパネルの上に乗っていた */
-  #inspector { top: 146px; right: 12px; width: 330px; bottom: 12px;
-               overflow: auto; display: none; }
-  /* 断面グラフは #toolbar 直下（画面上部）へ移したので、インスペクタは
-     断面の開閉に関係なく下端まで使ってよい */
-  #inspector .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
+  /* 属性情報（#panel-attr）。地物クリックの中身。以前は右上に浮くパネルだった */
+  #panel-attr .insp-head { display: flex; align-items: baseline; justify-content: space-between; }
   #insp-close { background: transparent; border: none; color: rgba(226,232,240,.55);
     font-size: 19px; line-height: 1; cursor: pointer; padding: 0 2px; }
   #insp-close:hover { color: #fff; }
@@ -168,10 +167,10 @@
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
   /* 凡例は 2 列。左（#legend-main）＝画面の色（地形＋レイヤ）、
      右（#legend-bldg）＝建物の色の内訳（棟数）。建物の色が none 以外のときだけ
-     右列が出て、**中央固定の縦線**でセクション下端まで仕切る（両列とも 50%）。
-     地形の色を切り替えても縦位置が動かないよう min-height は既定 3 モードの
-     最大（浸水＋既定レイヤ、線路行あり）。スクロールさせず、行が増えたぶん下へ伸ばす */
-  #legend { display: flex; align-items: stretch; min-height: 160px; padding: 10px 0;
+     右列が出て、**中央固定の縦線**で下端まで仕切る（両列とも 50%）。
+     高さは #controls-top（固定）の残りを埋める。凡例が極端に長いときだけ内部スクロール */
+  #legend { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    display: flex; align-items: stretch; padding: 10px 0;
     font-size: 11.5px; line-height: 1.5; }
   #legend .sub { font-size: 11px; }
   #legend-main { flex: 1 1 auto; min-width: 0; }
@@ -309,7 +308,6 @@
     </div>
   </div>
   <div id="controls"></div>
-  <div id="inspector" class="panel"></div>
   <div id="perf" class="panel"></div>
   <div id="point-buffer" class="panel"></div>
   <script type="module" src="/src/main.ts"></script>

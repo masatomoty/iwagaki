@@ -666,7 +666,7 @@ export function renderControls(
       </div>
     </div>
 
-    <!-- 2 枚目＝タブ。「基本情報＝表示対象・比較表示・絞り込む（何をどう見るか）」
+    <!-- 2 枚目＝タブ。「基本設定＝表示対象・比較表示・絞り込む（何をどう見るか）」
          「浸水条件＝シミュレーション条件・潮位・参照潮位・潮位再生・地域別集計
          （何を動かして数字で調べるか）」。対象範囲と地形データはトップバー、
          断面ツールは #toolbar、分析タブは畳んだ。高さを強調は UI から落とし
@@ -675,9 +675,11 @@ export function renderControls(
     <div class="tabs" id="ctabs">
       <div class="tablist" role="tablist">
         <button class="tab" id="tab-basic" type="button" role="tab"
-                aria-selected="true" aria-controls="panel-basic">基本情報</button>
+                aria-selected="true" aria-controls="panel-basic">基本設定</button>
         <button class="tab" id="tab-display" type="button" role="tab"
                 aria-selected="false" aria-controls="panel-display" tabindex="-1">浸水条件</button>
+        <button class="tab" id="tab-attr" type="button" role="tab"
+                aria-selected="false" aria-controls="panel-attr" tabindex="-1">属性情報</button>
       </div>
 
       <div class="tabpanels">
@@ -767,6 +769,12 @@ export function renderControls(
           <p class="subhead">地域別の浸水建物</p>
           <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
         </div>
+      </div>
+
+      <!-- 属性情報。地図で地物をクリックすると中身が入る（renderInspector）。
+           以前は右上に浮くパネルだった。既定は「選択してください」だけ -->
+      <div class="tabpanel" id="panel-attr" role="tabpanel" aria-labelledby="tab-attr" hidden>
+        <p class="sub">地図で建築物・道路をクリックすると属性を表示します。</p>
       </div>
       </div>
       </div>

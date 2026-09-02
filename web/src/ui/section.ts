@@ -23,6 +23,22 @@ const PAD = { left: 54, right: 14, top: 16, bottom: 30 }
 /** 軸と凡例の文字。パネル外に注記を持たないので、ここが読めないと何も分からない */
 const FONT = { axis: '12.5px system-ui, sans-serif', legend: '600 13px system-ui, sans-serif' }
 
+/** 断面図は**明るい背景**（暗い操作パネルの中で 1 枚だけ明色）。色はこの前提で選ぶ */
+const SEC = {
+  bg: '#f4f6fa',
+  ink: '#3f4b5b',       // 目盛りの文字
+  grid: 'rgba(30,41,59,.12)',
+  wet: 'rgba(37,99,235,.20)',
+  water: '#2563eb',
+  legendInk: '#1f2937',
+}
+
+/** キャンバス全面を明色で塗る（角丸はパネル側の overflow に任せる） */
+function paintBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.fillStyle = SEC.bg
+  ctx.fillRect(0, 0, w, h)
+}
+
 /** データが来る前の状態。**パネル下の注記をやめたので canvas に出す** */
 export function drawSectionMessage(canvas: HTMLCanvasElement, text: string) {
   const ctx = canvas.getContext('2d')
@@ -34,8 +50,8 @@ export function drawSectionMessage(canvas: HTMLCanvasElement, text: string) {
     canvas.width = w * dpr; canvas.height = h * dpr
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.clearRect(0, 0, w, h)
-  ctx.fillStyle = 'rgba(226,232,240,.6)'
+  paintBg(ctx, w, h)
+  ctx.fillStyle = SEC.ink
   ctx.font = FONT.axis
   ctx.textAlign = 'center'
   ctx.fillText(text, w / 2, h / 2)
@@ -88,11 +104,11 @@ export function drawSection(
     canvas.height = h * dpr
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.clearRect(0, 0, w, h)
+  paintBg(ctx, w, h)
 
   const withData = series.filter((s) => s.points.some((p) => Number.isFinite(p.elev)))
   if (withData.length === 0) {
-    ctx.fillStyle = 'rgba(226,232,240,.6)'
+    ctx.fillStyle = SEC.ink
     ctx.font = FONT.axis
     ctx.textAlign = 'center'
     ctx.fillText('この測線には地形データがありません', w / 2, h / 2)
@@ -105,8 +121,8 @@ export function drawSection(
   const Y = (z: number) => h - PAD.bottom - ((z - zLo) / (zHi - zLo)) * (h - PAD.top - PAD.bottom)
 
   // 目盛り
-  ctx.strokeStyle = 'rgba(148,163,184,.18)'
-  ctx.fillStyle = 'rgba(148,163,184,.75)'
+  ctx.strokeStyle = SEC.grid
+  ctx.fillStyle = SEC.ink
   ctx.font = FONT.axis
   ctx.lineWidth = 1
   const zStep = niceStep(zHi - zLo)
@@ -132,7 +148,7 @@ export function drawSection(
 
   // 浸水する区間を塗る。**先頭の条件（いま画面に出ているもの）で判定する**
   const main = withData[0]
-  ctx.fillStyle = 'rgba(56,132,222,.30)'
+  ctx.fillStyle = SEC.wet
   let run: SamplePoint[] = []
   const flush = () => {
     if (run.length > 1) {
@@ -155,13 +171,13 @@ export function drawSection(
   flush()
 
   // 水位線
-  ctx.strokeStyle = 'rgba(96,165,250,.95)'
+  ctx.strokeStyle = SEC.water
   ctx.lineWidth = 1.5
   ctx.setLineDash([5, 4])
   ctx.beginPath(); ctx.moveTo(PAD.left, Y(waterLevel)); ctx.lineTo(w - PAD.right, Y(waterLevel))
   ctx.stroke()
   ctx.setLineDash([])
-  ctx.fillStyle = 'rgba(96,165,250,.95)'
+  ctx.fillStyle = SEC.water
   ctx.textAlign = 'left'
   ctx.textBaseline = 'bottom'
   ctx.font = FONT.legend
@@ -191,7 +207,7 @@ export function drawSection(
   for (const s of withData) {
     ctx.fillStyle = s.color
     ctx.fillRect(lx, PAD.top + 1, 10, 3)
-    ctx.fillStyle = 'rgba(226,232,240,.85)'
+    ctx.fillStyle = SEC.legendInk
     ctx.fillText(s.label, lx + 14, PAD.top - 3)
     lx += 14 + ctx.measureText(s.label).width + 12
   }

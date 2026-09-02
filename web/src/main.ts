@@ -191,16 +191,7 @@ async function boot() {
   if (OPT.ortho) viewer.setProjection('orthographic')
   attachViewCube(viewer)
 
-  // インスペクタはビューキューブの下に置く。**高さを決め打ちにしない。**
-  // ViewCube には size: 128 を渡しているのに host の矩形は 152x158 px で、
-  // CSS の top: 146px では 20 px 重なっていた（実測）。キューブから測って置く
-  const placeInspector = () => {
-    const cube = document.getElementById('viewcube')?.getBoundingClientRect()
-    const el = document.getElementById('inspector')
-    if (el) el.style.top = `${Math.round((cube?.bottom ?? 166) + 12)}px`
-  }
-  placeInspector()
-  window.addEventListener('resize', placeInspector)
+  // 地物の属性は左サイドバーの「属性情報」タブに出す（旧・右上の浮きパネルは廃止）
 
   // 出典はトップバー右端の「出典」に畳んで置く（`ui/controls.ts::topbarHtml`）。
   // ラベルは常に見え、ホバー／フォーカスで全文に到達できる
@@ -651,11 +642,12 @@ async function boot() {
   // 複数条件を同時に描ける唯一の場所である。`control`（源だけを替えた 5 m）を
   // 入れると、源の効果と解像度の効果を横から読み分けられる。
   // 代償は測線ごとにもう 1 条件ぶんタイルを引くこと（docs/todo.md 低 7 で測った）
+  // 断面図は明るい背景なので、線は暗めの色にする（`ui/section.ts`）
   const SECTION_SERIES: { condition: TerrainCondition; label: string; color: string }[] = [
-    { condition: 'highres', label: '0.5m', color: '#e2e8f0' },
-    { condition: 'baseline', label: 'PLATEAU 5m', color: '#f7d129' },
-    { condition: 'control', label: '5m 対照', color: '#fb923c' },
-    { condition: 'pointcloud', label: '0.5m ＋ 点群', color: '#4ade80' },
+    { condition: 'highres', label: '0.5m', color: '#1f2937' },
+    { condition: 'baseline', label: 'PLATEAU 5m', color: '#b45309' },
+    { condition: 'control', label: '5m 対照', color: '#c2410c' },
+    { condition: 'pointcloud', label: '0.5m ＋ 点群', color: '#15803d' },
   ]
   const secEl = document.getElementById('section')!
   const secCanvas = document.getElementById('sec-canvas') as HTMLCanvasElement
@@ -1082,7 +1074,8 @@ async function boot() {
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
       { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats,
       areaFlood, walkIsochroneLayer?.info ?? null)
-    renderInspector(document.getElementById('inspector')!, store, catalog)
+    const attrPanel = document.getElementById('panel-attr')
+    if (attrPanel) renderInspector(attrPanel, store, catalog)
     viewer.invalidate()
   }
 
@@ -1138,7 +1131,10 @@ async function boot() {
       ((e.clientX - r.left) / r.width) * 2 - 1,
       -((e.clientY - r.top) / r.height) * 2 + 1,
     )
-    store.set({ selected: semantics.pick(ndc, viewer.camera) })
+    const hit = semantics.pick(ndc, viewer.camera)
+    store.set({ selected: hit })
+    // 地物を選んだら「属性情報」タブへ切り替えて中身を見せる
+    if (hit) document.getElementById('tab-attr')?.click()
   })
 
   /**
