@@ -157,14 +157,15 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
     </div>
     <p class="sub" style="word-break:break-all">${a.gmlId}</p>
     ${a.unreliable
-      ? `<p><span class="tag warn">解析対象外</span> ${a.sectionTypeLabel ?? a.unreliableReason ?? ''}
-           — 路面が地表面と一致しないため DTM 由来の地盤高は無意味</p>`
+      ? `<p><span class="tag warn">解析対象外</span><br>
+           <span class="sub">${a.sectionTypeLabel ?? a.unreliableReason ?? ''}
+           — 路面が地表面と一致しないため DTM 由来の地盤高は無意味</span></p>`
       : same
-        ? `<p><span class="tag same">基準そのもの</span>
-             <span class="sub"> ${CONDITION_LABEL[pair.to]} を単独で見ている</span></p>`
+        ? `<p><span class="tag same">基準そのもの</span><br>
+             <span class="sub">${CONDITION_LABEL[pair.to]} を単独で見ている</span></p>`
         : `<p><span class="tag ${changed ? 'chg' : 'same'}">${
-             changed ? '判定が変わる' : '判定は同じ'}</span>
-             <span class="sub"> ${CONDITION_LABEL[pair.from]} → ${CONDITION_LABEL[pair.to]}
+             changed ? '判定が変わる' : '判定は同じ'}</span><br>
+             <span class="sub">${CONDITION_LABEL[pair.from]} → ${CONDITION_LABEL[pair.to]}
              @ H = ${H.toFixed(2)} m T.P.</span></p>`}
 
     <p class="grouplabel">${CONDITION_LABEL[pair.to]}${same ? '' : '（いま見ている条件）'}</p>
