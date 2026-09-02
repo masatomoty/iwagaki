@@ -24,6 +24,20 @@ export const CONDITION_LABEL: Record<TerrainCondition, string> = {
   drainage: '仮想排水',
 }
 
+/**
+ * 何も選んでいないときの「属性情報」タブの中身。**テキストだけだと
+ * 気づかれない**という指摘（2026-09）を受けて、i アイコン ＋ 枠線で囲う。
+ * `controls.ts` の初期 HTML と `renderInspector` の非選択時で同じものを出す。
+ */
+export const ATTR_EMPTY_HINT = `<div class="emptyhint">
+  <svg class="emptyhint-i" viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <circle cx="8" cy="4.7" r="1" fill="currentColor"/>
+    <rect x="7.15" y="6.9" width="1.7" height="5.1" rx="0.85" fill="currentColor"/>
+  </svg>
+  <p>地図で建築物・道路をクリックすると、その地物の地盤高・浸水深・条件ごとの判定差をここに表示します。</p>
+</div>`
+
 const fmt = (v: number | undefined, u = ' m') =>
   v === undefined || !Number.isFinite(v) ? '—' : `${v.toFixed(2)}${u}`
 
@@ -124,7 +138,7 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
   if (!a) {
     const c = store.state.selectedCatchment
     if (c && store.state.terrainPaint === 'catchment') renderCatchment(el, c)
-    else el.innerHTML = '<p class="sub">地図で建築物・道路をクリックすると属性を表示します。</p>'
+    else el.innerHTML = ATTR_EMPTY_HINT
     return
   }
   const H = store.state.waterLevel

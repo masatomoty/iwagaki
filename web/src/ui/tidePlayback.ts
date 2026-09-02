@@ -12,27 +12,42 @@ export interface PlaybackStats {
   regulatedRoads: number
 }
 
-const SPEEDS = [60, 300, 1800]
+// 実時間 1 秒あたりに進める潮位時系列の長さ（秒）。ラベルは「1 秒でどれだけ
+// 潮位が進むか」に翻訳する（生の ×60 は庁内で意味が読めなかった）。
+const SPEEDS = [60, 300, 1800] as const
+const SPEED_LABEL: Record<number, string> = { 60: '1分/秒', 300: '5分/秒', 1800: '30分/秒' }
 const WIDTH = 300
-const HEIGHT = 58
+const HEIGHT = 56
 
-function curvePath(points: TidePoint[]): string {
-  if (points.length < 2) return ''
+function extent(points: TidePoint[]): { t0: number; t1: number; lo: number; hi: number } {
   const t0 = timeValue(points[0].time)
   const t1 = timeValue(points[points.length - 1].time)
   const lo = Math.min(...points.map((p) => p.tide_m_tp))
   const hi = Math.max(...points.map((p) => p.tide_m_tp))
-  const span = Math.max(0.01, hi - lo)
-  const x = (t: number) => ((t - t0) / (t1 - t0)) * WIDTH
-  const y = (v: number) => HEIGHT - 4 - ((v - lo) / span) * (HEIGHT - 10)
-  return points.map((p, i) => `${i ? 'L' : 'M'}${x(timeValue(p.time)).toFixed(1)},${y(p.tide_m_tp).toFixed(1)}`).join('')
+  return { t0, t1, lo, hi }
 }
 
-function markerStyle(points: TidePoint[], peak: string): string {
-  const t0 = timeValue(points[0].time)
-  const t1 = timeValue(points[points.length - 1].time)
-  const left = ((timeValue(peak) - t0) / (t1 - t0)) * 100
-  return `left:${left}%`
+/** 曲線の座標変換。viewBox は 0..WIDTH / 0..HEIGHT で、SVG 側で幅いっぱいに引き伸ばす */
+function projector(points: TidePoint[]) {
+  const { t0, t1, lo, hi } = extent(points)
+  const span = Math.max(0.01, hi - lo)
+  return {
+    x: (t: number) => ((t - t0) / (t1 - t0)) * WIDTH,
+    y: (v: number) => HEIGHT - 4 - ((v - lo) / span) * (HEIGHT - 10),
+  }
+}
+
+function curvePath(points: TidePoint[]): string {
+  if (points.length < 2) return ''
+  const { x, y } = projector(points)
+  return points.map((p, i) =>
+    `${i ? 'L' : 'M'}${x(timeValue(p.time)).toFixed(1)},${y(p.tide_m_tp).toFixed(1)}`).join('')
+}
+
+/** 曲線の下を塗る面。線を下辺まで閉じるだけ */
+function fillPath(points: TidePoint[]): string {
+  const line = curvePath(points)
+  return line ? `${line}L${WIDTH},${HEIGHT}L0,${HEIGHT}Z` : ''
 }
 
 function options(curves: TideSeries[], selected: string): string {
@@ -40,24 +55,31 @@ function options(curves: TideSeries[], selected: string): string {
 }
 
 export function tidePlaybackHtml(curves: TideSeries[], selected: string): string {
+  const points = curves.find((c) => c.id === selected)?.points ?? []
   return `
-    <p class="grouplabel" data-tip="観測された潮位の時系列を再生し、水位が上がるにつれ浸水域がどう広がるかを見る。モデルの時間発展ではなく、各時刻を静水位で解いたもの。最高潮位で自動で止まる">潮位の再生</p>
+    <p class="grouplabel" data-tip="実測の台風イベント（および気象擾乱を含まない天文潮）の毎時潮位を再生し、水位が上がるにつれ浸水域がどう広がるかを見る。モデルの時間発展ではなく、各時刻を静水位で解いたもの。最高潮位で自動で止まる">潮位の記録を再生</p>
     <div id="playback" data-curve="${selected}">
-    <div id="playback" data-curve="${selected}">
-      <div class="wlrow"><button id="play" type="button" aria-pressed="false">再生</button>
+      <select id="pcurve" aria-label="再生する潮位の記録">${options(curves, selected)}</select>
+      <div class="pb-graph">
+        <svg class="tidecurve" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="none" aria-hidden="true">
+          <path id="curve-fill" d="${fillPath(points)}"></path>
+          <path id="curve" d="${curvePath(points)}"></path>
+          <line id="playhead" x1="0" y1="0" x2="0" y2="${HEIGHT}"></line>
+          <circle id="peakdot" r="2.4"></circle>
+        </svg>
         <input id="ptime" type="range" min="0" max="1000" value="0" step="1"
-               aria-label="潮位時系列の時刻" /></div>
-      <div class="timeline"><span class="peakmark" id="peakmark"></span></div>
-      <svg class="tidecurve" viewBox="0 0 ${WIDTH} ${HEIGHT}" aria-hidden="true">
-        <path id="curve" d="${curvePath(curves.find((c) => c.id === selected)?.points ?? [])}"></path>
-        <circle id="peakdot" r="2.6"></circle>
-      </svg>
-      <div class="subrow"><span id="pnow">—</span>
-        <span>最高 <b id="ppeak">—</b> <i data-speed="peak"></i></span></div>
-      <div class="seg" id="pspeed">${SPEEDS.map((s, i) =>
-        `<button data-s="${s}" type="button" aria-pressed="${i === 1}">×${s}</button>`).join('')}</div>
-      <select id="pcurve" aria-label="潮位曲線">${options(curves, selected)}</select>
-      <div id="pstats" class="livecounts">—</div>
+               aria-label="再生位置" />
+      </div>
+      <div class="pb-bar">
+        <button id="play" type="button" aria-pressed="false">▶ 再生</button>
+        <div class="seg" id="pspeed" data-tip="再生の速さ。実時間 1 秒あたりに進む潮位時系列の長さ">${SPEEDS.map((s, i) =>
+          `<button data-s="${s}" type="button" aria-pressed="${i === 1}">${SPEED_LABEL[s]}</button>`).join('')}</div>
+      </div>
+      <dl class="pb-read">
+        <div><dt>現在</dt><dd id="pnow">—</dd></div>
+        <div><dt>最高</dt><dd id="ppeak">—</dd></div>
+      </dl>
+      <div id="pstats" class="pb-stats">—</div>
     </div>`
 }
 
@@ -79,19 +101,20 @@ export function mountTidePlayback(
   let lastPush = -Infinity
 
   const q = <T extends Element = HTMLElement>(sel: string) => el.querySelector<T>(sel)
-  const peakMs = timeValue(curve.peak_time)
-  const setPeakUi = () => {
-    const mark = q('#peakmark')
+  let peakMs = timeValue(curve.peak_time)
+
+  /** 曲線が変わったときだけ呼ぶ。線・面・ピーク点の座標を貼り替える */
+  const setCurveGeometry = () => {
+    peakMs = timeValue(curve.peak_time)
+    const line = q<SVGPathElement>('#curve')
+    const fill = q<SVGPathElement>('#curve-fill')
+    if (line) line.setAttribute('d', curvePath(curve.points))
+    if (fill) fill.setAttribute('d', fillPath(curve.points))
     const dot = q<SVGCircleElement>('#peakdot')
-    if (mark) mark.setAttribute('style', markerStyle(curve.points, curve.peak_time))
     if (dot) {
-      const lo = Math.min(...curve.points.map((p) => p.tide_m_tp))
-      const hi = Math.max(...curve.points.map((p) => p.tide_m_tp))
-      const x = ((peakMs - timeValue(curve.points[0].time))
-        / (timeValue(curve.points[curve.points.length - 1].time)
-          - timeValue(curve.points[0].time))) * WIDTH
-      const y = HEIGHT - 4 - ((curve.peak_value_m_tp - lo) / Math.max(0.01, hi - lo)) * (HEIGHT - 10)
-      dot.setAttribute('cx', String(x)); dot.setAttribute('cy', String(y))
+      const { x, y } = projector(curve.points)
+      dot.setAttribute('cx', String(x(peakMs).toFixed(1)))
+      dot.setAttribute('cy', String(y(curve.peak_value_m_tp).toFixed(1)))
     }
   }
 
@@ -99,11 +122,16 @@ export function mountTidePlayback(
     const value = tideAt(curve.points, currentMs)
     const start = timeValue(curve.points[0].time)
     const end = timeValue(curve.points[curve.points.length - 1].time)
+    const k = end > start ? (currentMs - start) / (end - start) : 0
     const pnow = q('#pnow'); const input = q<HTMLInputElement>('#ptime')
-    const peak = q('#ppeak')
-    if (pnow) pnow.textContent = `${formatJst(currentMs)} / H ${value.toFixed(2)} m`
-    if (input) input.value = String(Math.round(((currentMs - start) / (end - start)) * 1000))
-    if (peak) peak.textContent = `${formatJst(peakMs)} ${curve.peak_value_m_tp.toFixed(2)} m`
+    const peak = q('#ppeak'); const head = q<SVGLineElement>('#playhead')
+    if (pnow) pnow.textContent = `${formatJst(currentMs)}・${value.toFixed(2)} m`
+    if (peak) peak.textContent = `${formatJst(peakMs)}・${curve.peak_value_m_tp.toFixed(2)} m`
+    if (input && document.activeElement !== input) input.value = String(Math.round(k * 1000))
+    if (head) {
+      const x = (k * WIDTH).toFixed(1)
+      head.setAttribute('x1', x); head.setAttribute('x2', x)
+    }
   }
 
   const tick = (now: number) => {
@@ -128,7 +156,7 @@ export function mountTidePlayback(
     paint()
     const btn = q<HTMLButtonElement>('#play')
     if (btn) {
-      btn.textContent = playing ? '停止' : '再生'
+      btn.textContent = playing ? '⏸ 停止' : '▶ 再生'
       btn.setAttribute('aria-pressed', String(playing))
     }
     if (playing) raf = requestAnimationFrame(tick)
@@ -139,7 +167,7 @@ export function mountTidePlayback(
     playing = !playing
     stopAtPeak = true
     lastFrame = undefined
-    btn.textContent = playing ? '停止' : '再生'
+    btn.textContent = playing ? '⏸ 停止' : '▶ 再生'
     btn.setAttribute('aria-pressed', String(playing))
     if (playing) {
       const end = timeValue(curve.points[curve.points.length - 1].time)
@@ -176,13 +204,11 @@ export function mountTidePlayback(
     cancelAnimationFrame(raf)
     stopAtPeak = true
     el.dataset.curve = next.id
-    const path = q<SVGPathElement>('#curve')
-    if (path) path.setAttribute('d', curvePath(next.points))
-    setPeakUi()
+    setCurveGeometry()
     store.set({ waterLevel: tideAt(next.points, currentMs) })
     paint()
   })
-  setPeakUi(); paint()
+  setCurveGeometry(); paint()
 }
 
 /** refresh ごとに**出力だけ**を書き換える。入力 DOM は保持する */
@@ -194,6 +220,7 @@ export function updateTidePlayback(
   if (!el || !out || !stats) return
   // 棟数は scripts/91 と読み合わせるため**単純モデル**で固定評価。
   // viewer の地図配色は connected 既定なので、食い違いを明示して残す
-  out.innerHTML = `床下 <b>${stats.under}</b> 棟 / 床上 <b>${stats.above}</b> 棟`
-    + ` / 規制対象道路 <b>${stats.regulatedRoads}</b> 本`
+  const n = (v: number, unit: string) => `<span class="pb-fig"><b>${v}</b> ${unit}</span>`
+  out.innerHTML = `いまの潮位で 床下 ${n(stats.under, '棟')}`
+    + ` / 床上 ${n(stats.above, '棟')} / 規制対象道路 ${n(stats.regulatedRoads, '本')}`
 }

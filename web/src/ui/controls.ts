@@ -30,6 +30,7 @@ import type { Store } from '../state'
 import {
   BUILDING_COLOR_MODES, UNKNOWN_HEX, UNKNOWN_LABEL, type LegendEntry,
 } from '../view/buildingColor'
+import { ATTR_EMPTY_HINT } from './inspector'
 import { mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
          type PlaybackStats } from './tidePlayback'
 
@@ -470,6 +471,29 @@ const REF_ALIAS: Record<string, string> = {
 }
 
 /**
+ * 参照潮位に添える「由来の一行」。特に**台風がらみ**（高潮想定・既往最高）が
+ * どこから来た数字なのかを、押す前にツールチップで読めるようにする（U3）。
+ * `reference_levels_detail` は古い配信物には無いので、鍵ごとに存在を確かめる。
+ */
+function refOriginTip(key: string, detail: unknown): string {
+  const d = (detail ?? {}) as Record<string, unknown>
+  const o = d.official as Record<string, unknown> | undefined
+  const r = d.record_high as Record<string, unknown> | undefined
+  const a = d.astronomical as Record<string, unknown> | undefined
+  if (key === '高潮想定の基準潮位' && o) {
+    return `\n＝朔望平均満潮位 ${o.spring_high_water_m_tp} m ＋ 異常潮位 ${o.anomaly_m} m。`
+      + `京都府の高潮浸水想定はここに潮位偏差を足す。想定台風は ${o.assumed_typhoon}`
+  }
+  if (key === '既往最高潮位' && r) {
+    return `\n＝${r.when} ${r.cause}（${r.source}）`
+  }
+  if (key === '天文潮最高' && a) {
+    return `\n＝${a.year} 年の天文潮（気象擾乱を含まない）の最高値`
+  }
+  return ''
+}
+
+/**
  * 参照潮位の一覧。押すと水位がその値に飛ぶ。**旧「チップ」（普段・高潮想定・
  * 既往最高）と内容が被っていたのでここに一本化した**（2026-09）。
  * 配信物の `reference_levels_m_tp` を低い順に全部。
@@ -477,10 +501,10 @@ const REF_ALIAS: Record<string, string> = {
  * 出典と既知の限界の文章は画面に出さない（`README.md` / `docs/results.md`）。
  * 出典表記はトップバー右端の「出典」（`topbarHtml`）に畳んである。
  */
-function tideRefListHtml(refs: [string, number][]): string {
+function tideRefListHtml(refs: [string, number][], detail?: unknown): string {
   return `<div class="reflist" id="refs">${refs.map(([k, v]) =>
     `<button data-h="${v}" type="button"
-    data-tip="${escAttr(`押すと潮位を ${k}（T.P. ${v.toFixed(3)} m）に合わせる`)}"
+    data-tip="${escAttr(`押すと潮位を ${k}（T.P. ${v.toFixed(3)} m）に合わせる` + refOriginTip(k, detail))}"
     >${REF_ALIAS[k] ?? k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
 }
 
@@ -790,8 +814,8 @@ export function renderControls(
           `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${v.toFixed(3)} m"></i>`).join('')}</div>
         <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
 
-        <p class="subhead" data-tip="押すと潮位をその値（平均海面・朔望平均満潮位・高潮想定・既往最高など）に合わせる">参照潮位</p>
-        ${tideRefListHtml(refs)}
+        <p class="subhead" data-tip="押すと潮位をその値（平均海面・朔望平均満潮位・高潮想定・既往最高など）に合わせる。高潮想定・既往最高は台風由来（各項目にホバーで内訳）">参照潮位</p>
+        ${tideRefListHtml(refs, catalog.water_level.reference_levels_detail)}
 
         <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves, catalog.water_level.tide_series?.default ?? tideCurves[0].id) : ''}</div>
 
@@ -804,7 +828,7 @@ export function renderControls(
       <!-- 属性情報。地図で地物をクリックすると中身が入る（renderInspector）。
            以前は右上に浮くパネルだった。既定は「選択してください」だけ -->
       <div class="tabpanel" id="panel-attr" role="tabpanel" aria-labelledby="tab-attr" hidden>
-        <p class="sub">地図で建築物・道路をクリックすると属性を表示します。</p>
+        ${ATTR_EMPTY_HINT}
       </div>
       </div>
       </div>
