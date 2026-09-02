@@ -175,8 +175,8 @@ export interface Catalog {
                 bounds?: { minx: number; miny: number; minz: number
                            maxx: number; maxy: number; maxz: number } }
   /**
-   * 起動時に出す断面線。**どこを切るべきかは解析側が知っている**ので、
-   * 座標を viewer に埋め込まず catalog 経由で受け取る（scripts/87）。
+   * 断面線の推奨座標（`scripts/87` が書き出す）。**viewer は現在読んでいない** —
+   * 起動時に断面を出す挙動は 2026-09 に外した（`main.ts`）。配信物には残る。
    */
   default_section?: { from: [number, number]; to: [number, number]
                       length_m: number; why: string }

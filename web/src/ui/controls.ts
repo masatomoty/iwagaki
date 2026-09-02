@@ -107,16 +107,19 @@ function conditionsOf(catalog: Catalog) {
 }
 
 /**
- * **浸水の決め方。** 既定は「潮位 − 地盤高」。
+ * **浸水の決め方。** 単純 → 連結 → 仮想排水路の 3 択で、**既定は連結**。
  *
- * 舞鶴市の回答（2026-08）は
+ * `simple`（潮位 − 地盤高）は舞鶴市の回答（2026-08）
  * > 現場にいる経験則として、市内全域的に、排水路などを通じて、潮位よりも
  * > 地盤高が低い箇所は、その差だけ浸水している状況です。
  * > 現時点では、単純に「潮位ー地盤高＝浸水深」として可視化することで問題ない
- * だった。連結モデル（`h_conn`）は消さずに残す。**排水路の吐口高・
- * フラップゲートの有無が手に入ったら、精緻化するのはそちら側**である。
+ * に対応する比較用のトグル。連結モデル（`h_conn`）を既定に据えたまま、
+ * 経験則側の見え方も切り替えられるようにしてある。**排水路の吐口高・
+ * フラップゲートの有無が手に入ったら、精緻化するのは仮想排水路側**である。
  */
 const FLOOD_MODELS: { id: FloodModel; label: string; hint: string }[] = [
+  { id: 'simple', label: '潮位-地盤高',
+    hint: '標高が潮位より低い場所を、その差だけ浸水とみなす。海からの連結性を問わない。舞鶴市の経験則に対応' },
   { id: 'connected', label: '海からつながる',
     hint: 'h_conn ≤ 潮位' },
   { id: 'drainage', label: '仮想排水路',
@@ -421,14 +424,6 @@ function areaFloodHtml(rows: AreaFloodRow[]): string {
     + '</tbody></table>'
 }
 
-/** 決め方の一行説明。 */
-function floodModelNote(m: FloodModel): string {
-  return m === 'simple'
-    ? '排水路を通じた逆流が現に起きているという舞鶴市の経験則に合わせた既定。'
-      + '水の動きと時間・流量は解いていない'
-    : ''
-}
-
 /**
  * 参照潮位のキーに添える通称。生のキー（MSL 等）だけだと庁内で伝わらないため。
  * 無いキーはそのまま出す。
@@ -595,8 +590,6 @@ export function renderControls(
     for (const b of el.querySelectorAll<HTMLButtonElement>('#fmodel button')) {
       b.setAttribute('aria-pressed', String(b.dataset.f === s.floodModel))
     }
-    const fn = el.querySelector<HTMLElement>('#fmodel-note')
-    if (fn) fn.innerHTML = floodModelNote(s.floodModel)
     // **窪地は連結モデルのときだけの状態。** 単純モデルでは窪地も浸水域なので、
     // チェックが残っていると押しても何も変わらない項目になる
     const pond = el.querySelector<HTMLInputElement>('input[data-l="ponded"]')
@@ -744,7 +737,6 @@ export function renderControls(
           .map((m) =>
           `<button data-f="${m.id}" type="button" title="${m.hint}"
                    aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
-        <div class="whyoff" id="fmodel-note">${floodModelNote(s.floodModel)}</div>
 
         <p class="grouplabel">潮位</p>
         <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
