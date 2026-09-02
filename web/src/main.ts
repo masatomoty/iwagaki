@@ -21,8 +21,8 @@ import {
   resolveFlowBasins, type FlowBasins,
 } from './domain/flow'
 import { parsePointBufferIndex, type PointBufferIndex } from './domain/pointBuffer'
-import type { BuildingColorMode, FeatureAssertion, RoadColorMode, SurfaceMode,
-              TerrainCondition } from './domain/types'
+import type { BuildingColorMode, FeatureAssertion, FloodModel, RoadColorMode,
+              SurfaceMode, TerrainCondition } from './domain/types'
 import type { WalkIsochroneGeoJSON } from './domain/walkIsochrone'
 import { Scheduler } from './net/scheduler'
 import { PerfRecorder } from './perf/recorder'
@@ -654,14 +654,13 @@ async function boot() {
   const secEl = document.getElementById('section')!
   const secCanvas = document.getElementById('sec-canvas') as HTMLCanvasElement
   let secSeries: SectionSeries[] = []
-  let secLine: [LonLat, LonLat] | null = null
   // 既定は水位まわり。全体に合わせると市街地の 0〜3 m が背後の 40 m に潰される
   let secFit: 'water' | 'all' = 'water'
   /**
    * `buildSection` / `buildSectionAlongChannel` はどちらも折れ線の頂点ごとに
    * `sampleLine` を待つ非同期処理で、前の呼び出しの取得が終わる前に次（手動断面・
    * 別の流域のどちらでも）を始められる。素直に await するだけだと**後から解決した
-   * 方が勝ち**、新しい `secLine` に古い断面が乗ってしまう。呼ぶたびに増やす通し
+   * 方が勝ち**、新しい測線に古い断面が乗ってしまう。呼ぶたびに増やす通し
    * 番号で「自分が最新の呼び出しか」を確認し、追い越されていたら結果を捨てる
    * （両方の関数・水みちモードを抜けるとき・パネルを閉じるときに増やす）。
    */
@@ -720,7 +719,6 @@ async function boot() {
 
   async function buildSection(from: LonLat, to: LonLat) {
     const seq = ++sectionSeq
-    secLine = [from, to]
     // 手動 2 点は 1 点目からの仮測線が既にそこにあるので伸ばさず即出し（U4）
     showSectionLine(viewer, from, to, false, geoid)
     secEl.style.display = 'flex'
@@ -740,11 +738,6 @@ async function boot() {
     }))
     if (seq !== sectionSeq) return   // 待っている間に別の断面（手動・流域）が始まった
     secSeries = got.filter((x): x is SectionSeries => x !== null)
-    const n = secSeries[0]?.points.length ?? 0
-    const len = secSeries[0]?.points.at(-1)?.d ?? 0
-    const why = catalog.default_section?.from && secLine
-      && secLine[0][0] === catalog.default_section.from[0]
-      ? `${catalog.default_section.why}。` : ''
     animateSectionReveal(seq)
   }
 
@@ -773,7 +766,6 @@ async function boot() {
     const seq = ++sectionSeq
     const from = line[0]
     const to = line[line.length - 1]
-    secLine = [from, to]
     // クリック無しの自動測線。仮測線が無いので from→to へ伸ばす（U4）
     showSectionLine(viewer, from, to, true, geoid)
     secEl.style.display = 'flex'
@@ -805,7 +797,7 @@ async function boot() {
   }
 
   // 断面は**起動時には出さない**（2026-09 指示）。ユーザーが「測線を引く」を
-  // 押してから開く。`catalog.default_section` は残しておく（今は未使用）
+  // 押してから開く。
 
   const sectionTool = new SectionTool({
     viewer,
@@ -900,7 +892,7 @@ async function boot() {
       hideSectionLine(viewer)   // 測線（3D リボン）も一緒に消す
       secEl.style.display = 'none'
       document.body.classList.remove('section-open')
-      secSeries = []; secLine = null
+      secSeries = []
     }
     // 選択を外す。地図の強調も一緒に消える
     if (t.id === 'insp-close') {
@@ -1314,6 +1306,7 @@ async function boot() {
     setLayer: (k: string, v: boolean) => store.setLayer({ [k]: v } as never),
     setBuildingColor: (v: BuildingColorMode) => store.set({ buildingColor: v }),
     setRoadColor: (v: RoadColorMode) => store.set({ roadColor: v }),
+    setFloodModel: (v: FloodModel) => store.set({ floodModel: v }),
     setPerfVisible,
   }
 }

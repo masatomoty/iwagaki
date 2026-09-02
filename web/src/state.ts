@@ -16,7 +16,7 @@ export interface LayerToggles {
    * **窪地**（標高は潮位以下だが `h_conn > 潮位` = 地表面では海とつながっていない）
    * を印で出すか。`domain/flood.ts` の `ponded()`。
    *
-   * **`floodModel === 'connected'` のときだけ意味を持つ。** 既定の `simple`
+   * **`floodModel === 'connected'` のときだけ意味を持つ。** `simple`
    * （潮位 − 地盤高）では窪地は浸水域そのものなので、この印は出ない
    * （メニューにも出さない）。以下は `connected` を選んでいるときの話。
    *
@@ -30,10 +30,10 @@ export interface LayerToggles {
    * （`docs/todo.md` 中 3）**内陸側を過小評価している**ので、
    * 「浸水しない」と同じ灰で潰さずに出す。切れるようにはしてある。
    *
-   * **その後、市の回答（2026-08）で `simple` が既定になった。** 「排水路などを
-   * 通じて、潮位よりも地盤高が低い箇所は、その差だけ浸水している」が現場の
-   * 経験則で、逆流を判定に入れないこと自体が過小評価だったため
-   * （`domain/types.ts` の `FloodModel`）
+   * **市の回答（2026-08）で `simple` が比較用のトグルとして UI に戻った。**
+   * 「排水路などを通じて、潮位よりも地盤高が低い箇所は、その差だけ浸水している」
+   * が現場の経験則で、逆流を判定に入れないこと自体が過小評価だったため
+   * （`domain/types.ts` の `FloodModel`）。既定は `connected` のまま。
    */
   ponded: boolean
   /**
@@ -128,8 +128,9 @@ export interface AppState {
   /** 鉛直強調。吉原は起伏が 0〜3 m しかないので、真横から見るには必須 */
   exaggeration: number
   /**
-   * 浸水の決め方。**既定は `connected`（海からつながる）。**
-   * `simple` は旧データ・互換用に型と判定関数へ残すが、UIでは選択肢に出さない。
+   * 浸水の決め方。`simple`（単純）/ `connected`（連結）/ `drainage`（仮想排水路）
+   * の 3 択で、**既定は `connected`。** `simple` は舞鶴市の経験則に合わせた
+   * 比較用のトグルとして UI に出す（`ui/controls.ts` の `FLOOD_MODELS`）。
    */
   floodModel: FloodModel
   /**

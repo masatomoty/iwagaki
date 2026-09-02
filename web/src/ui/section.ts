@@ -3,10 +3,10 @@
 // **3D の俯瞰では 0〜3 m の起伏が潰れて読めない。** このリポジトリの問いは
 // 「護岸天端を水位が越えるか」なので、横から見て水平線を引くのが一番直接的である。
 //
-// 塗る区間は `state.floodModel` で決まる。**既定は単純モデル**（潮位 − 地盤高）で、
-// 標高が水位より低い区間をそのまま塗る。`connected` を選ぶと `h_conn <= H` を
-// 満たす区間だけになり、護岸天端の内側は塗られない（このリポジトリ本来の主張）。
-// 断面図はその 2 つの違いが**いちばん直接見える場所**でもある。
+// 塗る区間は `state.floodModel` で決まる。**既定は連結モデル**（`h_conn <= H` を
+// 満たす区間だけを塗る。護岸天端の内側は塗られない＝このリポジトリ本来の主張）。
+// 単純モデルは 3 択のひとつで、選ぶと標高が水位より低い区間をそのまま塗る
+// （潮位 − 地盤高）。断面図はその 2 つの違いが**いちばん直接見える場所**でもある。
 
 import type { SamplePoint } from '../assets/terrainSampler'
 import type { FloodModel, TerrainCondition } from '../domain/types'
@@ -76,7 +76,7 @@ function niceStep(span: number): number {
 
 export function drawSection(
   canvas: HTMLCanvasElement, series: SectionSeries[], waterLevel: number,
-  fit: 'water' | 'all' = 'water', model: FloodModel = 'simple',
+  fit: 'water' | 'all' = 'water', model: FloodModel = 'connected',
   /**
    * 測線を引いた直後の立ち上がり（`docs/todo.md` U4）。0〜1 で、地形ライン・
    * 浸水塗り・水位線を左から `reveal` の割合だけ見せる。**目盛りと凡例は
