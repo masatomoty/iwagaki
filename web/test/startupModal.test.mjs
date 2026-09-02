@@ -40,12 +40,28 @@ test('startupShouldShow: forced が最優先', () => {
 })
 
 test('startupShouldShow: 自動化ブラウザでは出さない', () => {
-  assert.equal(startupShouldShow({ forced: null, dismissed: false, automated: true }), false)
+  assert.equal(startupShouldShow({
+    forced: null, hasParameters: false, dismissed: false, automated: true,
+  }), false)
 })
 
 test('startupShouldShow: 既定は出す、「次回から表示しない」で伏せる', () => {
-  assert.equal(startupShouldShow({ forced: null, dismissed: false, automated: false }), true)
-  assert.equal(startupShouldShow({ forced: null, dismissed: true, automated: false }), false)
+  assert.equal(startupShouldShow({
+    forced: null, hasParameters: false, dismissed: false, automated: false,
+  }), true)
+  assert.equal(startupShouldShow({
+    forced: null, hasParameters: false, dismissed: true, automated: false,
+  }), false)
+})
+
+test('startupShouldShow: URLパラメータ付きでは初期パネルを出さない', () => {
+  assert.equal(startupShouldShow({
+    forced: null, hasParameters: true, dismissed: false, automated: false,
+  }), false)
+  // 明示的な再表示はURLパラメータより優先する
+  assert.equal(startupShouldShow({
+    forced: true, hasParameters: true, dismissed: true, automated: false,
+  }), true)
 })
 
 test('pickStartupTide: 望ましいキーがあればその値、上から順', () => {

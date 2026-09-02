@@ -10,6 +10,7 @@
 //   パネル（`var(--panel)`/`var(--line)`・角丸）に合わせて `web/index.html` に集約。
 // - **毎回出す。** 「次回から表示しない」チェックで `localStorage` に伏せる
 //   （庁内の常用者向け。指示 2026-09-02）。`?intro=1` で強制表示、`?intro=0` で抑止。
+//   ただし `?area=` など、URL から条件を指定して開いた場合は初期パネルを出さない。
 // - **自動化ブラウザ（Playwright）では出さない** — `navigator.webdriver` で判定。
 //   `web/perf` のスクリーンショット 15 本超がモーダルに覆われるのを避ける。
 // - **対象地域を替えるとページごと読み直す**（`ui/controls.ts` の `#area` と同じ理由:
@@ -104,14 +105,18 @@ export function planStartupApply(choice: StartupChoice, currentAreaId: string): 
 
 /**
  * モーダルを出すか。`forced` が最優先（`?intro=1`→true / `?intro=0`→false /
- * 指定なし→null）。次に自動化ブラウザは常に出さない。最後に「次回から表示しない」。
+ * 指定なし→null）。明示的なURL条件がある場合は、既に見る条件が決まっているので出さない。
+ * 次に自動化ブラウザ、最後に「次回から表示しない」を判定する。
  */
 export function startupShouldShow(opts: {
   forced: boolean | null
+  /** `intro` 以外のURLパラメータがあるか（area, cond, z など） */
+  hasParameters: boolean
   dismissed: boolean
   automated: boolean
 }): boolean {
   if (opts.forced !== null) return opts.forced
+  if (opts.hasParameters) return false
   if (opts.automated) return false
   return !opts.dismissed
 }
@@ -197,8 +202,14 @@ export function mountStartupModal(opts: MountOpts): void {
   const qs = new URLSearchParams(location.search)
   const introParam = qs.get('intro')
   const forced = introParam === null ? null : introParam !== '0'
+  // `intro` は表示制御そのものなので、条件指定の有無には含めない。
+  // `?area=` で地域を選んだ後や、計測用 `?perf=1` で開いた場合は、
+  // URL の指定を邪魔しないよう初期パネルを表示しない。
+  const hasParameters = Array.from(qs.keys()).some((key) => key !== 'intro')
   const automated = typeof navigator !== 'undefined' && navigator.webdriver === true
-  if (!startupShouldShow({ forced, dismissed: readDismissed(), automated })) return
+  if (!startupShouldShow({
+    forced, hasParameters, dismissed: readDismissed(), automated,
+  })) return
   if (document.getElementById('startup-modal')) return
 
   const areas = areaIndex.areas
