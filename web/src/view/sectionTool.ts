@@ -29,28 +29,45 @@ export interface SectionToolOptions {
   onPreview?: (from: LonLat | null, to: LonLat | null) => void
 }
 
-/** クリックとドラッグを分ける閾値 [px]。回転操作で測線を引いてしまわないため */
-const DRAG_SLOP = 4
+/**
+ * クリックとドラッグを分ける閾値 [px]。作図中は Viewer 側のカメラ操作を止める
+ * （`viewer.setDragEnabled(false)`）ので回転で測線を引く事故は起きえず、
+ * トラックパッドの押し込みでカーソルが少し流れても 1 点として拾えるよう広めに取る。
+ */
+const DRAG_SLOP = 12
 
 export class SectionTool {
   private active = false
   private first: LonLat | null = null
   private down: [number, number] | null = null
+  /**
+   * 直近にカーソル位置から解いた経緯度。**確定はこの値を使う。**
+   * pointerup の座標で unproject を取り直すと、地平線に近い視点では数 px の差が
+   * 地上で数十 m の飛びになり、仮の測線と確定測線がずれる（本番で「2 点目クリック後に
+   * 線があらぬ方向へ動く」と報告された症状）。仮の測線が見せているのと同じ点を確定する。
+   */
+  private cursor: LonLat | null = null
 
   constructor(private readonly o: SectionToolOptions) {
     const canvas = o.viewer.canvas
+    const resolve = (clientX: number, clientY: number): LonLat | null => {
+      const r = canvas.getBoundingClientRect()
+      return o.viewer.unproject(clientX - r.left, clientY - r.top, o.planeZ ?? 0)
+    }
     // Viewer の操作はポインタで組んであり click は上がってこないことがある。
     // 押した位置と離した位置が近いときだけクリックとみなす
     canvas.addEventListener('pointerdown', (e) => {
       this.down = [e.clientX, e.clientY]
+      if (this.active) this.cursor = resolve(e.clientX, e.clientY) ?? this.cursor
     })
     canvas.addEventListener('pointerup', (e) => {
       const d = this.down
       this.down = null
       if (!this.active || !d) return
       if (Math.hypot(e.clientX - d[0], e.clientY - d[1]) > DRAG_SLOP) return
-      const r = canvas.getBoundingClientRect()
-      const p = o.viewer.unproject(e.clientX - r.left, e.clientY - r.top, o.planeZ ?? 0)
+      // カーソル追従で解決済みの点（＝仮の測線が見せている点）をそのまま確定する。
+      // pointerup 座標で取り直すと地平線近くで大きく飛ぶ
+      const p = this.cursor ?? resolve(e.clientX, e.clientY)
       // 地平線より上をクリックした。測線の端点にできない
       if (!p) return
       if (!this.first) {
@@ -62,12 +79,13 @@ export class SectionTool {
       this.o.onLine(this.first, p)   // この中で確定リボンが描かれる
       this.stop()                    // stop() が仮の測線を消す
     })
-    // 1 点目を置いたあと、カーソルに追従する仮の測線を出す
+    // カーソルに追従する仮の測線を出す（1 点目を置く前も位置を追っておく）
     canvas.addEventListener('pointermove', (e) => {
-      if (!this.active || !this.first) return
-      const r = canvas.getBoundingClientRect()
-      const p = o.viewer.unproject(e.clientX - r.left, e.clientY - r.top, o.planeZ ?? 0)
-      if (p) this.o.onPreview?.(this.first, p)
+      if (!this.active) return
+      const p = resolve(e.clientX, e.clientY)
+      if (!p) return
+      this.cursor = p
+      if (this.first) this.o.onPreview?.(this.first, p)
     })
     // 作図中は Esc で抜ける。地物クリックと取り合いになるので、抜け道を用意する
     window.addEventListener('keydown', (e) => {
@@ -80,6 +98,9 @@ export class SectionTool {
   start() {
     this.active = true
     this.first = null
+    this.cursor = null
+    // 点を置いている間は地図を止める。動くと狙った画面位置と確定地点がずれる
+    this.o.viewer.setDragEnabled(false)
     this.o.viewer.canvas.style.cursor = 'crosshair'
     this.o.onState({ active: true, hasFirst: false })
   }
@@ -88,6 +109,8 @@ export class SectionTool {
     const hadFirst = this.first !== null
     this.active = false
     this.first = null
+    this.cursor = null
+    this.o.viewer.setDragEnabled(true)
     this.o.viewer.canvas.style.cursor = ''
     this.o.onState({ active: false, hasFirst: false })
     if (hadFirst) this.o.onPreview?.(null, null)

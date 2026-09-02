@@ -60,6 +60,12 @@ export class Viewer {
   private needsRender = true
   private disposed = false
   private renderCbs = new Set<Handler>()
+  /**
+   * ポインタでのカメラ操作（パン・回転）を受けるか。測線ツールなど「地図の上に
+   * 点を置く」操作の最中は false にして、置いている間に地図が動かないようにする
+   * （動くと、狙った画面位置と確定した地点がずれる）。ホイールズームは対象外。
+   */
+  private dragEnabled = true
 
   constructor(o: ViewerOptions) {
     this.frame = o.frame
@@ -308,6 +314,12 @@ export class Viewer {
   /** 次のフレームで描き直す。レイヤ側が内容を変えたときに呼ぶ */
   invalidate() { this.needsRender = true }
 
+  /**
+   * ポインタでのカメラ操作（パン・回転）の有効・無効。測線ツールが作図中は
+   * 無効にして、点を置いている最中に地図が動かないようにする。
+   */
+  setDragEnabled(on: boolean) { this.dragEnabled = on }
+
   dispose() {
     this.disposed = true
     this.renderer.dispose()
@@ -419,8 +431,11 @@ export class Viewer {
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
     canvas.addEventListener('pointerdown', (e) => {
+      if (!this.dragEnabled) return
       canvas.setPointerCapture(e.pointerId)
-      mode = e.button === 2 || e.shiftKey ? 'rotate' : 'pan'
+      // 素のドラッグは回転（地形を横から覗く操作が主で、パンは二次的）。
+      // パンは右ドラッグか Shift＋ドラッグ。ズームはホイール／ピンチ。
+      mode = e.button === 2 || e.shiftKey ? 'pan' : 'rotate'
       lastX = e.clientX; lastY = e.clientY
       this.emit('movestart')
     })
@@ -430,8 +445,10 @@ export class Viewer {
       const dy = e.clientY - lastY
       lastX = e.clientX; lastY = e.clientY
       if (mode === 'rotate') {
+        // 横（bearing）はドラッグと同じ向きに景色が回るよう +dx。ビューキューブの
+        // `onDrag`（`view/map.ts`）と符号を揃える。縦（pitch）は手前に引くと寝る
         this.setCamera({
-          bearing: this.cam.bearing - dx * 0.3,
+          bearing: this.cam.bearing + dx * 0.3,
           pitch: this.cam.pitch - dy * 0.3,
         }, false)
       } else {
