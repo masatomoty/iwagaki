@@ -75,6 +75,13 @@
   @media (max-width: 1080px) {
     #topbar .tb-keys { display: none; }
   }
+  /* さらに狭いと、キー案内を落としても約 800px 要って右端が切れる。
+     レポートを足す前は約 720px で収まっていたので、ここで間隔と区切りの余白を
+     詰めて元の予算に戻す（項目は減らさない）。実測で約 740px まで下がる。 */
+  @media (max-width: 820px) {
+    #topbar { gap: 9px; }
+    #topbar .tb-doc, #topbar .tb-src { padding-left: 9px; }
+  }
   /* 出典は畳んで置く。ホバー／フォーカスで全文（下に垂らす） */
   #topbar .tb-src { flex: 0 0 auto; position: relative; cursor: help;
     padding-left: 15px; border-left: 1px solid var(--line);
