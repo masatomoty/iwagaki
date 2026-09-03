@@ -11,6 +11,8 @@ export default defineConfig({
     'PLATEAU 5m 地形と実測 0.5m 地形で高潮の浸水判定がどこで変わるか。プロジェクト報告。',
   lastUpdated: true,
   cleanUrls: true,
+  // 付録 F の分析手法で数式を使う（markdown-it-mathjax3）
+  markdown: { math: true },
   // viewer と同一オリジンのサブパスに載せる: iwagaki-viewer.tonbo.workers.dev/report/
   // ビルド成果は web/deploy/deploy.sh が web/dist/report/ にコピーして
   // Workers Assets からそのまま配信する（Worker 側のコード変更は不要）。
@@ -89,6 +91,7 @@ export default defineConfig({
           { text: 'C. 用語', link: '/pages/glossary' },
           { text: 'D. データ出典', link: '/pages/sources' },
           { text: 'E. 他自治体への展開', link: '/pages/other-cities' },
+          { text: 'F. 分析手法', link: '/pages/methods' },
         ],
       },
     ],
