@@ -27,7 +27,8 @@ import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
 import {
   CUSTOM_DURATION_MAX_HOURS, CUSTOM_RAINFALL_MAX_MM, CUSTOM_SCENARIO_ID,
   NO_RAIN_SCENARIO_ID, RAINFALL_PAINT_FALLBACK_SCENARIO_ID, RAINFALL_SCENARIOS,
-  RUNOFF_PRESETS, effectiveRainfallMm, resolveRainfallScenario, validateCustomRainfall,
+  RUNOFF_PRESETS, effectiveRainRateMmPerH, effectiveRainfallMm, resolveRainfallScenario,
+  validateCustomRainfall,
 } from '../domain/rainfall'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
@@ -181,8 +182,9 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
       + '潮位は使わない。地形のみで、浸透・管路・実際の降雨分布は含まない。'
       + '窪地は水色で出る。地図をクリックするとその地点の集水域を面で出す（FARR 取り込み）' },
   { id: 'rainfall', label: '雨量リスク',
-    hint: '内水リスク（簡易・仮定に基づく雨量シナリオ）。実効雨量 = 雨量 × 流出率 で、'
-      + '地形の集水・窪地がどれだけ危険になりやすいかを相対値で塗る。浸水深ではない。'
+    hint: '内水リスク（簡易・仮定に基づく雨量シナリオ）。実効雨量 = 雨量 × 流出率、'
+      + 'その総量と平均降雨強度（＝ 実効雨量 ÷ 継続時間）で、地形の集水・窪地が'
+      + 'どれだけ危険になりやすいかを相対値で塗る。浸水深ではない。'
       + '潮位・海水浸水とは別軸。排水管網・ポンプ・吐口・フラップゲートの能力は未反映' },
 ]
 
@@ -196,6 +198,7 @@ function rainfallLegend(s: Store['state']): string {
   const sc = resolveRainfallScenario(s.rainfall)
   const c = s.rainfall.runoffCoefficient
   const eff = effectiveRainfallMm(sc, c)
+  const rate = effectiveRainRateMmPerH(eff, sc.durationHours)
   const noRain = sc.rainfallMm <= 0
   const rows: string[] = []
   rows.push(`<div><b>雨量シナリオ</b><span class="sub"> ${sc.label}`
@@ -207,7 +210,8 @@ function rainfallLegend(s: Store['state']): string {
     rows.push(`<div>想定雨量 <b>${sc.rainfallMm} mm</b>`
       + `<span class="sub"> ／ 継続 ${sc.durationHours} 時間</span></div>`)
     rows.push(`<div>流出率 <b>${c.toFixed(2)}</b>`
-      + `<span class="sub"> → 実効雨量 ${eff.toFixed(1)} mm</span></div>`)
+      + `<span class="sub"> → 実効雨量 ${eff.toFixed(1)} mm`
+      + `／平均 ${rate.toFixed(1)} mm/h</span></div>`)
     rows.push('<div><i style="width:36px;background:'
       + 'linear-gradient(90deg,#dcd4e6,#b38dd1 40%,#78409f 72%,#38105c)'
       + '"></i>相対的な危険度<span class="sub"> 低 → 高</span></div>')

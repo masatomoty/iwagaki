@@ -60,8 +60,9 @@ export const NO_RAIN_SCENARIO_ID = 'none'
 
 /**
  * 既定の雨量シナリオ一覧。観測史上値を使うものは `source` を持つ。
- * **観測史上を上回る想定**（1h 80mm / 3h 100mm / 24h 200mm）は
- * `description` に「観測史上を上回る仮定」と明示する。
+ * **観測史上値を上回る想定は 1h 80mm だけ**（65.5mm 超）。3h 100mm・24h 200mm は
+ * それぞれの記録（129.5mm・312.0mm）に**届かない**大雨想定なので、`description` で
+ * そう書く（記録を上回ると偽らない）。
  */
 export const RAINFALL_SCENARIOS: RainfallScenario[] = [
   { id: NO_RAIN_SCENARIO_ID, label: '雨量なし', durationHours: 0, rainfallMm: 0 },
@@ -72,15 +73,15 @@ export const RAINFALL_SCENARIOS: RainfallScenario[] = [
     description: `舞鶴観測所 観測史上1位（${MAIZURU_RAINFALL_RECORDS.h1.when}）`,
     source: MAIZURU_JMA_RANK_URL },
   { id: 'h1_80', label: '1時間 80 mm', durationHours: 1, rainfallMm: 80,
-    description: '観測史上を上回る仮定' },
+    description: `観測史上1位（${MAIZURU_RAINFALL_RECORDS.h1.mm}mm）を上回る想定` },
   { id: 'h3_100', label: '3時間 100 mm', durationHours: 3, rainfallMm: 100,
-    description: '観測史上を上回る仮定' },
+    description: `継続3時間の大雨想定（観測史上1位 ${MAIZURU_RAINFALL_RECORDS.h3.mm}mm 未満）` },
   { id: 'h3_max', label: '3時間 129.5 mm', durationHours: 3,
     rainfallMm: MAIZURU_RAINFALL_RECORDS.h3.mm,
     description: `舞鶴観測所 観測史上1位（${MAIZURU_RAINFALL_RECORDS.h3.when}）`,
     source: MAIZURU_JMA_RANK_URL },
   { id: 'h24_200', label: '24時間 200 mm', durationHours: 24, rainfallMm: 200,
-    description: '観測史上を上回る仮定' },
+    description: `継続24時間の大雨想定（観測史上1位 ${MAIZURU_RAINFALL_RECORDS.h24.mm}mm 未満）` },
   { id: 'h24_max', label: '24時間 312 mm', durationHours: 24,
     rainfallMm: MAIZURU_RAINFALL_RECORDS.h24.mm,
     description: `舞鶴観測所 観測史上1位（${MAIZURU_RAINFALL_RECORDS.h24.when}）`,
@@ -225,23 +226,35 @@ export function resolveRainfallScenario(st: RainfallState): RainfallScenario {
 //
 // **精密な水理計算は装わない。** 次の 3 段だけ:
 //
-//   1. 実効雨量  E [mm] = P [mm] × 流出率 C
-//   2. 雨の強さ  intensity = E / RAINFALL_RISK_REFERENCE_MM   （0 mm → 0、単調増加）
+//   1. 実効雨量   E [mm]        = P [mm] × 流出率 C
+//      平均降雨強度 Rrate [mm/h] = E / 継続時間 D
+//   2. 雨の強さ intensity = W_DEPTH × (E / REFERENCE_MM)
+//                          + W_RATE  × (Rrate / REFERENCE_RATE_MM_PER_H)
+//      **総量と平均強度の両方**を見る。同じ E でも、短時間に集中するほど
+//      表面排水を超えやすい（Rrate の項が効く）ので、**継続時間が短いほど
+//      intensity が大きくなる**。D = 0（雨量なし）は E も 0 なので intensity 0。
 //   3. 相対リスク risk = intensity × ( W_accum × accumNorm
 //                                    + W_pond  × min(1, fillDepth × POND_DEPTH_SCALE) )
 //
 // - `accumNorm`  … 水みちタイル R チャネル（log 正規化した上流集水セル数、[0,1]）。
 //   「一様降雨時に地表流がどれだけ集まるか」。**catchment 表示と同じ生データ**だが、
 //   catchment 表示はこの値をそのまま色にするだけ（潮位も雨量も掛けない）。
-//   こちらは **intensity を掛けて雨量で振る**ので、両者は別の量である。
+//   こちらは **intensity を掛けて雨量シナリオで振る**ので、両者は別の量である。
 // - `fillDepth`  … 水みちタイル B チャネル（窪地の充填深 [m]）。窪地は抜けないので上乗せ。
 // - **海からの連結性・h_conn・潮位は式に出てこない。** 海水浸水（`domain/flood.ts`）
 //   と雨水の内水リスクを同じものとして扱わないため（`h_conn` を雨量で書き換えない）。
 //
-// GLSL 側（`three/floodMaterial.ts` の `rainRiskRamp` 前の計算）と同じ式であること。
+// intensity は JS 側で 1 回だけ計算してシェーダへ 1 スカラーで渡す。GLSL 側
+// （`three/floodMaterial.ts`）は risk の式（3 段目）だけを二重化して一致を見る。
 
-/** 実効雨量 E = P × C の基準値 [mm]。E がこの値で intensity = 1。24h 312mm（観測史上1位）に対応 */
+/** 総量の基準値 [mm]。E がこの値で総量の項 = 1。24h 312mm（観測史上1位）に対応 */
 export const RAINFALL_RISK_REFERENCE_MM = 300
+/** 平均降雨強度の基準値 [mm/h]。気象庁「非常に激しい雨（50mm/h 以上）」に合わせた */
+export const RAINFALL_RISK_REFERENCE_RATE_MM_PER_H = 50
+/** intensity の総量の重み */
+export const RAINFALL_RISK_DEPTH_WEIGHT = 0.6
+/** intensity の平均降雨強度の重み */
+export const RAINFALL_RISK_RATE_WEIGHT = 0.4
 
 /** 集水（accumNorm）のリスク寄与の重み */
 export const RAINFALL_RISK_ACCUM_WEIGHT = 1.0
@@ -260,12 +273,28 @@ export function effectiveRainfallMm(
   return Math.max(0, scenario.rainfallMm) * clamp(runoffCoefficient, 0, 1)
 }
 
+/** 平均降雨強度 [mm/h] = 実効雨量 E / 継続時間 D。D <= 0 は 0（雨量なし）。 */
+export function effectiveRainRateMmPerH(
+  effectiveMm: number, durationHours: number,
+): number {
+  return durationHours > 0 ? Math.max(0, effectiveMm) / durationHours : 0
+}
+
 /**
- * 実効雨量を無次元の「雨の強さ」に写す。**0 mm で必ず 0、E について厳密に単調増加。**
+ * 実効雨量と平均降雨強度を無次元の「雨の強さ」に写す。
+ * **E = 0 なら必ず 0、E について厳密に単調増加、継続時間が短いほど大きい。**
  * 上側はクランプしない（相対比較が潰れないように）。
+ *
+ * @param effectiveMm   `effectiveRainfallMm(scenario, runoff)`
+ * @param durationHours シナリオの継続時間 [h]（`RainfallScenario.durationHours`）
  */
-export function rainfallIntensity(effectiveMm: number): number {
-  return Math.max(0, effectiveMm) / RAINFALL_RISK_REFERENCE_MM
+export function rainfallIntensity(
+  effectiveMm: number, durationHours: number,
+): number {
+  const e = Math.max(0, effectiveMm)
+  const rate = effectiveRainRateMmPerH(e, durationHours)
+  return RAINFALL_RISK_DEPTH_WEIGHT * (e / RAINFALL_RISK_REFERENCE_MM)
+    + RAINFALL_RISK_RATE_WEIGHT * (rate / RAINFALL_RISK_REFERENCE_RATE_MM_PER_H)
 }
 
 /**
@@ -279,7 +308,7 @@ export function rainfallIntensity(effectiveMm: number): number {
  *
  * @param accumNorm  水みちタイル R（log 正規化した上流集水、[0,1]）
  * @param fillDepthM 水みちタイル B（窪地の充填深 [m]、窪地でなければ 0）
- * @param intensity  `rainfallIntensity(effectiveRainfallMm(...))`
+ * @param intensity  `rainfallIntensity(effectiveRainfallMm(sc, C), sc.durationHours)`
  */
 export function rainfallRelativeRisk(
   accumNorm: number, fillDepthM: number, intensity: number,

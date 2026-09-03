@@ -273,8 +273,11 @@ async function boot() {
       // シナリオ・流出率を変えてもこの uniform が変わるだけで、再取得は起きない
       rainfallPaint: s.terrainPaint === 'rainfall',
       rainIntensity: s.terrainPaint === 'rainfall'
-        ? rainfallIntensity(effectiveRainfallMm(
-            resolveRainfallScenario(s.rainfall), s.rainfall.runoffCoefficient))
+        ? (() => {
+            const sc = resolveRainfallScenario(s.rainfall)
+            return rainfallIntensity(
+              effectiveRainfallMm(sc, s.rainfall.runoffCoefficient), sc.durationHours)
+          })()
         : 0,
     }
   }

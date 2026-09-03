@@ -18,8 +18,8 @@ import {
   CUSTOM_DURATION_MAX_HOURS, CUSTOM_RAINFALL_MAX_MM, CUSTOM_SCENARIO_ID,
   DEFAULT_RUNOFF_COEFFICIENT, MAIZURU_RAINFALL_RECORDS, NO_RAIN_SCENARIO_ID,
   RAINFALL_RISK_POND_DEPTH_SCALE, RAINFALL_RISK_POND_WEIGHT, RAINFALL_SCENARIOS,
-  RUNOFF_PRESETS, effectiveRainfallMm, initialRainfallState, rainfallIntensity,
-  rainfallRelativeRisk, resolveRainfallScenario, validateCustomRainfall,
+  RUNOFF_PRESETS, effectiveRainRateMmPerH, effectiveRainfallMm, initialRainfallState,
+  rainfallIntensity, rainfallRelativeRisk, resolveRainfallScenario, validateCustomRainfall,
 } from '../src/domain/rainfall.ts'
 import { depth, ponded, wet } from '../src/domain/flood.ts'
 
@@ -46,6 +46,20 @@ test('観測史上値のシナリオは舞鶴観測所の記録と一致し、�
   for (const id of ['h1_max', 'h3_max', 'h24_max']) {
     assert.match(by(id).source ?? '', /jma\.go\.jp/, `${id}: 出典 URL`)
   }
+})
+
+test('「観測史上を上回る」と説明するのは実際に記録を超えるシナリオだけ', () => {
+  const rec = { 1: MAIZURU_RAINFALL_RECORDS.h1.mm, 3: MAIZURU_RAINFALL_RECORDS.h3.mm,
+    24: MAIZURU_RAINFALL_RECORDS.h24.mm }
+  for (const s of RAINFALL_SCENARIOS) {
+    if (!s.description || !/上回る/.test(s.description)) continue
+    const r = rec[s.durationHours]
+    assert.ok(r !== undefined && s.rainfallMm > r,
+      `${s.id}: 「上回る」と書いてあるが ${s.rainfallMm}mm ≤ 記録 ${r}mm`)
+  }
+  // h3_100 / h24_200 は記録未満なので「上回る」と書いていない
+  assert.doesNotMatch(RAINFALL_SCENARIOS.find((s) => s.id === 'h3_100').description, /上回る/)
+  assert.doesNotMatch(RAINFALL_SCENARIOS.find((s) => s.id === 'h24_200').description, /上回る/)
 })
 
 // --- 2. シナリオの選択 -------------------------------------------------
@@ -123,21 +137,41 @@ test('effectiveRainfallMm = 雨量 × 流出率（C は [0,1]、負の雨量は 
   assert.equal(effectiveRainfallMm(sc(-100), 0.7), 0)
 })
 
-test('rainfallIntensity: 0 mm で 0、単調増加', () => {
-  assert.equal(rainfallIntensity(0), 0)
+test('effectiveRainRateMmPerH = 実効雨量 / 継続時間（D<=0 は 0）', () => {
+  assert.equal(effectiveRainRateMmPerH(60, 3), 20)
+  assert.equal(effectiveRainRateMmPerH(60, 0), 0)   // 雨量なし（D=0）
+  assert.equal(effectiveRainRateMmPerH(0, 24), 0)
+})
+
+test('rainfallIntensity: E=0 で 0、E について厳密単調増加（継続時間固定）', () => {
+  assert.equal(rainfallIntensity(0, 1), 0)
+  assert.equal(rainfallIntensity(0, 24), 0)
   let prev = -1
   for (const mm of [0, 10, 50, 100, 200, 300, 400]) {
-    const v = rainfallIntensity(mm)
-    assert.ok(v > prev, `intensity(${mm}) が増えていない`)
+    const v = rainfallIntensity(mm, 3)
+    assert.ok(v > prev, `intensity(${mm}mm/3h) が増えていない`)
     prev = v
   }
 })
 
+test('rainfallIntensity: 同じ実効雨量なら継続時間が短いほど大きい', () => {
+  const E = 90
+  const short = rainfallIntensity(E, 1)
+  const mid = rainfallIntensity(E, 3)
+  const long = rainfallIntensity(E, 24)
+  assert.ok(short > mid && mid > long, `${short} > ${mid} > ${long} でない`)
+  // 継続時間はゼロ寄与にはならない（総量の項は残る）
+  assert.ok(long > 0)
+})
+
 // --- 5. 雨量 0 でリスクが発生しない ----------------------------------
+
+const intensityOf = (scenario, runoff) =>
+  rainfallIntensity(effectiveRainfallMm(scenario, runoff), scenario.durationHours)
 
 test('雨量 0（intensity 0）なら、集水・窪地がどうであれリスクは 0', () => {
   const none = resolveRainfallScenario(initialRainfallState())
-  const intensity = rainfallIntensity(effectiveRainfallMm(none, DEFAULT_RUNOFF_COEFFICIENT))
+  const intensity = intensityOf(none, DEFAULT_RUNOFF_COEFFICIENT)
   assert.equal(intensity, 0)
   for (const accum of [0, 0.5, 1]) {
     for (const fill of [0, 0.3, 1]) {
@@ -147,27 +181,42 @@ test('雨量 0（intensity 0）なら、集水・窪地がどうであれリス�
   }
   // 流出率 0 でも同じ
   assert.equal(
-    rainfallRelativeRisk(1, 1, rainfallIntensity(effectiveRainfallMm(
-      { id: 'x', label: 'x', durationHours: 1, rainfallMm: 100 }, 0))),
+    rainfallRelativeRisk(1, 1, intensityOf(
+      { id: 'x', label: 'x', durationHours: 1, rainfallMm: 100 }, 0)),
     0)
 })
 
 // --- 6. 雨量が増えるとリスクが単調に増える -------------------------
 
-test('リスクは実効雨量について単調増加（既定シナリオを雨量順に並べて確認）', () => {
+test('リスクは雨量について単調増加（同じ継続時間で雨量だけ増やす）', () => {
+  // 固定した地形（集水 0.6・窪地 0.2 m）の 1 セル、継続 3 時間・流出率 0.65 固定で
+  // 雨量だけ 0 → 300 mm と増やす
+  const ACCUM = 0.6
+  const FILL = 0.2
+  const C = 0.65
+  let prev = -1
+  for (const mm of [0, 10, 30, 60, 100, 150, 220, 300]) {
+    const sc = { id: 'x', label: 'x', durationHours: 3, rainfallMm: mm }
+    const risk = rainfallRelativeRisk(ACCUM, FILL, intensityOf(sc, C))
+    if (mm === 0) assert.equal(risk, 0)
+    else assert.ok(risk > prev, `雨量 ${mm}mm でリスクが増えていない: ${risk} <= ${prev}`)
+    prev = risk
+  }
+})
+
+test('リスクは「雨の強さ」について単調（既定シナリオを intensity 順に並べて確認）', () => {
   const st = initialRainfallState()
   const ordered = RAINFALL_SCENARIOS
     .filter((s) => s.id !== CUSTOM_SCENARIO_ID)
-    .map((s) => ({ s, eff: effectiveRainfallMm(s, st.runoffCoefficient) }))
-    .sort((a, b) => a.eff - b.eff)
-  // 固定した地形（集水 0.6・窪地 0.2 m）の 1 セルで比べる
+    .map((s) => ({ s, i: intensityOf(s, st.runoffCoefficient) }))
+    .sort((a, b) => a.i - b.i)
   const ACCUM = 0.6
   const FILL = 0.2
   let prev = -1
-  for (const { s, eff } of ordered) {
-    const risk = rainfallRelativeRisk(ACCUM, FILL, rainfallIntensity(eff))
-    if (eff === 0) assert.equal(risk, 0)
-    else assert.ok(risk > prev, `${s.id}（実効 ${eff}mm）でリスクが増えていない: ${risk} <= ${prev}`)
+  for (const { s, i } of ordered) {
+    const risk = rainfallRelativeRisk(ACCUM, FILL, i)
+    if (i === 0) assert.equal(risk, 0)
+    else assert.ok(risk >= prev, `${s.id}（intensity ${i.toFixed(3)}）で減った: ${risk} < ${prev}`)
     prev = risk
   }
 })
