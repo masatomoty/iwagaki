@@ -253,7 +253,10 @@ export function mountTooltip(): void {
     // ここは座標で絞らない（文字の外＝ラッパの余白へ出ただけでも「離れた」と
     // みなして消したいので、要素だけで判定する）
     const t = triggerFrom(e.target)
-    if (!t || t !== activeTrigger) return
+    // 表示中でも「表示待ち」でも、そのトリガーから出たら消す。ウィンドウ外へ
+    // 抜けると pointermove / pointerover が来ないので、ここで待ちを捨てないと
+    // ポインタが離れた後にタイマが満了して出てしまう
+    if (!t || (t !== activeTrigger && t !== pendingTrigger)) return
     // トリガーの中（label 内の checkbox 等）へ移っただけなら消さない
     if (e.relatedTarget instanceof Node && t.contains(e.relatedTarget)) return
     hide()
