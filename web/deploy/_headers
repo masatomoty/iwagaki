@@ -32,3 +32,8 @@
 
 /data/objects.geojson
   Cache-Control: public, max-age=31536000, immutable
+
+# 示唆レポート（VitePress、/report/ サブパス）。ハッシュ付きアセットだけ immutable。
+# /report/ 直下の HTML は既定（毎回再検証）のままにして、焼き直しに追従させる。
+/report/assets/*
+  Cache-Control: public, max-age=31536000, immutable

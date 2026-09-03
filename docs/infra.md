@@ -52,6 +52,15 @@ CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えるこ
 **COPC だけ Worker + R2 を経由するのは、Workers Assets が Range に 200 を返すから**である。
 根拠と実測は `docs/platform.md`。
 
+### 市向け示唆レポート（`/report/`）
+
+`report/`（VitePress、`base: '/report/'`）を**同じ Worker のサブパス**として配信する。
+`deploy/deploy.sh` が vite build の直後に VitePress をビルドし、成果を `dist/report/` に複製する。
+`/report/*` は `wrangler.jsonc` の `run_worker_first` に載っていないので Workers Assets が直接返し、
+`deploy/worker.js` は関与しない（新規パスの登録も不要）。同一オリジンなので transferSize も
+CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`docs/results.md`）の報告用まとめで、
+`docs/*.md` の内部作業ノートとは別物。
+
 ---
 
 ## スコープ
@@ -81,7 +90,8 @@ CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えるこ
 | `web/deploy/worker.js` | COPC の Range 配信のみ。他のパスには関与しない |
 | `web/deploy/_headers` | Workers Assets のキャッシュ制御（deploy 時に `dist/_headers` へコピー） |
 | `web/deploy/assetsignore` | COPC をアセットとしてアップロードしない（→ `dist/.assetsignore`） |
-| `web/deploy/deploy.sh` | build → R2 へ COPC → `wrangler deploy` |
+| `web/deploy/deploy.sh` | build（viewer → `report/` VitePress → `dist/report/`）→ R2 へ COPC → `wrangler deploy` |
+| `report/` | 市向け示唆レポート（VitePress、`base: '/report/'`）。`iwagaki-viewer.<subdomain>.workers.dev/report/` |
 | `web/deploy/r2put.sh` | 315 MB 超を S3 API の multipart で R2 に置く |
 | `web/deploy/check.mjs` | デプロイ後に配信条件を実測して合否を出す |
 
