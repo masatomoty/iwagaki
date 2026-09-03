@@ -169,9 +169,13 @@ export function attachViewCube(v: Viewer): ViewCube {
     size: 128,
     onPick: (o) => v.easeTo({ bearing: o.bearingDeg, pitch: o.pitchDeg }, 450),
     onDrag: (dx, dy) => {
-      // 横は方位、縦は傾き。上限は Viewer.setCamera が丸める
+      // 横は方位、縦は傾き。上限は Viewer.setCamera が丸める。
+      // 横の符号はメインビューのドラッグ回転（`three/viewer.ts`）と揃える
+      // （`dragSettings.rotateReversed`）。感度・ボタン割り当ての設定はこの
+      // 小さなギズモには適用しない — 立方体を直接つかんで回す別の操作感なので
       const c = v.cameraState
-      v.setCamera({ bearing: c.bearing + dx * 0.6, pitch: c.pitch - dy * 0.4 })
+      const sign = v.dragSettings.rotateReversed ? -1 : 1
+      v.setCamera({ bearing: c.bearing + sign * dx * 0.6, pitch: c.pitch - dy * 0.4 })
     },
   })
   const host = document.createElement('div')

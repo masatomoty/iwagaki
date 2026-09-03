@@ -58,6 +58,7 @@ import {
   initialPointBufferState, loadPointBufferResult, mountPointBufferPanel,
   updatePointBufferPanel, type PointBufferPanelState,
 } from './ui/pointBufferPanel'
+import { applyStoredDragSettings, openOperationSettingsModal } from './ui/operationSettingsModal'
 import { drawSection, drawSectionMessage, type SectionSeries } from './ui/section'
 import { mountStartupModal, resolveCarriedModel, takePendingStartup } from './ui/startupModal'
 import { mountTooltip } from './ui/tooltip'
@@ -216,6 +217,9 @@ async function boot() {
     viewer.panByPixels(viewer.canvas.clientWidth * 0.17, viewer.canvas.clientHeight * 0.12)
   }
   attachViewCube(viewer)
+  // ドラッグの回転方向・役割・感度は個人の操作感の好みなので、地形データ等の
+  // AppState には乗せず localStorage から直接読む（`ui/operationSettingsModal.ts`）
+  applyStoredDragSettings(viewer)
   const initialCamera = {
     ...viewer.cameraState,
     target: [...viewer.cameraState.target] as [number, number],
@@ -1214,7 +1218,8 @@ async function boot() {
     }
     renderControls(document.getElementById('controls')!, store, catalog, bldgLegend,
       { index: areaIndex, current: area }, [...tideCurves.values()], playbackStats,
-      areaFlood, walkIsochroneLayer?.info ?? null, forecastState, () => void loadTideForecast())
+      areaFlood, walkIsochroneLayer?.info ?? null, forecastState, () => void loadTideForecast(),
+      () => openOperationSettingsModal(viewer))
     const attrPanel = document.getElementById('panel-attr')
     if (attrPanel) renderInspector(attrPanel, store, catalog)
     viewer.invalidate()

@@ -556,6 +556,10 @@ function topbarHtml(
   // ← → キーで動かせることはキー操作案内にも足す（刻みの詳細は data-tip に）
   const wlv = `<span class="tb-wl" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位`
     + ` <b id="tb-wl-v">${waterLevel.toFixed(2)}</b> m<span class="tb-wl-u"> T.P.</span></span>`
+  // ドラッグの回転方向・役割・感度の設定（`ui/operationSettingsModal.ts`）。
+  // 人によってドラッグの感じ方が逆なので、画面上部からいつでも開けるようにした（2026-09 要望）
+  const opset = '<button id="tb-opset" type="button" class="tb-btn"'
+    + ' data-tip="ドラッグでの回転・パンの向きや感度を設定する">操作設定</button>'
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
     + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
@@ -565,14 +569,17 @@ function topbarHtml(
   const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
     + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${keys}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${keys}${src}`
 }
 
 /**
  * `#topbar` は `#controls` とは別の DOM。初回に組み、以後は select の値だけ同期。
  * 対象範囲・地形データの change はここで拾う（`#controls` の外に出たため）。
  */
-function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined) {
+function syncTopbar(
+  store: Store, catalog: Catalog, area: AreaChoice | undefined,
+  onOpenOperationSettings: () => void,
+) {
   const topbar = document.getElementById('topbar')
   if (!topbar) return
   if (topbar.dataset.pointerBlurBound !== '1') {
@@ -619,6 +626,7 @@ function syncTopbar(store: Store, catalog: Catalog, area: AreaChoice | undefined
     const next = isDiff(store.state.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
     store.set({ surface: next })
   })
+  topbar.querySelector('#tb-opset')!.addEventListener('click', onOpenOperationSettings)
 }
 
 /**
@@ -644,11 +652,12 @@ export function renderControls(
   walkIsochroneInfo: WalkIsochroneInfo | null = null,
   tideForecast: TideForecastState = { status: 'idle' },
   onRefreshForecast: () => void = () => {},
+  onOpenOperationSettings: () => void = () => {},
 ) {
   const s = store.state
   const cond = surfaceCondition(s.surface)
 
-  syncTopbar(store, catalog, area)
+  syncTopbar(store, catalog, area, onOpenOperationSettings)
   syncToolbar()
   if (el.dataset.pointerBlurBound !== '1') {
     // タブ・ボタン・select のクリック後は、直後の潮位キー操作を使えるよう
