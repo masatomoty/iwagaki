@@ -16,6 +16,32 @@ import { lngLatToWorld, worldToLngLat, zoomForMetresPerPixel, type LocalFrame } 
 
 export type ProjectionMode = 'perspective' | 'orthographic'
 
+/**
+ * ポインタドラッグでの操作感。人によって「同じ向きが自然」と「逆が自然」で分かれる
+ * うえ、回転とパンのどちらを素のドラッグに割り当てるかも好みが割れる
+ * （2026-09 要望）ので、画面上部の設定モーダル（`ui/operationSettingsModal.ts`）から
+ * 変えられるようにしてある。地形データ等の `AppState` には乗せない個人の操作感の
+ * 好みなので、`localStorage` にだけ持つ（読み書きは同モジュール）。
+ */
+export interface DragSettings {
+  /**
+   * 横（bearing）の回転方向。false＝ドラッグと同じ向きに景色が回る（旧来の既定）。
+   * **true が既定。** 「地形をつかんで動かす」感覚（ドラッグと逆向きに回る）の
+   * ほうが自然という指示（2026-09）で、既定をこちらに反転した。
+   */
+  rotateReversed: boolean
+  /** 素のドラッグの動作。右ドラッグ／Shift＋ドラッグは常にこの逆になる */
+  primaryDrag: 'rotate' | 'pan'
+  /** 回転の感度倍率。bearing・pitch 双方の px あたり角度に掛かる */
+  rotateSensitivity: number
+}
+
+export const DEFAULT_DRAG_SETTINGS: DragSettings = {
+  rotateReversed: true,
+  primaryDrag: 'rotate',
+  rotateSensitivity: 1,
+}
+
 export interface CameraState {
   /** 注視点のワールド XY [m] */
   target: [number, number]
@@ -66,6 +92,7 @@ export class Viewer {
    * （動くと、狙った画面位置と確定した地点がずれる）。ホイールズームは対象外。
    */
   private dragEnabled = true
+  private dragSettings_: DragSettings = { ...DEFAULT_DRAG_SETTINGS }
 
   constructor(o: ViewerOptions) {
     this.frame = o.frame
@@ -320,6 +347,14 @@ export class Viewer {
    */
   setDragEnabled(on: boolean) { this.dragEnabled = on }
 
+  /** いまのドラッグ操作の設定。設定モーダルの初期表示・ビューキューブの符号合わせに使う */
+  get dragSettings(): DragSettings { return this.dragSettings_ }
+
+  /** ドラッグ操作の設定を変える。設定モーダルから即時反映で呼ばれる */
+  setDragSettings(patch: Partial<DragSettings>) {
+    this.dragSettings_ = { ...this.dragSettings_, ...patch }
+  }
+
   dispose() {
     this.disposed = true
     this.renderer.dispose()
@@ -433,9 +468,12 @@ export class Viewer {
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.dragEnabled) return
       canvas.setPointerCapture(e.pointerId)
-      // 素のドラッグは回転（地形を横から覗く操作が主で、パンは二次的）。
-      // パンは右ドラッグか Shift＋ドラッグ。ズームはホイール／ピンチ。
-      mode = e.button === 2 || e.shiftKey ? 'pan' : 'rotate'
+      // 素のドラッグは既定で回転（地形を横から覗く操作が主で、パンは二次的）。
+      // 右ドラッグ／Shift＋ドラッグは常にその逆。どちらを素のドラッグにするかは
+      // `dragSettings_.primaryDrag`（設定モーダル）で入れ替えられる。ズームはホイール／ピンチ
+      const alt = e.button === 2 || e.shiftKey
+      const primary = this.dragSettings_.primaryDrag
+      mode = alt ? (primary === 'rotate' ? 'pan' : 'rotate') : primary
       lastX = e.clientX; lastY = e.clientY
       this.emit('movestart')
     })
@@ -445,11 +483,14 @@ export class Viewer {
       const dy = e.clientY - lastY
       lastX = e.clientX; lastY = e.clientY
       if (mode === 'rotate') {
-        // 横（bearing）はドラッグと同じ向きに景色が回るよう +dx。ビューキューブの
-        // `onDrag`（`view/map.ts`）と符号を揃える。縦（pitch）は手前に引くと寝る
+        // 横（bearing）の符号は `rotateReversed` で切り替える（既定は反転＝
+        // 地形をつかんで動かす感覚）。ビューキューブの `onDrag`（`view/map.ts`）とも
+        // 符号を揃える。縦（pitch）は反転の対象外（手前に引くと寝る、常に固定）
+        const sign = this.dragSettings_.rotateReversed ? -1 : 1
+        const k = 0.3 * this.dragSettings_.rotateSensitivity
         this.setCamera({
-          bearing: this.cam.bearing + dx * 0.3,
-          pitch: this.cam.pitch - dy * 0.3,
+          bearing: this.cam.bearing + sign * dx * k,
+          pitch: this.cam.pitch - dy * k,
         }, false)
       } else {
         // 画面上の移動量を地面のメートルに直す。pitch が寝るほど 1 px が遠くなる
