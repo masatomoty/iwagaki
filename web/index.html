@@ -70,8 +70,9 @@
     color: var(--fg); text-decoration: underline dotted; text-underline-offset: 3px; outline: none; }
   /* #topbar は折り返さない 1 行の flex なので、幅が足りないと右側（操作設定・レポート・出典）が
      画面の外へ押し出されて届かなくなる。ヒントに過ぎないキー操作案内を先に落として
-     幅を空ける（実測: フル項目で約 980px が必要、キー案内を落とせば約 720px で収まる） */
-  @media (max-width: 1000px) {
+     幅を空ける（実測: フル項目で約 1055px が必要、キー案内を落とせば約 800px で収まる。
+     レポートを足したぶん閾値を 1000→1080px に上げた） */
+  @media (max-width: 1080px) {
     #topbar .tb-keys { display: none; }
   }
   /* 出典は畳んで置く。ホバー／フォーカスで全文（下に垂らす） */
