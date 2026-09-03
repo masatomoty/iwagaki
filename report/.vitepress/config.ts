@@ -1,12 +1,14 @@
 import { defineConfig } from 'vitepress'
 
-// 舞鶴市 高潮シミュレーション — 結果と示唆のレポート。
-// 内部の作業ノートは docs/*.md のまま。ここは市に返す報告用に組み直したもの。
+// 舞鶴市 高潮浸水シミュレーション — プロジェクト報告。
+// 内部の作業ノートは docs/*.md のまま。ここは初見の自治体職員でも
+// 「課題 → viewer を触る → 表示の解釈 → 分析結果 → 提言 → 限界」の順で
+// 読めるように組んだ報告書。数字は docs/results.md と一致させている。
 export default defineConfig({
   lang: 'ja',
-  title: '舞鶴市 高潮シミュレーション',
+  title: '舞鶴市 高潮浸水シミュレーション',
   description:
-    'PLATEAU 5m 地形と実測 0.5m 地形で高潮の浸水判定がどこで変わるか。結果と示唆。',
+    'PLATEAU 5m 地形と実測 0.5m 地形で高潮の浸水判定がどこで変わるか。プロジェクト報告。',
   lastUpdated: true,
   cleanUrls: true,
   // viewer と同一オリジンのサブパスに載せる: iwagaki-viewer.tonbo.workers.dev/report/
@@ -20,47 +22,46 @@ export default defineConfig({
     lastUpdatedText: '最終更新',
 
     nav: [
-      { text: '概要', link: '/' },
-      { text: '結果', link: '/pages/results-spatial' },
-      { text: '示唆', link: '/pages/implications' },
-      { text: 'viewer', link: 'https://iwagaki-viewer.tonbo.workers.dev' },
+      { text: '背景と目的', link: '/' },
+      { text: '分析結果', link: '/pages/results' },
+      { text: '考察と提言', link: '/pages/discussion' },
+      { text: 'viewer を開く', link: 'https://iwagaki-viewer.tonbo.workers.dev' },
     ],
 
     sidebar: [
       {
-        text: 'はじめに',
-        items: [
-          { text: '概要（お題との対応）', link: '/' },
-          { text: '結論', link: '/pages/summary' },
-        ],
+        text: '1. 背景と目的',
+        link: '/',
       },
       {
-        text: '結果',
-        items: [
-          { text: '① 場所が変わる（面積ではなく）', link: '/pages/results-spatial' },
-          { text: '② 主因はデータソース', link: '/pages/results-source' },
-          { text: '③ 点群の位置づけ', link: '/pages/results-pointcloud' },
-          { text: '④ 海面上昇でどこまで広がるか', link: '/pages/results-sealevel' },
-          { text: '⑤ 実測との突き合わせ', link: '/pages/results-validation' },
-        ],
+        text: '2. viewer の操作',
+        link: '/pages/viewer',
       },
       {
-        text: '示唆',
-        items: [{ text: '市への示唆 A / B / C', link: '/pages/implications' }],
+        text: '3. 表示の解釈',
+        link: '/pages/interpretation',
       },
       {
-        text: '手法と限界',
-        items: [
-          { text: 'モデルと前提', link: '/pages/method' },
-          { text: '既知の限界', link: '/pages/limits' },
-        ],
+        text: '4. 分析結果',
+        link: '/pages/results',
+      },
+      {
+        text: '5. 考察と提言',
+        link: '/pages/discussion',
+      },
+      {
+        text: '6. 前提と限界',
+        link: '/pages/limits',
       },
       {
         text: '付録',
+        collapsed: false,
         items: [
-          { text: 'viewer の使い方', link: '/pages/viewer' },
-          { text: '数表', link: '/pages/tables' },
-          { text: 'お題の外で足したもの', link: '/pages/extras' },
+          { text: 'A. 元の課題との対応', link: '/pages/appendix-correspondence' },
+          { text: 'B. 数値データ表', link: '/pages/tables' },
+          { text: 'C. 用語', link: '/pages/glossary' },
+          { text: 'D. データ出典', link: '/pages/sources' },
+          { text: 'E. 他自治体への展開', link: '/pages/other-cities' },
         ],
       },
     ],
