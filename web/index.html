@@ -339,6 +339,8 @@
     border-left: 1px solid rgba(148,163,184,.2); }
   /* 雨量シナリオのカスタム入力（雨量 mm／継続 h）。潮位スライダと同じタブに置く */
   .rainrow { display: flex; gap: 10px; margin: 6px 0 0; flex-wrap: wrap; }
+  /* display を持つ規則は [hidden] の display:none に勝つので明示する（label.row と同じ） */
+  .rainrow[hidden] { display: none; }
   .rainrow label { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); }
   .rainrow input[type=number] { width: 68px; background: var(--control); color: var(--fg);
     border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font: 13px/1.2 inherit; }

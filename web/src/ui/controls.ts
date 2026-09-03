@@ -245,7 +245,7 @@ function rainfallControlsHtml(s: Store['state']): string {
     `<option value="${id}" ${r.scenarioId === id ? 'selected' : ''}>${label}</option>`
   const scenarioOpts = RAINFALL_SCENARIOS.map((x) =>
     opt(x.id, x.label + (x.source ? '（観測史上1位）'
-      : x.description && x.id !== CUSTOM_SCENARIO_ID ? `（${x.description}）` : ''))).join('')
+      : x.description && x.id !== CUSTOM_SCENARIO_ID ? ` — ${x.description}` : ''))).join('')
   const runoffMatched = RUNOFF_PRESETS.some((p) => p.coefficient === r.runoffCoefficient)
   const runoffOpts =
     (runoffMatched ? '' : `<option value="${r.runoffCoefficient}" selected>手動 C=${r.runoffCoefficient}</option>`)
