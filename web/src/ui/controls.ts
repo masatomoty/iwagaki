@@ -27,8 +27,7 @@ import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
 import {
   CUSTOM_DURATION_MAX_HOURS, CUSTOM_RAINFALL_MAX_MM, CUSTOM_SCENARIO_ID,
   NO_RAIN_SCENARIO_ID, RAINFALL_PAINT_FALLBACK_SCENARIO_ID, RAINFALL_SCENARIOS,
-  RUNOFF_PRESETS, effectiveRainRateMmPerH, effectiveRainfallMm, resolveRainfallScenario,
-  validateCustomRainfall,
+  RUNOFF_PRESETS, resolveRainfallScenario, validateCustomRainfall,
 } from '../domain/rainfall'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
@@ -189,36 +188,20 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
 ]
 
 /**
- * 「雨量リスク」モードの凡例。**浸水深ではない**ことを毎回明示する
- * （`domain/rainfall.ts`）。想定雨量・継続時間・流出率・実効雨量を数字で出し、
- * 色は「地形の集水・窪地による相対的な危険度」であること、排水施設の能力は
- * 未反映（または仮定）であることを書く。
+ * 「雨量リスク」モードの凡例。**色の意味だけ**を出す（他モードの凡例と同じ粒度）。
+ * シナリオ・想定雨量・流出率の値は「浸水条件」タブの操作 UI が持ち、
+ * 「浸水深ではない／排水施設未反映」の但し書きは見出しの data-tip にある。
  */
 function rainfallLegend(s: Store['state']): string {
   const sc = resolveRainfallScenario(s.rainfall)
-  const c = s.rainfall.runoffCoefficient
-  const eff = effectiveRainfallMm(sc, c)
-  const rate = effectiveRainRateMmPerH(eff, sc.durationHours)
-  const noRain = sc.rainfallMm <= 0
   const rows: string[] = []
-  rows.push(`<div><b>雨量シナリオ</b><span class="sub"> ${sc.label}`
-    + `${sc.source ? '（観測史上値）' : sc.description ? `（${sc.description}）` : ''}</span></div>`)
-  if (noRain) {
-    rows.push('<div class="sub">雨量が 0 なのでリスク面は出ない。'
-      + '下のシナリオを選ぶと塗られる</div>')
+  if (sc.rainfallMm <= 0) {
+    rows.push('<div class="sub">雨量シナリオを選ぶと塗られる</div>')
   } else {
-    rows.push(`<div>想定雨量 <b>${sc.rainfallMm} mm</b>`
-      + `<span class="sub"> ／ 継続 ${sc.durationHours} 時間</span></div>`)
-    rows.push(`<div>流出率 <b>${c.toFixed(2)}</b>`
-      + `<span class="sub"> → 実効雨量 ${eff.toFixed(1)} mm`
-      + `／平均 ${rate.toFixed(1)} mm/h</span></div>`)
     rows.push('<div><i style="width:36px;background:'
       + 'linear-gradient(90deg,#dcd4e6,#b38dd1 40%,#78409f 72%,#38105c)'
-      + '"></i>相対的な危険度<span class="sub"> 低 → 高</span></div>')
-    rows.push('<div><i style="background:#b38dd1"></i>窪地は上乗せ</div>')
+      + '"></i>雨量リスク（相対）<span class="sub"> 低 → 高</span></div>')
   }
-  rows.push('<div class="sub">相対値（浸水深ではない）。排水施設は未反映。'
-    + '海水浸水（潮位）とは別軸で集計に混ぜない</div>')
   rows.push(roadsLegend(s))
   return `<div class="legend">${rows.join('')}</div>`
 }
