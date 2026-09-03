@@ -93,6 +93,8 @@ export function placeTip(
 
 let tipEl: HTMLElement | null = null
 let activeTrigger: HTMLElement | null = null
+/** いま出ているツールチップの出し方。ホバー由来だけがポインタ移動で消える */
+let shownVia: 'hover' | 'focus' = 'hover'
 /** 表示待ち（ホバーでスケジュール済み・まだ出していない）トリガー */
 let pendingTrigger: HTMLElement | null = null
 let showTimer: number | undefined
@@ -132,11 +134,12 @@ function reposition(): void {
   tipEl.dataset.placement = placement
 }
 
-function render(trigger: HTMLElement): void {
+function render(trigger: HTMLElement, via: 'hover' | 'focus' = 'hover'): void {
   const text = trigger.dataset.tip
   if (!text) return
   pendingTrigger = null
   showTimer = undefined
+  shownVia = via
   const el = ensureEl()
   el.textContent = text
   // いったん不可視のまま出してサイズを測り、位置を決めてから見せる（チラつき防止）
@@ -153,7 +156,7 @@ function scheduleShow(trigger: HTMLElement, immediate: boolean): void {
   if (trigger === activeTrigger) return
   hide()
   if (!trigger.dataset.tip) return
-  if (immediate) { render(trigger); return }
+  if (immediate) { render(trigger, 'focus'); return }
   pendingTrigger = trigger
   showTimer = window.setTimeout(() => render(trigger), HOVER_DELAY_MS)
 }
@@ -163,12 +166,13 @@ function scheduleShow(trigger: HTMLElement, immediate: boolean): void {
  * で出す。動いている間はタイマを引き直し続け、文字から外れたら待ちを捨てる。
  * pointermove は実際に動いたときだけ飛ぶので、静止すれば最後の引き直しから
  * タイマが満了して表示に至る（＝「通り抜け」では出ない）。
- * 表示中も同じ当たり判定を続け、文字の外（見出し右の余白や select の上）へ
- * 動いたらその場で消す。
+ * ホバーで出したものは表示中も同じ当たり判定を続け、文字の外（見出し右の余白や
+ * select の上）へ動いたらその場で消す。フォーカスで出したものはポインタ移動では
+ * 消さない（blur / Esc まで残す）。
  */
 function onPointerMove(e: PointerEvent): void {
   if (activeTrigger) {
-    if (triggerFrom(e.target, e) !== activeTrigger) hide()
+    if (shownVia === 'hover' && triggerFrom(e.target, e) !== activeTrigger) hide()
     return
   }
   const t = triggerFrom(e.target, e)
@@ -248,20 +252,24 @@ export function mountTooltip(): void {
   mounted = true
   ensureEl()
 
+  // フォーカスで出したツールチップはポインタの出入りでは消さない（blur / Esc
+  // まで残す）。ホバー由来だけがポインタ操作で消える
+  const hoverShown = () => activeTrigger !== null && shownVia === 'hover'
+
   document.addEventListener('pointerover', (e) => {
     const t = triggerFrom(e.target, e)
     if (t) scheduleShow(t, false)
-    else if (activeTrigger || pendingTrigger) hide()
+    else if (hoverShown() || pendingTrigger) hide()
   })
   document.addEventListener('pointermove', onPointerMove, { passive: true })
   document.addEventListener('pointerout', (e) => {
     // ここは座標で絞らない（文字の外＝ラッパの余白へ出ただけでも「離れた」と
     // みなして消したいので、要素だけで判定する）
     const t = triggerFrom(e.target)
-    // 表示中でも「表示待ち」でも、そのトリガーから出たら消す。ウィンドウ外へ
-    // 抜けると pointermove / pointerover が来ないので、ここで待ちを捨てないと
-    // ポインタが離れた後にタイマが満了して出てしまう
-    if (!t || (t !== activeTrigger && t !== pendingTrigger)) return
+    // ホバー表示・表示待ちが、そのトリガーから出たら消す。ウィンドウ外へ抜けると
+    // pointermove / pointerover が来ないので、ここで待ちを捨てないとポインタが
+    // 離れた後にタイマが満了して出てしまう
+    if (!t || (!(t === activeTrigger && hoverShown()) && t !== pendingTrigger)) return
     // トリガーの中（label 内の checkbox 等）へ移っただけなら消さない
     if (e.relatedTarget instanceof Node && t.contains(e.relatedTarget)) return
     hide()
