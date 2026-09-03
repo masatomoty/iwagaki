@@ -375,6 +375,16 @@ function material(zBias: number, opacity: number, alwaysOnTop = false): ShaderMa
     transparent: true,
     depthWrite: false,
     depthTest: !alwaysOnTop,
+    // **z-fight 対策の本体。** uZBias（ワールド座標の固定オフセット）だけだと、
+    // カメラから遠い（ズームアウトした）ときに深度バッファの精度が落ちて
+    // 地形と道路/建物フットプリントの前後がピクセル単位で入れ替わり、
+    // 「常にうっすら、ズームアウトすると悪化する斑」に見える（実測・ユーザー報告）。
+    // polygonOffset はラスタライズ段階で深度値そのものを距離に依らず一定量ずらすので、
+    // 遠景でも効き続ける。地形側（floodMaterial.ts）にオフセットは無いので、
+    // 常に道路/建物側だけを手前に逃がせばよい
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
     side: DoubleSide,
     uniforms: {
       uExaggeration: { value: 1 },
