@@ -13,14 +13,25 @@
 //   body にポータルする
 // - 位置決め（`placeTip`）は描画に依存しない純関数に切り出してテストする
 //   （`web/test/tooltip.test.mjs`）
-// - 表示遅延はホバー ~400ms・フォーカスは遅延なし。非表示は即時
-//   （`#ui-tooltip` の hidden で display:none にするのでフェードしない）
+// - ホバーは「ポインタが止まってから」出す。トリガーに入っても、動いている間は
+//   タイマを引き直し続け、~500ms 静止して初めて表示する。select やボタンへ
+//   マウスを運ぶ途中でラベル帯をかすめただけでは出さない狙い（庁内で何度も
+//   「選びたいのにツールチップがノイズ」と指摘された）。フォーカスは遅延なし。
+//   非表示は即時（`#ui-tooltip` の hidden で display:none にするのでフェードしない）
+// - ホバーの当たり判定は**見えている文字の上だけ**（`overOwnText`）。`data-tip` は
+//   横幅いっぱいの見出し（`.subhead` など）やコントロールを囲むラベルに付くので、
+//   文字右の余白やコントロールとの隙間まで拾うと「適応範囲が広い」と感じる。
+//   フォーカス（キーボード）と、`data-tip` を直接持つボタン自身は絞らない
 // - `prefers-reduced-motion: reduce` は CSS 側でフェードを消す
 // - タッチは副次（庁内デスクトップ想定）。pointerover が来れば出る程度でよい
 
 const TIP_ID = 'ui-tooltip'
-/** ホバーで出るまでの遅延 [ms]。フォーカスは遅延なし */
-const HOVER_DELAY_MS = 400
+/**
+ * ホバーで出るまでの遅延 [ms]。フォーカスは遅延なし。
+ * これは「ポインタが最後に動いてから」の時間。トリガーの上でも動いている間は
+ * 引き直されるので、通り抜け・移動途中では出ない（`onPointerMove`）。
+ */
+const HOVER_DELAY_MS = 500
 /** トリガーとツールチップの間隔 [px] */
 const GAP = 8
 /** viewport 端からの最小マージン [px] */
@@ -82,6 +93,8 @@ export function placeTip(
 
 let tipEl: HTMLElement | null = null
 let activeTrigger: HTMLElement | null = null
+/** 表示待ち（ホバーでスケジュール済み・まだ出していない）トリガー */
+let pendingTrigger: HTMLElement | null = null
 let showTimer: number | undefined
 let mounted = false
 
@@ -122,6 +135,8 @@ function reposition(): void {
 function render(trigger: HTMLElement): void {
   const text = trigger.dataset.tip
   if (!text) return
+  pendingTrigger = null
+  showTimer = undefined
   const el = ensureEl()
   el.textContent = text
   // いったん不可視のまま出してサイズを測り、位置を決めてから見せる（チラつき防止）
@@ -139,10 +154,30 @@ function scheduleShow(trigger: HTMLElement, immediate: boolean): void {
   hide()
   if (!trigger.dataset.tip) return
   if (immediate) { render(trigger); return }
+  pendingTrigger = trigger
   showTimer = window.setTimeout(() => render(trigger), HOVER_DELAY_MS)
 }
 
+/**
+ * ホバー表示の主役。ポインタが**トリガーの文字の上で止まってから** ~`HOVER_DELAY_MS`
+ * で出す。動いている間はタイマを引き直し続け、文字から外れたら待ちを捨てる。
+ * pointermove は実際に動いたときだけ飛ぶので、静止すれば最後の引き直しから
+ * タイマが満了して表示に至る（＝「通り抜け」では出ない）。
+ */
+function onPointerMove(e: PointerEvent): void {
+  if (activeTrigger) return
+  const t = triggerFrom(e.target, e)
+  if (t && t.dataset.tip) {
+    if (showTimer !== undefined) clearTimeout(showTimer)
+    pendingTrigger = t
+    showTimer = window.setTimeout(() => render(t), HOVER_DELAY_MS)
+  } else if (pendingTrigger) {
+    hide()
+  }
+}
+
 function hide(): void {
+  pendingTrigger = null
   if (showTimer !== undefined) { clearTimeout(showTimer); showTimer = undefined }
   if (activeTrigger?.getAttribute('aria-describedby') === TIP_ID) {
     activeTrigger.removeAttribute('aria-describedby')
@@ -154,7 +189,32 @@ function hide(): void {
   }
 }
 
-const triggerFrom = (t: EventTarget | null): HTMLElement | null => {
+const CONTROL_SEL = 'button, input, select, textarea, option'
+
+/**
+ * ポインタ座標 `(x, y)` が `el` の**文字が実際に描かれている矩形**の中にあるか。
+ * 見出し（`.subhead` など）は操作パネルの横幅いっぱいの `<p>` なので、素の
+ * `contains` 判定だと文字の右側の余白でもツールチップが出てしまう（「適応範囲が
+ * 広い」の主因）。文字が無い要素（ラッパ）は `true`＝ここでは絞らない。
+ */
+function overOwnText(el: Element, x: number, y: number): boolean {
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  const rects = range.getClientRects()
+  if (rects.length === 0) return true
+  const PAD = 3
+  for (const r of rects) {
+    if (x >= r.left - PAD && x <= r.right + PAD && y >= r.top - PAD && y <= r.bottom + PAD) {
+      return true
+    }
+  }
+  return false
+}
+
+const triggerFrom = (
+  t: EventTarget | null,
+  at?: { clientX: number; clientY: number },
+): HTMLElement | null => {
   if (!(t instanceof Element)) return null
   const trigger = t.closest<HTMLElement>('[data-tip]')
   if (!trigger) return null
@@ -164,7 +224,16 @@ const triggerFrom = (t: EventTarget | null): HTMLElement | null => {
   // capture hover/focus from a native form control, though: opening or
   // changing a select (and moving a range/checkbox) should not produce a
   // large tooltip over the control being operated.
-  if (trigger !== t && t.matches('button, input, select, textarea, option')) return null
+  if (trigger !== t && t.matches(CONTROL_SEL)) return null
+
+  // ポインタ由来なら、当たり判定を**見えている文字の上だけ**に絞る。子要素
+  // （`.colsel` の中の `.grouplabel` など）に乗っているならその子の文字、
+  // トリガー自身に乗っているならトリガーの文字。余白・ラベルとコントロールの
+  // 隙間では出さない。コントロール自体（`data-tip` を直接持つボタンなど）は
+  // どこに乗っても出したいので絞らない。
+  const onControl = t.matches(CONTROL_SEL) || !!t.closest(CONTROL_SEL)
+  if (at && !onControl && !overOwnText(t, at.clientX, at.clientY)) return null
+
   return trigger
 }
 
@@ -175,11 +244,14 @@ export function mountTooltip(): void {
   ensureEl()
 
   document.addEventListener('pointerover', (e) => {
-    const t = triggerFrom(e.target)
+    const t = triggerFrom(e.target, e)
     if (t) scheduleShow(t, false)
-    else if (activeTrigger) hide()
+    else if (activeTrigger || pendingTrigger) hide()
   })
+  document.addEventListener('pointermove', onPointerMove, { passive: true })
   document.addEventListener('pointerout', (e) => {
+    // ここは座標で絞らない（文字の外＝ラッパの余白へ出ただけでも「離れた」と
+    // みなして消したいので、要素だけで判定する）
     const t = triggerFrom(e.target)
     if (!t || t !== activeTrigger) return
     // トリガーの中（label 内の checkbox 等）へ移っただけなら消さない
@@ -195,10 +267,13 @@ export function mountTooltip(): void {
     if (activeTrigger) hide()
   })
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && activeTrigger) hide()
+    if (e.key === 'Escape' && (activeTrigger || pendingTrigger)) hide()
   })
-  // クリックしたら消す（押した先のパネルに残さない）
-  document.addEventListener('pointerdown', () => { if (activeTrigger) hide() }, true)
+  // クリックしたら消す（押した先のパネルに残さない）。表示待ちのタイマも捨てる
+  // ＝ select を開いた直後に遅れて出てくるのを防ぐ
+  document.addEventListener('pointerdown', () => {
+    if (activeTrigger || pendingTrigger) hide()
+  }, true)
   window.addEventListener('scroll', reposition, true)
   window.addEventListener('resize', reposition)
 }
