@@ -48,9 +48,12 @@ IWAGAKI_AOI=higashi_maizuru scripts/build_web.sh
 
 ```bash
 scripts/run_all.sh        # 取得 → 地形 → 浸水 → 比較 → 地物結合 → 図
-scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・線路・catalog）
 scripts/88_export_survey_targets.py
                            # → 西舞鶴・東舞鶴の「次の高潮時に見るべき地物」
+                           #   （西舞鶴・東舞鶴の objects.geojson が要る = 両 AOI で
+                           #   scripts/run_all.sh を回した後。**scripts/build_web.sh より前に
+                           #   実行する** — catalog はこの時点で存在する出力しか拾わない）
+scripts/build_web.sh      # → Web 配信アセット（タイル・3D Tiles・線路・catalog）
 scripts/14_fetch_census_stats.py
                            # → 国勢調査 小地域の人口・年齢（scripts/13 の境界に KEY_CODE 結合）
 scripts/93_point_buffer_agg.py --lon 135.3355 --lat 35.4508 --radius 500 800 1000
@@ -72,7 +75,7 @@ scripts/93_point_buffer_agg.py --lon 135.3355 --lat 35.4508 --radius 500 800 100
 | 33 | 地表流の集中（flow accumulation）と窪地構造。**潮位非依存の別レイヤ**で `h_conn` には混ぜない |
 | 50 / 60 | 地物との結合、レポート |
 | 80 番台 | Web 配信アセット（タイル・3D Tiles・catalog） |
-| 88 / 90 番台 | 地物ベースの派生成果（調査対象リスト・被害重ね合わせ・交通規制・小地域集計・徒歩圏）。**ファイルのみ**で viewer 表示は別 PR |
+| 88 / 90 番台 | 地物ベースの派生成果（調査対象リスト・被害重ね合わせ・交通規制・小地域集計・徒歩圏）。多くは**ファイルのみ**（viewer 表示は別 PR）。**88（調査対象リスト）は `scripts/83` より前に実行すれば viewer からダウンロードできる**（下記「解析を通す」の順序） |
 
 ### 主な成果物（`data/out/<範囲>/`）
 

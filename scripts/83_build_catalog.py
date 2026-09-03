@@ -405,12 +405,18 @@ def survey_targets() -> list[dict]:
 
     - `scripts/88` は西舞鶴・東舞鶴を**1 組のファイルにまとめて**
       `data/out/` 直下（AOI 別ディレクトリではない）に代表潮位ごと書き出す。
-      ここではその内容をそのまま配信するだけで、**AOI では絞り込まない**
-      （viewer 側でどの範囲を開いていても同じファイルを指す）。
+      ここではその内容を**絞り込まずそのまま**配信する（どの AOI の catalog からでも
+      西舞鶴・東舞鶴の両方が載った同じ内容を読める。publish 先の URL は AOI ごとに
+      分かれる — 理由は下記）。
     - `scripts/88` を実行していない配信物では鍵ごと落ちる
       （`railway` / `small_areas` と同じ扱い）。
     - `small_areas` と違い、この出力は viewer の状態（水位・モデル）に依存しない
       **事前生成の固定ファイル**なので、代表潮位ごとに複数組をそのまま publish する。
+    - **`asset_name()` で AOI 接頭辞を付ける**（中身は全 AOI で同一でも、publish 先は
+      AOI ごとに分ける）。素の名前を共有すると、`publish_file()` が「新しいハッシュ以外の
+      兄弟を消す」ため、片方の AOI だけ再ビルドしたときにもう片方の catalog が指す
+      旧ハッシュのファイルを消してしまい、404 になる（3 範囲を同時に再ビルドしない
+      運用がある以上、これは実際に起こりうる）。
     """
     root_out = ROOT / "data" / "out"
     items = []
@@ -424,8 +430,7 @@ def survey_targets() -> list[dict]:
             ("csv", csv_path, "text/csv"),
             ("geojson", geojson_path, "application/geo+json"),
         ):
-            # AOI 接頭辞は付けない（この配信物は範囲に依らず同一内容のため）
-            dest = WEB_DATA / f"survey_targets_H{level}.{kind}"
+            dest = WEB_DATA / asset_name(f"survey_targets_H{level}.{kind}")
             dest.write_bytes(src.read_bytes())
             name = publish_file(dest)
             entry[kind] = {"url": f"data/{name}",
