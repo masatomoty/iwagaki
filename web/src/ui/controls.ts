@@ -271,7 +271,7 @@ function roadsLegend(s: Store['state']): string {
   if (!s.layers.roads) return ''
   if (s.roadColor === 'trafficability') {
     return '<div><i style="background:#ffe699"></i>道路 &nbsp;'
-      + ['#a1cce6', '#f5c740', '#e68529', '#943d30']
+      + ['#faf2c2', '#ffc726', '#f77a14', '#d9261e']
         .map((h) => `<i style="background:${h}"></i>`).join('')
       + '<span class="sub"> 通行支障 0.1 / 0.3 / 0.5 m</span></div>'
   }
