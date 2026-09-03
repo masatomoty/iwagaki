@@ -25,7 +25,7 @@ title: 背景と目的
 
 | 成果物 | 内容 |
 |---|---|
-| **viewer** | 潮位スライダ・潮位再生・点群表示・地形条件の比較・交通規制表示・地域別集計。<br><https://iwagaki-viewer.tonbo.workers.dev> |
+| **viewer** | 潮位スライダ・潮位の記録の再生・点群表示・地形条件の比較・交通規制表示・雨量シナリオ・地域別集計。<br><https://iwagaki-viewer.tonbo.workers.dev> |
 | **解析パイプライン** | 4 つの地形条件 × 3 範囲（吉原・西舞鶴・東舞鶴）の浸水判定。PLATEAU の地物 ID に地盤高・浸水深・判定の変化を外付け。<https://github.com/masatomoty/iwagaki> |
 | **現場運用向けの出力** | 次の高潮時の巡回対象リスト、小地域ごとの浸水建物集計（CSV / GeoJSON、市へ個別提供） |
 | **本レポート** | 結果と提言のまとめ |
