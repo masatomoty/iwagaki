@@ -276,14 +276,18 @@ const isDiff = (s: SurfaceMode) =>
 const isAssumption = (s: SurfaceMode) => s === 'assumption'
 
 /**
- * **仮想排水路が絵に効いているときは必ず出す注意書き。**
- * 吐口の位置・敷高・逆流防止施設の有無は市も把握できておらず
- * （`docs/todo.md` 中 3）、こちらが置いた仮定である。
- * 仕様（`docs/flood_simulation_spec.md` §1）が画面表示を必須にしている
+ * **仮想排水路が絵に効いているときの注意書き。**
+ * 仕様（`docs/flood_simulation_spec.md` §1）が「仮想モデルによる推定／データ不足を
+ * 補う仮定／結果には不確実性がある」の画面表示を必須にしているので凡例に 1 行だけ残す。
+ * 詳細（吐口の位置・敷高・逆流防止施設の有無は未整備でこちらが置いた仮定）は
+ * モード切替ボタン（`#drainagebtn` / `#assumbtn`）のツールチップに置く。
  */
 const SYNTHETIC_NOTE =
-  '<div class="sub">仮想排水路は実在施設ではない。吐口の位置・敷高・'
-  + '逆流防止施設の有無はこちらが置いた仮定</div>'
+  '<div class="sub">⚠ 仮想モデルによる推定（データ不足を補う仮定・不確実性あり）</div>'
+
+/** ↑ の詳細。モード切替ボタンの data-tip に足す */
+const SYNTHETIC_TIP =
+  '吐口の位置・敷高・逆流防止施設の有無は未整備で、こちらが置いた仮定'
 
 /**
  * メニューに出すレイヤ。`flood` / `ground` / `semantics` / `pcCoverage` は出さない。
@@ -407,8 +411,6 @@ function legendHtml(
       + '<span class="sub"> 仮想排水路を逆流して届く</span></div>',
       '<div><i style="background:#8cbddb"></i>経路を示せない'
       + '<span class="sub"> 潮位以下だが到達経路が無い</span></div>',
-      '<div class="sub">下の 2 段は斜線。3 段は入れ子（連結 ⊆ 仮想排水 ⊆ 潮位以下）で、'
-      + '仮定の深さであって浸水確率ではない</div>',
       SYNTHETIC_NOTE)
   } else if (isDiff(s.surface)) {
     if (s.surface === 'diff_drainage') {
@@ -416,7 +418,6 @@ function legendHtml(
         '<div><i style="background:#ed3830"></i>仮想排水モデルでのみ到達</div>',
         '<div><i style="background:#f7d129"></i>地表連結モデルでのみ到達</div>',
         '<div><i style="background:#2a5794"></i>両モデルで到達</div>',
-        '<div class="sub">地形タイルの差分のみ。建物・道路の判定差は未配信</div>',
         SYNTHETIC_NOTE)
     } else {
       rows.push(
@@ -948,10 +949,10 @@ export function renderControls(
                   data-tip="いま見ている地形データと基準（PLATEAU 5m）で、浸水するかどうかの判定が割れる場所を塗り分ける">地形条件の判定差</button>
           <button id="drainagebtn" type="button" aria-pressed="${s.surface === 'diff_drainage'}"
                   ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                  data-tip="海から地表面をたどって届く浸水と、仮想排水路を逆流して届く浸水の差を塗り分ける">排水モデルの差</button>
+                  data-tip="${escAttr('海から地表面をたどって届く浸水と、仮想排水路を逆流して届く浸水の差を塗り分ける\n地形タイルの差分のみ。建物・道路の判定差は未配信\n' + SYNTHETIC_TIP)}">排水モデルの差</button>
           <button id="assumbtn" type="button" aria-pressed="${s.surface === 'assumption'}"
                   ${catalog.terrain.diff_drainage ? '' : 'hidden'}
-                  data-tip="その土地が浸かると言うのに、どこまで仮定を置いているか（連結 ⊆ 仮想排水 ⊆ 潮位以下）。配信物は増えない"
+                  data-tip="${escAttr('その土地が浸かると言うのに、どこまで仮定を置いているか。連結 ⊆ 仮想排水 ⊆ 潮位以下 の入れ子で、成立した段の数が仮定の深さ（浸水確率ではない）。下の 2 段は斜線。配信物は増えない\n' + SYNTHETIC_TIP)}"
           >仮定の段階</button>
         </div>
 
