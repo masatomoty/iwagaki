@@ -257,6 +257,10 @@ export function mountTooltip(): void {
   const hoverShown = () => activeTrigger !== null && shownVia === 'hover'
 
   document.addEventListener('pointerover', (e) => {
+    // フォーカス由来のツールチップが出ている間はホバーを無視する（別トリガーを
+    // かすめただけで blur も無しに消える／差し替わるのを防ぐ。onPointerMove も
+    // 表示中は何もしないので、フォーカス表示は blur / Esc まで安定して残る）
+    if (activeTrigger && shownVia === 'focus') return
     const t = triggerFrom(e.target, e)
     if (t) scheduleShow(t, false)
     else if (hoverShown() || pendingTrigger) hide()
