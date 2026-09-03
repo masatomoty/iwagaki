@@ -647,7 +647,7 @@ function topbarHtml(
   // viewer と同一オリジンのサブパス `/report/` に載せてある（`web/deploy/deploy.sh`）。
   // 出典の左、縦線を挟んで置く。別タブで開く。
   const doc = `<a class="tb-doc" href="/report/" target="_blank" rel="noopener"`
-    + ` data-tip="このシミュレーションの背景・地図の見方・分析結果をまとめた報告（別タブ）">レポート</a>`
+    + ` data-tip="このシミュレーションの背景・地図の見方・分析結果をまとめた報告（別タブ）">マニュアル</a>`
   // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
   // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
   // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）
