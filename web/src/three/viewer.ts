@@ -30,7 +30,11 @@ export interface DragSettings {
    * ほうが自然という指示（2026-09）で、既定をこちらに反転した。
    */
   rotateReversed: boolean
-  /** 素のドラッグの動作。右ドラッグ／Shift＋ドラッグは常にこの逆になる */
+  /**
+   * 素のドラッグの動作。右ドラッグ／Shift＋ドラッグは常にこの逆になる。
+   * **`pan` が既定。** `rotateReversed` の既定（地形をつかんで動かす感覚）と
+   * 揃え、素のドラッグは地図をつかんで送る操作にした（2026-09 指示）。
+   */
   primaryDrag: 'rotate' | 'pan'
   /** 回転の感度倍率。bearing・pitch 双方の px あたり角度に掛かる */
   rotateSensitivity: number
@@ -38,7 +42,7 @@ export interface DragSettings {
 
 export const DEFAULT_DRAG_SETTINGS: DragSettings = {
   rotateReversed: true,
-  primaryDrag: 'rotate',
+  primaryDrag: 'pan',
   rotateSensitivity: 1,
 }
 
@@ -468,9 +472,10 @@ export class Viewer {
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.dragEnabled) return
       canvas.setPointerCapture(e.pointerId)
-      // 素のドラッグは既定で回転（地形を横から覗く操作が主で、パンは二次的）。
-      // 右ドラッグ／Shift＋ドラッグは常にその逆。どちらを素のドラッグにするかは
-      // `dragSettings_.primaryDrag`（設定モーダル）で入れ替えられる。ズームはホイール／ピンチ
+      // 素のドラッグは既定でパン（地図をつかんで送る操作。`rotateReversed` の
+      // 既定と揃えた）。右ドラッグ／Shift＋ドラッグは常にその逆。どちらを素の
+      // ドラッグにするかは `dragSettings_.primaryDrag`（設定モーダル）で
+      // 入れ替えられる。ズームはホイール／ピンチ
       const alt = e.button === 2 || e.shiftKey
       const primary = this.dragSettings_.primaryDrag
       mode = alt ? (primary === 'rotate' ? 'pan' : 'rotate') : primary

@@ -21,7 +21,8 @@ export function loadDragSettings(): DragSettings {
     return {
       rotateReversed: typeof j.rotateReversed === 'boolean'
         ? j.rotateReversed : DEFAULT_DRAG_SETTINGS.rotateReversed,
-      primaryDrag: j.primaryDrag === 'pan' ? 'pan' : DEFAULT_DRAG_SETTINGS.primaryDrag,
+      primaryDrag: j.primaryDrag === 'pan' || j.primaryDrag === 'rotate'
+        ? j.primaryDrag : DEFAULT_DRAG_SETTINGS.primaryDrag,
       rotateSensitivity: typeof j.rotateSensitivity === 'number' && Number.isFinite(j.rotateSensitivity)
         ? Math.max(0.25, Math.min(4, j.rotateSensitivity))
         : DEFAULT_DRAG_SETTINGS.rotateSensitivity,
@@ -70,14 +71,14 @@ export function openOperationSettingsModal(viewer: Viewer): void {
         <fieldset>
           <legend>ドラッグの役割</legend>
           <label class="opt">
-            <input type="radio" name="opset-btn" value="rotate" ${s.primaryDrag === 'rotate' ? 'checked' : ''}/>
-            <span class="opt-t">素のドラッグ＝回転 <em>既定</em></span>
-            <span class="opt-d">右ドラッグ／Shift＋ドラッグでパン</span>
+            <input type="radio" name="opset-btn" value="pan" ${s.primaryDrag === 'pan' ? 'checked' : ''}/>
+            <span class="opt-t">素のドラッグ＝パン <em>既定</em></span>
+            <span class="opt-d">右ドラッグ／Shift＋ドラッグで回転</span>
           </label>
           <label class="opt">
-            <input type="radio" name="opset-btn" value="pan" ${s.primaryDrag === 'pan' ? 'checked' : ''}/>
-            <span class="opt-t">素のドラッグ＝パン</span>
-            <span class="opt-d">右ドラッグ／Shift＋ドラッグで回転</span>
+            <input type="radio" name="opset-btn" value="rotate" ${s.primaryDrag === 'rotate' ? 'checked' : ''}/>
+            <span class="opt-t">素のドラッグ＝回転</span>
+            <span class="opt-d">右ドラッグ／Shift＋ドラッグでパン</span>
           </label>
         </fieldset>
         <fieldset>
