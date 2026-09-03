@@ -217,19 +217,21 @@ function rainfallLegend(s: Store['state']): string {
       + '"></i>相対的な危険度<span class="sub"> 低 → 高</span></div>')
     rows.push('<div><i style="background:#b38dd1"></i>窪地は上乗せ</div>')
   }
-  rows.push('<div class="sub">地形の集水・窪地に基づく<b>相対値</b>で、浸水深ではない。'
-    + '側溝・暗渠・排水管・ポンプ・吐口・フラップゲートの能力は未反映（簡易・仮定モデル）。'
-    + '海水による浸水（潮位）とは別軸で、面積・建物棟数の集計には混ぜていない</div>')
+  rows.push('<div class="sub">相対値（浸水深ではない）。排水施設は未反映。'
+    + '海水浸水（潮位）とは別軸で集計に混ぜない</div>')
   rows.push(roadsLegend(s))
   return `<div class="legend">${rows.join('')}</div>`
 }
 
 const RAINFALL_MENU_TIP =
-  '簡易内水リスクの雨量シナリオ。実効雨量 = 想定雨量 × 流出率。\n'
+  '簡易・仮定に基づく内水リスク。実効雨量 = 想定雨量 × 流出率、その総量と'
+  + '平均降雨強度（実効雨量 ÷ 継続時間）で地形の集水・窪地の相対的な危険度を塗る。\n'
   + RAINFALL_SCENARIOS.filter((x) => x.id !== CUSTOM_SCENARIO_ID && x.rainfallMm > 0)
     .map((x) => `${x.label}${x.source ? '（観測史上1位）' : x.description ? `（${x.description}）` : ''}`)
     .join('\n')
-  + '\nカスタム＝雨量と継続時間を手入力'
+  + '\nカスタム＝雨量と継続時間を手入力\n'
+  + '側溝・暗渠・排水管・ポンプ・吐口・フラップゲートの能力は未反映。'
+  + '海水による浸水（潮位）とは別軸で、浸水面積・建物棟数の集計には混ぜない'
 
 /**
  * 雨量シナリオの操作（「浸水条件」タブ。`シミュレーション条件` の直下）。
@@ -263,9 +265,7 @@ function rainfallControlsHtml(s: Store['state']): string {
     </div>
     <div class="rain-err" id="rain-err" hidden></div>
     <p class="grouplabel" style="margin-top:8px" data-tip="地表被覆から機械的に置いた仮定値（合理式の C 相当）。土地利用ごとの厳密な配分はしていない">流出率</p>
-    <select id="rain-runoff" aria-label="流出率">${runoffOpts}</select>
-    <p class="sub" style="margin-top:6px">簡易モデル。側溝・暗渠・排水管・ポンプ・吐口・フラップゲートの能力は未反映。
-      海水による浸水（潮位）とは別軸で、浸水面積・建物棟数の集計には混ぜていない</p>`
+    <select id="rain-runoff" aria-label="流出率">${runoffOpts}</select>`
 }
 
 /**
