@@ -180,7 +180,7 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
     hint: '一様降雨で地表流がどこに集まるか（集水セル数の log）。'
       + '潮位は使わない。地形のみで、浸透・管路・実際の降雨分布は含まない。'
       + '窪地は水色で出る。地図をクリックするとその地点の集水域を面で出す（FARR 取り込み）' },
-  { id: 'rainfall', label: '雨量リスク',
+  { id: 'rainfall', label: '雨量',
     hint: '内水リスク（簡易・仮定に基づく雨量シナリオ）。実効雨量 = 雨量 × 流出率、'
       + 'その総量と平均降雨強度（＝ 実効雨量 ÷ 継続時間）で、地形の集水・窪地が'
       + 'どれだけ危険になりやすいかを相対値で塗る。浸水深ではない。'
@@ -871,8 +871,7 @@ export function renderControls(
     <!-- サイドバーは 2 枚のパネルに分ける。1 枚目＝地形の色（今どの面を見ているか）
          ＋凡例。見出しは付けない（3 ボタンで自明）。旧 nowline は廃止 -->
     <div class="panel" id="controls-top">
-      <!-- 4 つになったので seg wrap で 2×2 に折り返す -->
-      <div class="seg wrap" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
+      <div class="seg" id="tpaint" aria-label="地形の色">${TERRAIN_PAINTS.map((m) =>
           `<button data-p="${m.id}" type="button" data-tip="${escAttr(m.hint)}"
                    aria-pressed="${s.terrainPaint === m.id}">${m.label}</button>`).join('')}</div>
       <!-- 凡例は 2 列。左＝画面の色（地形＋レイヤ）、右＝建物の色の内訳（棟数）。
