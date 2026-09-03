@@ -21,6 +21,33 @@ export default defineConfig({
     docFooter: { prev: '前へ', next: '次へ' },
     lastUpdatedText: '最終更新',
 
+    search: {
+      provider: 'local',
+      options: {
+        translations: {
+          button: {
+            buttonText: '検索',
+            buttonAriaLabel: '検索',
+          },
+          modal: {
+            displayDetails: '詳細を表示',
+            resetButtonTitle: '検索条件をリセット',
+            backButtonTitle: '検索を閉じる',
+            noResultsText: '該当する結果がありません',
+            footer: {
+              selectText: '選択',
+              selectKeyAriaLabel: 'enter',
+              navigateText: '移動',
+              navigateUpKeyAriaLabel: '上矢印',
+              navigateDownKeyAriaLabel: '下矢印',
+              closeText: '閉じる',
+              closeKeyAriaLabel: 'esc',
+            },
+          },
+        },
+      },
+    },
+
     nav: [
       { text: '背景と目的', link: '/' },
       { text: '分析結果', link: '/pages/results' },
