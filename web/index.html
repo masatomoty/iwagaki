@@ -148,10 +148,12 @@
   #viewcube { position: absolute; top: 66px; right: 8px; z-index: 5; }
   #viewcube-home {
     position: absolute; top: 0; left: 0; width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
     background: transparent; border: none; padding: 0; cursor: pointer;
-    color: rgba(226,232,240,.6); font-size: 22px; line-height: 1;
-    text-shadow: 0 1px 2px rgba(0,0,0,.65); transition: color .12s;
+    color: rgba(226,232,240,.6);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.65)); transition: color .12s;
   }
+  #viewcube-home svg { width: 20px; height: 20px; display: block; }
   #viewcube-home:hover { color: rgba(255,255,255,.98); }
   /* 断面グラフ。#toolbar の中で「測線を引く」行の下に開く。測線が短いと
      0〜3 m の起伏が読めないので、canvas は残りの高さいっぱいに広げる */
