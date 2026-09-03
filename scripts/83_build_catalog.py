@@ -24,7 +24,7 @@ from iwagaki.config import (AOI, AOI_LABELS, AOIS, ATTRIBUTION_CENSUS,
                             ATTRIBUTION_RAILWAY, asset_name, catalog_name,
                             CRS_ANALYSIS, DEFAULT_AOI, H_MAX, H_MIN, H_STEP, OUT, RAW,
                             FLOOR_ABOVE_DEPTH, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
-                            TP_OF_MSL, WEB_FLOW_CONDITIONS,
+                            ROOT, TP_OF_MSL, WEB_FLOW_CONDITIONS,
                             WEB_DATA, ATTRIBUTION)
 from iwagaki.versioning import publish_dir, publish_file
 
@@ -399,6 +399,44 @@ def small_areas(area_total: dict[str, int]) -> dict:
             "count": len(feats), "boundary": boundary_metadata()}
 
 
+def survey_targets() -> list[dict]:
+    """次の高潮時の巡回対象リスト（`scripts/88_export_survey_targets.py`）を
+    配信物に加える（現場運用向けの出力、report `discussion.md` 5.3・optional）。
+
+    - `scripts/88` は西舞鶴・東舞鶴を**1 組のファイルにまとめて**
+      `data/out/` 直下（AOI 別ディレクトリではない）に代表潮位ごと書き出す。
+      ここではその内容をそのまま配信するだけで、**AOI では絞り込まない**
+      （viewer 側でどの範囲を開いていても同じファイルを指す）。
+    - `scripts/88` を実行していない配信物では鍵ごと落ちる
+      （`railway` / `small_areas` と同じ扱い）。
+    - `small_areas` と違い、この出力は viewer の状態（水位・モデル）に依存しない
+      **事前生成の固定ファイル**なので、代表潮位ごとに複数組をそのまま publish する。
+    """
+    root_out = ROOT / "data" / "out"
+    items = []
+    for csv_path in sorted(root_out.glob("survey_targets_H*.csv")):
+        level = csv_path.stem.removeprefix("survey_targets_H")
+        geojson_path = root_out / f"survey_targets_H{level}.geojson"
+        if not geojson_path.exists():
+            continue
+        entry: dict = {"target_tide_m_tp": float(level.replace("p", "."))}
+        for kind, src, mime in (
+            ("csv", csv_path, "text/csv"),
+            ("geojson", geojson_path, "application/geo+json"),
+        ):
+            # AOI 接頭辞は付けない（この配信物は範囲に依らず同一内容のため）
+            dest = WEB_DATA / f"survey_targets_H{level}.{kind}"
+            dest.write_bytes(src.read_bytes())
+            name = publish_file(dest)
+            entry[kind] = {"url": f"data/{name}",
+                          "bytes": (WEB_DATA / name).stat().st_size, "mime": mime}
+        items.append(entry)
+    if items:
+        levels = ", ".join(f"{e['target_tide_m_tp']:.2f}" for e in items)
+        print(f"survey_targets: {len(items)} 潮位ぶん publish ({levels})")
+    return sorted(items, key=lambda e: e["target_tide_m_tp"])
+
+
 def point_buffer() -> dict:
     """任意地点＋徒歩圏の集計索引を配信物に加える（`catalog.point_buffer`、複数自治体
     からの要望 T1）。
@@ -659,6 +697,8 @@ def main() -> int:
     versioned_urls(tiles, tiles3d)
     # 小地域ポリゴン（コロプレス用・optional）。境界が無ければ空 dict で鍵ごと落ちる
     small_areas_asset = small_areas(area_total)
+    # 巡回対象リスト（現場運用向けの出力・optional）。未生成なら空リストで鍵ごと落ちる
+    survey_targets_assets = survey_targets()
     # 水みち／窪地タイル（潮位非依存の別オーバーレイ・optional）
     flow_asset = flow(tiles, to_wgs)
     # 任意地点＋徒歩圏の集計索引（複数自治体からの要望 T1・optional）
@@ -767,6 +807,9 @@ def main() -> int:
         # （建物側の area_code から viewer が現在の水位で数える）。
         # 境界データが無い配信物では鍵ごと無い（areas.json / tide_series と同じ扱い）
         **({"small_areas": small_areas_asset} if small_areas_asset else {}),
+        # 次の高潮時の巡回対象リスト（現場運用向けの出力、discussion.md 5.3）。
+        # scripts/88 を実行していない配信物では鍵ごと落ちる
+        **({"survey_targets": survey_targets_assets} if survey_targets_assets else {}),
         # 任意地点＋徒歩圏の集計索引（複数自治体からの要望 T1）。この範囲の地点が
         # 無い配信物では鍵ごと落ちる。地図をクリックしても新規計算はしない
         # （新しい外部 API・サーバ計算は足さない方針、`docs/todo.md` T1）

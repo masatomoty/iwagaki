@@ -245,6 +245,20 @@
   .subhead { font-size: 11.5px; color: var(--muted); letter-spacing: .04em;
     margin: 12px 0 5px; }
   .subhead:first-child { margin-top: 0; }
+  /* 見出し行にダウンロードボタンを添える（地域別の浸水建物・巡回対象リスト）。
+     見出しの右側に小さく置く。押しても画面は変わらないので目立たせすぎない */
+  .subhead-row { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; margin: 12px 0 5px; }
+  .subhead-row .subhead { margin: 0; }
+  .dlbtn { background: transparent; color: var(--muted); border: 1px solid var(--line);
+    border-radius: 5px; padding: 2px 7px; font-size: 10.5px; line-height: 1.4;
+    cursor: pointer; white-space: nowrap; }
+  .dlbtn:hover:not(:disabled) { color: var(--fg); border-color: var(--accent); }
+  .dlbtn:disabled { opacity: .4; cursor: default; }
+  .dlgroup { display: flex; gap: 5px; flex-wrap: wrap; }
+  .dllist { display: flex; flex-direction: column; gap: 3px; margin: 4px 0 2px; }
+  .dllist .dlrow { display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; font-size: 11.5px; color: var(--muted); }
   .seg button:disabled { opacity: .38; cursor: default; }
   .seg button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: var(--accent); }
 
