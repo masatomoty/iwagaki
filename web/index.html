@@ -55,11 +55,20 @@
     letter-spacing: .04em; white-space: nowrap; background: var(--control);
     border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
   #topbar .tb-btn:hover { border-color: var(--accent); color: var(--fg); }
-  /* 右端はキー操作案内 ＋ 縦線 ＋ 出典。キー案内が余白を吸って右へ寄せる */
+  /* 右端はキー操作案内 ＋ 縦線 ＋ レポート ＋ 縦線 ＋ 出典。キー案内が余白を吸って右へ寄せる */
   #topbar .tb-keys { margin-left: auto; flex: 0 0 auto; font-size: 11px;
     color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
   #topbar .tb-keys kbd { margin: 0 1px; }
-  /* #topbar は折り返さない 1 行の flex なので、幅が足りないと右側（操作設定・出典）が
+  /* VitePress の報告（`/report/`）へのリンク。出典の左、縦線を挟んで並べる。
+     margin-left: auto は、キー案内が隠れる幅（下の @media）で余白を吸って
+     レポート・出典を右端へ寄せるための保険。キー案内が見えている間は、そちらの
+     auto が先に余白を取り切るので効かない。 */
+  #topbar .tb-doc { flex: 0 0 auto; margin-left: auto; padding-left: 15px;
+    border-left: 1px solid var(--line); font-size: 11px; color: var(--muted);
+    letter-spacing: .04em; white-space: nowrap; text-decoration: none; }
+  #topbar .tb-doc:hover, #topbar .tb-doc:focus-visible {
+    color: var(--fg); text-decoration: underline dotted; text-underline-offset: 3px; outline: none; }
+  /* #topbar は折り返さない 1 行の flex なので、幅が足りないと右側（操作設定・レポート・出典）が
      画面の外へ押し出されて届かなくなる。ヒントに過ぎないキー操作案内を先に落として
      幅を空ける（実測: フル項目で約 980px が必要、キー案内を落とせば約 720px で収まる） */
   @media (max-width: 1000px) {

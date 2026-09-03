@@ -643,13 +643,18 @@ function topbarHtml(
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
     + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
+  // このシミュレーションの背景・見方・分析結果をまとめた報告（VitePress）。
+  // viewer と同一オリジンのサブパス `/report/` に載せてある（`web/deploy/deploy.sh`）。
+  // 出典の左、縦線を挟んで置く。別タブで開く。
+  const doc = `<a class="tb-doc" href="/report/" target="_blank" rel="noopener"`
+    + ` data-tip="このシミュレーションの背景・地図の見方・分析結果をまとめた報告（別タブ）">レポート</a>`
   // 出典は**常時は畳む**。ラベルは常に見える形で残し、ホバー／フォーカス／
   // クリックで全文を出す（MapLibre の畳んだ AttributionControl と同じ扱い。
   // PLATEAU・京都府 DEM・気象庁はいずれも表示を求めているが、到達可能なら可）
   const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
     + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${keys}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${keys}${doc}${src}`
 }
 
 /**
