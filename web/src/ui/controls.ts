@@ -200,7 +200,7 @@ function rainfallLegend(s: Store['state']): string {
   } else {
     rows.push('<div><i style="width:36px;background:'
       + 'linear-gradient(90deg,#dcd4e6,#b38dd1 40%,#78409f 72%,#38105c)'
-      + '"></i>雨量リスク（相対）<span class="sub"> 低 → 高</span></div>')
+      + '"></i>相対リスク<span class="sub"> 低 → 高</span></div>')
   }
   rows.push(roadsLegend(s))
   return `<div class="legend">${rows.join('')}</div>`
