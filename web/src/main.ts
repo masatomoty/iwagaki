@@ -26,6 +26,9 @@ import {
 } from './domain/flow'
 import { parsePointBufferIndex, type PointBufferIndex } from './domain/pointBuffer'
 import {
+  effectiveRainfallMm, rainfallIntensity, resolveRainfallScenario,
+} from './domain/rainfall'
+import {
   nudgeWaterLevel, WATER_LEVEL_KEY_FAST_STEP_M, WATER_LEVEL_KEY_STEP_M, waterLevelRange,
 } from './domain/waterLevel'
 import type { BuildingColorMode, FeatureAssertion, FloodModel, RoadColorMode,
@@ -265,6 +268,17 @@ async function boot() {
       elevPaint: s.terrainPaint === 'elevation',
       // 地形の面を水みち（flow accumulation）で塗るか。潮位非依存（同 TerrainPaint）
       catchmentPaint: s.terrainPaint === 'catchment',
+      // 地形の面を雨量リスク（簡易内水リスク）で塗るか。潮位非依存（同 TerrainPaint）。
+      // mm → 無次元の「雨の強さ」への換算はここで 1 回だけ（domain/rainfall.ts）。
+      // シナリオ・流出率を変えてもこの uniform が変わるだけで、再取得は起きない
+      rainfallPaint: s.terrainPaint === 'rainfall',
+      rainIntensity: s.terrainPaint === 'rainfall'
+        ? (() => {
+            const sc = resolveRainfallScenario(s.rainfall)
+            return rainfallIntensity(
+              effectiveRainfallMm(sc, s.rainfall.runoffCoefficient), sc.durationHours)
+          })()
+        : 0,
     }
   }
 
@@ -278,7 +292,8 @@ async function boot() {
     // 水みちタイルは水みちモードのときだけ引く（highres で 1.3 MB）ので、
     // 塗りモードが変わったら作り直す（`elevation ⇄ flood` は uniform だけで済むが、
     // `catchment` はタイル取得が要る）
-    const wantFlow = s.terrainPaint === 'catchment'
+    // 水みち・雨量リスクはどちらも同じ flow タイルを土台にする
+    const wantFlow = s.terrainPaint === 'catchment' || s.terrainPaint === 'rainfall'
     const buildKey = `${s.surface}:${s.floodModel}:${wantFlow ? 'flow' : ''}`
     if (builtSurface === buildKey) return
     builtSurface = buildKey

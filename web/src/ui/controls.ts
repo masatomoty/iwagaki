@@ -24,6 +24,11 @@ import type { AreaFloodRow } from '../domain/flood'
 import type { TideForecastState } from '../domain/tideForecast'
 import type { TideSeries } from '../domain/tideSeries'
 import type { WalkIsochroneInfo } from '../domain/walkIsochrone'
+import {
+  CUSTOM_DURATION_MAX_HOURS, CUSTOM_RAINFALL_MAX_MM, CUSTOM_SCENARIO_ID,
+  NO_RAIN_SCENARIO_ID, RAINFALL_PAINT_FALLBACK_SCENARIO_ID, RAINFALL_SCENARIOS,
+  RUNOFF_PRESETS, resolveRainfallScenario, validateCustomRainfall,
+} from '../domain/rainfall'
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
               TerrainCondition, TerrainPaint } from '../domain/types'
@@ -175,7 +180,76 @@ const TERRAIN_PAINTS: { id: TerrainPaint; label: string; hint: string }[] = [
     hint: '一様降雨で地表流がどこに集まるか（集水セル数の log）。'
       + '潮位は使わない。地形のみで、浸透・管路・実際の降雨分布は含まない。'
       + '窪地は水色で出る。地図をクリックするとその地点の集水域を面で出す（FARR 取り込み）' },
+  { id: 'rainfall', label: '雨量',
+    hint: '内水リスク（簡易・仮定に基づく雨量シナリオ）。実効雨量 = 雨量 × 流出率、'
+      + 'その総量と平均降雨強度（＝ 実効雨量 ÷ 継続時間）で、地形の集水・窪地が'
+      + 'どれだけ危険になりやすいかを相対値で塗る。浸水深ではない。'
+      + '潮位・海水浸水とは別軸。排水管網・ポンプ・吐口・フラップゲートの能力は未反映' },
 ]
+
+/**
+ * 「雨量リスク」モードの凡例。**色の意味だけ**を出す（他モードの凡例と同じ粒度）。
+ * シナリオ・想定雨量・流出率の値は「浸水条件」タブの操作 UI が持ち、
+ * 「浸水深ではない／排水施設未反映」の但し書きは見出しの data-tip にある。
+ */
+function rainfallLegend(s: Store['state']): string {
+  const sc = resolveRainfallScenario(s.rainfall)
+  const rows: string[] = []
+  if (sc.rainfallMm <= 0) {
+    rows.push('<div class="sub">雨量シナリオを選ぶと塗られる</div>')
+  } else {
+    rows.push('<div><i style="width:36px;background:'
+      + 'linear-gradient(90deg,#dcd4e6,#b38dd1 40%,#78409f 72%,#38105c)'
+      + '"></i>相対リスク<span class="sub"> 低 → 高</span></div>')
+  }
+  rows.push(roadsLegend(s))
+  return `<div class="legend">${rows.join('')}</div>`
+}
+
+const RAINFALL_MENU_TIP =
+  '簡易・仮定に基づく内水リスク。実効雨量 = 想定雨量 × 流出率、その総量と'
+  + '平均降雨強度（実効雨量 ÷ 継続時間）で地形の集水・窪地の相対的な危険度を塗る。\n'
+  + RAINFALL_SCENARIOS.filter((x) => x.id !== CUSTOM_SCENARIO_ID && x.rainfallMm > 0)
+    .map((x) => `${x.label}${x.source ? '（観測史上1位）' : x.description ? `（${x.description}）` : ''}`)
+    .join('\n')
+  + '\nカスタム＝雨量と継続時間を手入力\n'
+  + '側溝・暗渠・排水管・ポンプ・吐口・フラップゲートの能力は未反映。'
+  + '海水による浸水（潮位）とは別軸で、浸水面積・建物棟数の集計には混ぜない'
+
+/**
+ * 雨量シナリオの操作（「浸水条件」タブ。`シミュレーション条件` の直下）。
+ * **潮位スライダと同じタブに置き、同時に扱えることを見せる。**
+ * シナリオ選択・カスタム雨量・継続時間・流出率プリセット。
+ * 値を変えても `store.set` の subscribe が uniform を書き換えるだけで、
+ * ネットワーク再取得も地形タイル再構築も起きない（`main.ts`）。
+ */
+function rainfallControlsHtml(s: Store['state']): string {
+  const r = s.rainfall
+  const isCustom = r.scenarioId === CUSTOM_SCENARIO_ID
+  const opt = (id: string, label: string) =>
+    `<option value="${id}" ${r.scenarioId === id ? 'selected' : ''}>${label}</option>`
+  const scenarioOpts = RAINFALL_SCENARIOS.map((x) =>
+    opt(x.id, x.label + (x.source ? '（観測史上1位）'
+      : x.description && x.id !== CUSTOM_SCENARIO_ID ? ` — ${x.description}` : ''))).join('')
+  const runoffMatched = RUNOFF_PRESETS.some((p) => p.coefficient === r.runoffCoefficient)
+  const runoffOpts =
+    (runoffMatched ? '' : `<option value="${r.runoffCoefficient}" selected>手動 C=${r.runoffCoefficient}</option>`)
+    + RUNOFF_PRESETS.map((p) =>
+      `<option value="${p.coefficient}" ${p.coefficient === r.runoffCoefficient ? 'selected' : ''}
+        title="${escAttr(p.hint)}">${p.label}（C=${p.coefficient}）</option>`).join('')
+  return `
+    <p class="grouplabel" data-tip="${escAttr(RAINFALL_MENU_TIP)}">雨量シナリオ（簡易・仮定）</p>
+    <select id="rain-scenario" aria-label="雨量シナリオ">${scenarioOpts}</select>
+    <div class="rainrow" id="rain-custom" ${isCustom ? '' : 'hidden'}>
+      <label>雨量 <input id="rain-mm" type="number" inputmode="decimal"
+        min="0" max="${CUSTOM_RAINFALL_MAX_MM}" step="0.5" value="${r.customMm}" /> mm</label>
+      <label>継続 <input id="rain-hours" type="number" inputmode="numeric"
+        min="1" max="${CUSTOM_DURATION_MAX_HOURS}" step="1" value="${r.customHours}" /> 時間</label>
+    </div>
+    <div class="rain-err" id="rain-err" hidden></div>
+    <p class="grouplabel" style="margin-top:8px" data-tip="地表被覆から機械的に置いた仮定値（合理式の C 相当）。土地利用ごとの厳密な配分はしていない">流出率</p>
+    <select id="rain-runoff" aria-label="流出率">${runoffOpts}</select>`
+}
 
 /**
  * その範囲に無いレイヤのチェックは出さない（押しても何も出ないので）。
@@ -318,6 +392,11 @@ function legendHtml(
     }
     rows.push(roadsLegend(s))
     return `<div class="legend">${rows.join('')}</div>`
+  }
+
+  // **雨量リスクも浸水（潮位）の凡例を出さない。** 別軸なので専用の凡例に差し替える
+  if (s.terrainPaint === 'rainfall') {
+    return rainfallLegend(s)
   }
 
   if (isAssumption(s.surface)) {
@@ -717,6 +796,24 @@ export function renderControls(
     for (const b of el.querySelectorAll<HTMLButtonElement>('#fmodel button')) {
       b.setAttribute('aria-pressed', String(b.dataset.f === s.floodModel))
     }
+    // 雨量シナリオ。値の変更は uniform だけ（`main.ts`）なので DOM も作り直さない
+    const rsel = el.querySelector<HTMLSelectElement>('#rain-scenario')
+    if (rsel && rsel.value !== s.rainfall.scenarioId) rsel.value = s.rainfall.scenarioId
+    const rcustom = el.querySelector<HTMLElement>('#rain-custom')
+    if (rcustom) rcustom.hidden = s.rainfall.scenarioId !== CUSTOM_SCENARIO_ID
+    const rmm = el.querySelector<HTMLInputElement>('#rain-mm')
+    if (rmm && document.activeElement !== rmm && rmm.value !== String(s.rainfall.customMm)) {
+      rmm.value = String(s.rainfall.customMm)
+    }
+    const rhours = el.querySelector<HTMLInputElement>('#rain-hours')
+    if (rhours && document.activeElement !== rhours
+        && rhours.value !== String(s.rainfall.customHours)) {
+      rhours.value = String(s.rainfall.customHours)
+    }
+    const rrun = el.querySelector<HTMLSelectElement>('#rain-runoff')
+    if (rrun && rrun.value !== String(s.rainfall.runoffCoefficient)) {
+      rrun.value = String(s.rainfall.runoffCoefficient)
+    }
     // **窪地は連結モデルのときだけの状態。** 単純モデルでは窪地も浸水域なので、
     // チェックが残っていると押しても何も変わらない項目になる
     const pond = el.querySelector<HTMLInputElement>('input[data-l="ponded"]')
@@ -871,6 +968,8 @@ export function renderControls(
           `<button data-f="${m.id}" type="button" data-tip="${escAttr(m.hint)}"
                    aria-pressed="${s.floodModel === m.id}">${m.label}</button>`).join('')}</div>
 
+        ${rainfallControlsHtml(s)}
+
         <p class="grouplabel" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位</p>
         <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
         <div class="wlrow" data-tip="${escAttr(WATER_LEVEL_TIP)}">
@@ -956,11 +1055,53 @@ export function renderControls(
   })
   el.querySelector('#tpaint')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
-    if (b) store.set({ terrainPaint: b.dataset.p as TerrainPaint })
+    if (!b) return
+    const p = b.dataset.p as TerrainPaint
+    // 「雨量リスク」に切り替えたとき、シナリオが「雨量なし」なら観測史上1位まで
+    // 引き上げる（画面に何も出ないのを避ける）。それ以外はモードだけ変える
+    if (p === 'rainfall' && store.state.rainfall.scenarioId === NO_RAIN_SCENARIO_ID) {
+      store.set({
+        terrainPaint: p,
+        rainfall: { ...store.state.rainfall, scenarioId: RAINFALL_PAINT_FALLBACK_SCENARIO_ID },
+      })
+    } else {
+      store.set({ terrainPaint: p })
+    }
   })
   el.querySelector('#fmodel')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ floodModel: b.dataset.f as FloodModel })
+  })
+  el.querySelector('#rain-scenario')!.addEventListener('change', (e) => {
+    const id = (e.target as HTMLSelectElement).value
+    const rainfall = { ...store.state.rainfall, scenarioId: id }
+    // シナリオを選んだら雨量リスク表示へ。「雨量なし」を選んだら浸水深へ戻す
+    if (id === NO_RAIN_SCENARIO_ID) {
+      store.set(store.state.terrainPaint === 'rainfall'
+        ? { rainfall, terrainPaint: 'flood' } : { rainfall })
+    } else {
+      store.set({ rainfall, terrainPaint: 'rainfall' })
+    }
+  })
+  const onRainCustom = () => {
+    const mm = Number(el.querySelector<HTMLInputElement>('#rain-mm')!.value)
+    const hours = Number(el.querySelector<HTMLInputElement>('#rain-hours')!.value)
+    const v = validateCustomRainfall({ rainfallMm: mm, durationHours: hours })
+    const err = el.querySelector<HTMLElement>('#rain-err')
+    if (err) { err.hidden = v.ok; err.textContent = v.errors.join(' / ') }
+    // 無効な入力でも描画は安全側の採用値で続ける（`domain/rainfall.ts`）
+    store.set({ rainfall: {
+      ...store.state.rainfall,
+      customMm: v.value.rainfallMm, customHours: v.value.durationHours,
+    } })
+  }
+  el.querySelector('#rain-mm')!.addEventListener('input', onRainCustom)
+  el.querySelector('#rain-hours')!.addEventListener('input', onRainCustom)
+  el.querySelector('#rain-runoff')!.addEventListener('change', (e) => {
+    store.set({ rainfall: {
+      ...store.state.rainfall,
+      runoffCoefficient: Number((e.target as HTMLSelectElement).value),
+    } })
   })
   const range = el.querySelector<HTMLInputElement>('#wl')!
   range.addEventListener('input', () => {
