@@ -163,9 +163,14 @@ function scheduleShow(trigger: HTMLElement, immediate: boolean): void {
  * で出す。動いている間はタイマを引き直し続け、文字から外れたら待ちを捨てる。
  * pointermove は実際に動いたときだけ飛ぶので、静止すれば最後の引き直しから
  * タイマが満了して表示に至る（＝「通り抜け」では出ない）。
+ * 表示中も同じ当たり判定を続け、文字の外（見出し右の余白や select の上）へ
+ * 動いたらその場で消す。
  */
 function onPointerMove(e: PointerEvent): void {
-  if (activeTrigger) return
+  if (activeTrigger) {
+    if (triggerFrom(e.target, e) !== activeTrigger) hide()
+    return
+  }
   const t = triggerFrom(e.target, e)
   if (t && t.dataset.tip) {
     if (showTimer !== undefined) clearTimeout(showTimer)
