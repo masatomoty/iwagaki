@@ -1,4 +1,5 @@
 import type { Catalog } from './domain/catalog'
+import { initialRainfallState, type RainfallState } from './domain/rainfall'
 import type { BuildingColorMode, FeatureAssertion, FloodModel, RoadColorMode,
               SurfaceMode, TerrainPaint } from './domain/types'
 
@@ -140,6 +141,13 @@ export interface AppState {
    */
   terrainPaint: TerrainPaint
   /**
+   * **現在の雨量シナリオ**（`domain/rainfall.ts`）。`terrainPaint: 'rainfall'` の
+   * ときに「簡易内水リスク」を塗るのに使う。**潮位（`waterLevel`）とは独立**で、
+   * 高潮水位と同時に扱える。ここを変えてもネットワーク再取得・地形タイル
+   * 再構築は起きない（`main.ts` の `buildTerrain` の buildKey に含めない）。
+   */
+  rainfall: RainfallState
+  /**
    * 選んでいる徒歩圏（`catalog.walk_isochrones[]` のインデックス）。**T1 の中心点 UI
    * とは別物** — 起点は解析側が焼いた固定点の一覧から選ぶだけで、地図クリックで
    * 新しい等時線を作ることはしない（`domain/catalog.ts` の `WalkIsochroneAsset`）。
@@ -192,6 +200,8 @@ export function initialState(catalog: Catalog): AppState {
     // 「地盤高」は表示方法として独立させたため、浸水の既定は地表連結モデルにする。
     floodModel: 'connected',
     terrainPaint: 'flood',
+    // 既定は「雨量なし」。雨量リスクを選んでいない起動時の見え方は変わらない
+    rainfall: initialRainfallState(),
   }
 }
 

@@ -337,6 +337,15 @@
   /* 下位オプションは入れ子にする（徒歩圏の起点など） */
   .nested { margin: 3px 0 2px 19px; padding-left: 9px;
     border-left: 1px solid rgba(148,163,184,.2); }
+  /* 雨量シナリオのカスタム入力（雨量 mm／継続 h）。潮位スライダと同じタブに置く */
+  .rainrow { display: flex; gap: 10px; margin: 6px 0 0; flex-wrap: wrap; }
+  .rainrow label { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); }
+  .rainrow input[type=number] { width: 68px; background: var(--control); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font: 13px/1.2 inherit; }
+  .rainrow input[type=number]:hover { border-color: var(--accent); }
+  .rain-err { color: #ffb4a8; font-size: 11.5px; margin-top: 5px; line-height: 1.4; }
+  .rain-err[hidden] { display: none; }
+
   /* 道路の色・建物の色は入れ子にしない＝表示対象と同じ左端。上下に余白 */
   .colsel { margin: 12px 0; }
   label.row.off { color: #5f6875; }

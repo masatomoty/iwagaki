@@ -111,6 +111,18 @@ export interface FloodUniformValues {
    * （`elevation` と同じく浸水色を出さない面。`docs/todo.md`「FARR のロジックを取り込む」）。
    */
   catchmentPaint: boolean
+  /**
+   * **雨量リスク（簡易内水リスク）**で塗るか。`catchmentPaint` と同じ `flowTexture` を
+   * 使うが、`rainIntensity` を掛けて雨量シナリオで振った相対リスクを塗る
+   * （`domain/rainfall.ts` の `rainfallRelativeRisk`）。**潮位・h_conn は使わない。**
+   */
+  rainfallPaint: boolean
+  /**
+   * 雨の強さ = `rainfallIntensity(effectiveRainfallMm(scenario, runoff))`。
+   * **0 のとき（雨量なし）はリスク面を出さず地面だけ**。JS 側で mm → 無次元に
+   * 換算済みなので、シェーダは掛け算だけ（`domain/rainfall.ts` と同じ式）。
+   */
+  rainIntensity: number
 }
 
 const DECODE = /* glsl */ `
@@ -158,6 +170,7 @@ uniform float uWaterLevel;
 uniform float uWaterBase;
 uniform float uElevPaint;
 uniform float uCatchmentPaint;
+uniform float uRainfallPaint;
 uniform float uMode;
 
 out vec2 vUv;
@@ -221,7 +234,7 @@ void main() {
   // **仮定の段階でも水面は平常時の海面に置く。** 潮位まで張ると、いちばん
   // 見せたい「仮定が要る土地」が青に隠れて段の色が読めない（地盤高モードと同じ理由）
   // **水みちモードも平常時の海面に置く**（潮位まで張ると集水の色が青に隠れる）
-  bool flatSea = uElevPaint > 0.5 || uCatchmentPaint > 0.5 || uMode > 1.5;
+  bool flatSea = uElevPaint > 0.5 || uCatchmentPaint > 0.5 || uRainfallPaint > 0.5 || uMode > 1.5;
   if (uPass > 0.5) z = uGeoid + (flatSea ? uWaterBase : uWaterLevel) * uExaggeration;
 
   // XYZ タイルは Web メルカトル上で正方なので、ワールド（= メルカトルの線形変換）で
@@ -252,6 +265,8 @@ uniform float uSimple;
 uniform float uDrainage;
 uniform float uElevPaint;
 uniform float uCatchmentPaint;
+uniform float uRainfallPaint;
+uniform float uRainIntensity;
 uniform float uHasFlow;
 
 in vec2 vUv;
@@ -367,6 +382,26 @@ vec3 catchmentRamp(float t) {
                   : mix(C, D, (t - 0.75) / 0.25);
 }
 
+/**
+ * **雨量リスク（簡易内水リスク）の色。** 引数 r は domain/rainfall.ts の
+ * rainfallRelativeRisk と同じ相対リスク（雨量 0 なら 0）。
+ *
+ * 浸水深の青（海水）とも、水みちの青緑とも、建物の灰/黄/赤とも当たらないよう
+ * **すみれ色**で出す。新しい強い色相ではなく、彩度の低い紫を弱→強で濃くする
+ * （docs/web_design.md「画面の色は 1 つの予算」）。「簡易・仮定」を示す別軸として
+ * 読めるようにするため、面の色そのものは控えめに（下で地面と混ぜる）。
+ * **この文字列はテンプレートリテラルの中なので backtick は書けない。**
+ */
+vec3 rainRiskRamp(float r) {
+  const vec3 A = vec3(0.86, 0.83, 0.90);   // ~0: 薄いすみれ
+  const vec3 B = vec3(0.70, 0.55, 0.82);   // 中低: 藤
+  const vec3 C = vec3(0.47, 0.24, 0.66);   // 中高: すみれ
+  const vec3 D = vec3(0.22, 0.07, 0.36);   // 最高: 濃紫
+  return r < 0.33 ? mix(A, B, r / 0.33)
+       : r < 0.66 ? mix(B, C, (r - 0.33) / 0.33)
+                  : mix(C, D, clamp((r - 0.66) / 0.34, 0.0, 1.0));
+}
+
 vec3 depthRamp(float d) {
   vec3 c0 = vec3(0.42, 0.80, 0.95);
   vec3 c1 = vec3(0.15, 0.50, 0.90);
@@ -390,7 +425,7 @@ void main() {
   if (uPass > 0.5) {
     float hConn = decodeHConn(texture(elevTexture, cu).a);
     // 地盤高／水みち／仮定の段階モードの水面は平常時の海面（VS の z と揃えること）
-    bool flatSea = uElevPaint > 0.5 || uCatchmentPaint > 0.5 || uMode > 1.5;
+    bool flatSea = uElevPaint > 0.5 || uCatchmentPaint > 0.5 || uRainfallPaint > 0.5 || uMode > 1.5;
     float wl = flatSea ? uWaterBase : uWaterLevel;
     // **単純モデルは連結性を問わない**（標高が潮位を下回れば水面を張る）。
     // ただし **nodata のセルは標高が無いので判定できない**。港と湾は
@@ -456,6 +491,32 @@ void main() {
       col = mix(col, PONDED, clamp(0.30 + fill * 0.45, 0.30, 0.80));
     }
     fragColor = vec4(col * mix(1.0, shade, 0.45), uGroundOpacity);
+    return;
+  }
+
+  // ---- 雨量リスク（簡易内水リスク）で塗る --------------------------------
+  //
+  // 潮位・h_conn は使わない。catchmentPaint と同じ flowTexture（R = log 集水、
+  // B = 充填深コード）を、**雨量シナリオの強さ uRainIntensity で振る**だけ
+  // （domain/rainfall.ts の rainfallRelativeRisk と同じ式）。
+  // - uRainIntensity <= 0（雨量なし）なら地面だけ = 何も足さない
+  // - タイルが欠けている区画も地面だけ（catchment と同じ扱い）
+  // 重み 1.0 / 0.6、充填深スケール 2.0 は domain/rainfall.ts の RAINFALL_RISK_* と一致。
+  if (uRainfallPaint > 0.5) {
+    if (uShowGround < 0.5) discard;
+    vec3 base = groundColor(shade);
+    if (uHasFlow < 0.5 || uRainIntensity <= 0.0) {
+      fragColor = vec4(base, uGroundOpacity); return;
+    }
+    vec4 fc = texture(flowTexture, cu);
+    if (fc.a < 0.5) { fragColor = vec4(base, uGroundOpacity); return; }
+    float pond = clamp(decodeFillDepth(fc.b) * 2.0, 0.0, 1.0);
+    float risk = uRainIntensity * (1.0 * clamp(fc.r, 0.0, 1.0) + 0.6 * pond);
+    if (risk <= 0.0) { fragColor = vec4(base, uGroundOpacity); return; }
+    vec3 col = rainRiskRamp(clamp(risk, 0.0, 1.0));
+    // 低リスクでも地形が透けるよう地面と混ぜる。塗りの強さがリスクの度合いになる
+    col = mix(base, col, clamp(0.30 + 0.60 * risk, 0.30, 0.92));
+    fragColor = vec4(col * mix(1.0, shade, 0.40), uGroundOpacity);
     return;
   }
 
@@ -679,6 +740,8 @@ export function createFloodMaterial(pass: number = FLOOD_PASS.ground): ShaderMat
       uDrainage: { value: 0 },
       uElevPaint: { value: 0 },
       uCatchmentPaint: { value: 0 },
+      uRainfallPaint: { value: 0 },
+      uRainIntensity: { value: 0 },
       uHasFlow: { value: 0 },
     },
   })
@@ -703,5 +766,7 @@ export function applyFloodUniforms(m: ShaderMaterial, v: FloodUniformValues) {
   u.uDrainage.value = v.drainage ? 1 : 0
   u.uElevPaint.value = v.elevPaint ? 1 : 0
   u.uCatchmentPaint.value = v.catchmentPaint ? 1 : 0
+  u.uRainfallPaint.value = v.rainfallPaint ? 1 : 0
+  u.uRainIntensity.value = v.rainIntensity
   // uHasFlow は TerrainTiles が build() でタイル有無から設定する（uHasDiff と同じ）
 }
