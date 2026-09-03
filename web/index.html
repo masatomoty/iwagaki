@@ -59,6 +59,12 @@
   #topbar .tb-keys { margin-left: auto; flex: 0 0 auto; font-size: 11px;
     color: var(--muted); letter-spacing: .03em; white-space: nowrap; }
   #topbar .tb-keys kbd { margin: 0 1px; }
+  /* #topbar は折り返さない 1 行の flex なので、幅が足りないと右側（操作設定・出典）が
+     画面の外へ押し出されて届かなくなる。ヒントに過ぎないキー操作案内を先に落として
+     幅を空ける（実測: フル項目で約 980px が必要、キー案内を落とせば約 720px で収まる） */
+  @media (max-width: 1000px) {
+    #topbar .tb-keys { display: none; }
+  }
   /* 出典は畳んで置く。ホバー／フォーカスで全文（下に垂らす） */
   #topbar .tb-src { flex: 0 0 auto; position: relative; cursor: help;
     padding-left: 15px; border-left: 1px solid var(--line);
