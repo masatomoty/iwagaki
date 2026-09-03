@@ -407,10 +407,16 @@
     color: var(--fg); }
   #startup-modal .intro-cols { display: grid; grid-template-columns: 1.4fr 1fr;
     gap: 2px 44px; align-items: start; }
-  @media (max-width: 760px) { #startup-modal .intro-cols { grid-template-columns: 1fr; } }
-  #startup-modal fieldset { border: 0; margin: 0; padding: 14px 0 0; min-width: 0; }
+  @media (max-width: 760px) {
+    #startup-modal .intro-cols { grid-template-columns: 1fr; row-gap: 14px; }
+  }
+  /* fieldset の padding-top は legend を字下げせず「legend 以降の中身」だけを
+     押し下げる（`#opsettings-modal` と同じ）。見出しの直下が広くなりすぎるので
+     padding は持たせず、グループ間は fieldset 間マージンで作る */
+  #startup-modal fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  #startup-modal .intro-side fieldset + fieldset { margin-top: 14px; }
   #startup-modal legend { padding: 0; font-size: 12.5px; font-weight: 700;
-    letter-spacing: .05em; color: var(--muted); }
+    letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
   #startup-modal .opt { display: grid; grid-template-columns: auto 1fr;
     column-gap: 10px; align-items: baseline; padding: 6px 0; cursor: pointer; }
   #startup-modal .opt input { margin: 0; width: 16px; height: 16px; accent-color: var(--accent); }
@@ -454,11 +460,16 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
     padding: 22px 26px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
   #opsettings-modal h2 { margin: 0 0 7px; font-size: 18px; }
-  #opsettings-modal .intro-lead { margin: 0 0 4px; font-size: 13px; line-height: 1.6;
+  #opsettings-modal .intro-lead { margin: 0 0 15px; font-size: 13px; line-height: 1.6;
     color: var(--muted); }
-  #opsettings-modal fieldset { border: 0; margin: 0; padding: 14px 0 0; min-width: 0; }
+  /* fieldset の padding-top は legend を字下げしない（legend はブラウザ特有の
+     別扱いで、padding は legend の後の中身だけを押し下げる）ため、見出しの下だけ
+     広く上が詰まって余白が逆転していた。見出しの前後は fieldset 間マージンと
+     legend の margin-bottom で作る */
+  #opsettings-modal fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  #opsettings-modal fieldset + fieldset { margin-top: 14px; }
   #opsettings-modal legend { padding: 0; font-size: 12px; font-weight: 700;
-    letter-spacing: .05em; color: var(--muted); }
+    letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
   #opsettings-modal .opt { display: grid; grid-template-columns: auto 1fr;
     column-gap: 10px; align-items: baseline; padding: 6px 0; cursor: pointer; }
   #opsettings-modal .opt input { margin: 0; width: 16px; height: 16px; accent-color: var(--accent); }

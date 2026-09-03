@@ -660,8 +660,8 @@ export function renderControls(
   syncTopbar(store, catalog, area, onOpenOperationSettings)
   syncToolbar()
   if (el.dataset.pointerBlurBound !== '1') {
-    // タブ・ボタン・select のクリック後は、直後の潮位キー操作を使えるよう
-    // ポインター操作時だけフォーカスを外す。キー操作のフォーカスは残す。
+    // タブ・ボタン・チェックボックス・select のクリック後は、直後の潮位キー操作を
+    // 使えるようポインター操作時だけフォーカスを外す。キー操作のフォーカスは残す。
     //
     // **select は pointerup では blur しない**（`syncTopbar` と同じ理由）。
     // select を開くクリック自体が先に pointerup を発火するため、ここで blur すると
@@ -673,7 +673,13 @@ export function renderControls(
     })
     el.addEventListener('change', (e) => {
       const target = e.target
+      // select は値が確定した後に、チェックボックス（点群などの表示対象）は
+      // トグルされた後にフォーカスを外す。**チェックボックスも pointerup では
+      // 早すぎる** — ラベルの文字を踏むと click が input へ転送されてそこで
+      // フォーカスが input に移るため。change なら転送・トグルの後なので確実
       if (target instanceof HTMLSelectElement) target.blur()
+      else if (target instanceof HTMLInputElement
+        && (target.type === 'checkbox' || target.type === 'radio')) target.blur()
     })
     el.dataset.pointerBlurBound = '1'
   }
