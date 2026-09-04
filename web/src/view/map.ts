@@ -188,7 +188,10 @@ export function attachViewCube(v: Viewer): ViewCube {
   const home = document.createElement('button')
   home.id = 'viewcube-home'
   home.type = 'button'
-  home.textContent = '0'
+  home.innerHTML =
+    '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<path fill="currentColor" d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3z"/></svg>'
+  home.setAttribute('aria-label', '初期視点に戻る（0）')
   home.title = '初期視点に戻る（0）'
   home.addEventListener('click', () => {
     v.easeTo(home0, 600)
