@@ -201,6 +201,17 @@ export interface Catalog {
     boundary?: Record<string, unknown>
   }
   /**
+   * 次の高潮時の巡回対象リスト（`scripts/88_export_survey_targets.py`）。
+   * **viewer の状態に依存しない事前生成ファイル**（西舞鶴・東舞鶴を1組にまとめたもの、
+   * AOI では絞り込まない）。代表潮位ごとに CSV・GeoJSON の URL を持つ。
+   * `scripts/88` を実行していない配信物では鍵ごと無い（`railway` と同じ扱い）。
+   */
+  survey_targets?: {
+    target_tide_m_tp: number
+    csv: { url: string; bytes: number; mime: string }
+    geojson: { url: string; bytes: number; mime: string }
+  }[]
+  /**
    * 徒歩圏（道路ネットワーク等時線 ＋ 単純バッファ）。`scripts/94_walk_isochrone.py`
    * が起点ごとに焼く。**公式歩行者網ではない**（各 asset の中身にも properties/
    * metadata として明記）。焼いていない配信物では鍵ごと無い。
