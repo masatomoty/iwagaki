@@ -124,6 +124,24 @@ def compute_h_conn(
     return h_conn
 
 
+def reached(h_conn: np.ndarray, tide: float, step: float) -> np.ndarray:
+    """`h_conn <= tide` を判定する（h_conn ラスタの float32 丸め誤差に耐性がある）。
+
+    `h_conn` は `step`（この計算の刻み、既定 0.05 m）の倍数しか取らないが、
+    ラスタは float32 で保存されるため段の値が厳密には表現できない
+    （例: `float32(0.85)` は `0.850000024`）。生の `h_conn <= 0.85` は
+    その段のセルを**取りこぼす**が、`<= 0.86` では拾える——2 cm の見かけの
+    跳びが出る（`docs/results.md`「イベント水位付近の階段状の跳び」で一度踏んだ）。
+
+    `h_conn` だけを本来の段の値に丸め直し、潮位はそのまま比べる
+    （`tide` は刻みからずれた参照潮位（例: 0.314 m）でありうる）。
+    到達していないセル（`+inf` / `nan`）は False。
+    """
+    hc = np.asarray(h_conn, dtype="float64")
+    snapped = np.where(np.isfinite(hc), np.round(hc / step) * step, np.inf)
+    return snapped <= tide + 1e-9
+
+
 def compute_h_conn_with_inland_outfalls(
     elev: np.ndarray,
     seed: np.ndarray,

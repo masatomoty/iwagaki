@@ -9,7 +9,7 @@ title: データ出典
 | データ | 内容 | 規模 | 用途 | 出典 |
 |---|---|---|---|---|
 | **PLATEAU 建物 LOD1**（舞鶴市 2025 年度） | CityGML `bldg` | 吉原 AOI 内 930 棟 | 地物の識別子・用途/構造の属性・3D 表示 | [G空間情報センター](https://www.geospatial.jp/ckan/dataset/plateau-26202-maizuru-shi-2025) ／ [PLATEAU](https://www.mlit.go.jp/plateau/) |
-| **PLATEAU 道路** | CityGML `tran` | 吉原 AOI 内 293 本 | 区間種別（橋梁/高架/トンネルの除外） | 同上 |
+| **PLATEAU 道路** | CityGML `tran` | 吉原 AOI 内 293 本（評価対象は橋梁等 6 本を除く 287 本） | 区間種別（橋梁/高架/トンネルの除外） | 同上 |
 | **PLATEAU 地形モデル LOD1**（TIN） | CityGML `dem` | 5m 格子相当 | `baseline` 地形 | 同上 |
 | **京都府 数値標高モデル（DEM）** | 航空レーザ測量（2019〜2023）、0.5m 格子 | — | `highres` 地形、`control`（5m に集約） | [G空間情報センター](https://www.geospatial.jp/ckan/dataset/dem05_kyoto) |
 | **地上点群** | バックパック SLAM、LAS 1.4 | 20.0 GB / 約 5 億点（2026-07 取得） | `pointcloud` 地形、表示用 COPC | [国土地理院 建甲場（舞鶴）](https://cais.gsi.go.jp/cmdc/center/kenchojo/maizuru/maizuru.html) |
