@@ -42,6 +42,7 @@ import {
   BUILDING_COLOR_MODES, FLOOR_ABOVE_DEPTH_M, UNKNOWN_HEX, UNKNOWN_LABEL,
   type LegendEntry,
 } from '../view/buildingColor'
+import { openExportModal } from './exportModal'
 import { ATTR_EMPTY_HINT } from './inspector'
 import { getTidePlaybackHandle, mountTidePlayback, tidePlaybackHtml, updateTidePlayback,
          type PlaybackStats } from './tidePlayback'
@@ -524,6 +525,14 @@ function triggerDownload(filename: string, content: string, mime: string): void 
   URL.revokeObjectURL(url)
 }
 
+/** 既に配信物として存在する URL をそのままダウンロードさせる（巡回対象リスト用）。 */
+function triggerUrlDownload(url: string): void {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = ''
+  a.click()
+}
+
 function downloadAreaFloodCsv(el: HTMLElement): void {
   const d = DOWNLOAD_CTX.get(el)
   if (!d || d.rows.length === 0) return
@@ -539,6 +548,60 @@ async function downloadAreaFloodGeoJson(el: HTMLElement): Promise<void> {
   }
   triggerDownload(`${areaFloodFileBase(d.ctx)}.geojson`,
     JSON.stringify(areaFloodToGeoJson(d.rows, smallAreasCache.data, d.ctx)), 'application/geo+json')
+}
+
+/**
+ * 「地域別の浸水建物」の見出し脇の「エクスポート」ボタンから開く。
+ * `hasSmallAreas` が false（小地域ポリゴンを配っていない配信物）なら GeoJSON の
+ * 選択肢自体を出さない（ボタンを disabled にするより、選べる形式だけ見せる）。
+ */
+function openAreaFloodExportModal(el: HTMLElement, hasSmallAreas: boolean): void {
+  openExportModal({
+    title: '地域別の浸水建物をエクスポート',
+    lead: 'いま画面に出ている潮位・モデルの集計をダウンロードします。',
+    fieldsets: [{
+      legend: '形式', name: 'format',
+      options: [
+        { value: 'csv', label: 'CSV', default: true },
+        ...(hasSmallAreas
+          ? [{ value: 'geojson', label: 'GeoJSON', hint: '小地域ポリゴン付き（初回は追加で取得）' }]
+          : []),
+      ],
+    }],
+    onConfirm: (sel) => {
+      if (sel.format === 'geojson') void downloadAreaFloodGeoJson(el)
+      else downloadAreaFloodCsv(el)
+    },
+  })
+}
+
+/** 「巡回対象リスト」の見出し脇の「エクスポート」ボタンから開く */
+function openSurveyTargetsExportModal(items: NonNullable<Catalog['survey_targets']>): void {
+  openExportModal({
+    title: '巡回対象リストをエクスポート',
+    lead: '西舞鶴・東舞鶴、代表潮位ごとの固定ファイルです（画面の潮位スライダの値にはよりません）。',
+    fieldsets: [
+      {
+        legend: '潮位', name: 'tide',
+        options: items.map((e, i) => ({
+          value: String(i), label: `T.P.+${e.target_tide_m_tp.toFixed(2)} m`,
+          default: i === items.length - 1,
+        })),
+      },
+      {
+        legend: '形式', name: 'format',
+        options: [
+          { value: 'csv', label: 'CSV', default: true },
+          { value: 'geojson', label: 'GeoJSON' },
+        ],
+      },
+    ],
+    onConfirm: (sel) => {
+      const item = items[Number(sel.tide)] ?? items[0]
+      const asset = sel.format === 'geojson' ? item.geojson : item.csv
+      triggerUrlDownload(asset.url)
+    },
+  })
 }
 
 /**
@@ -648,14 +711,9 @@ function tideRefListHtml(refs: [string, number][], detail?: unknown): string {
 function surveyTargetsHtml(catalog: Catalog): string {
   const items = catalog.survey_targets
   if (!items || items.length === 0) return ''
-  return `<div id="surveydl">
+  return `<div id="surveydl" class="subhead-row">
     <p class="subhead" data-tip="次の高潮時、排水路の吐口を確認できれば判定を確定できる地物（西舞鶴・東舞鶴）。市への提供物と同じファイル。代表潮位ごとに固定（いまの潮位スライダの値は反映しない）">巡回対象リスト</p>
-    <div class="dllist">${items.map((e) => `<div class="dlrow">
-      <span>T.P.+${e.target_tide_m_tp.toFixed(2)} m</span>
-      <span class="dlgroup">
-        <a class="dlbtn" href="${e.csv.url}" download>CSV</a>
-        <a class="dlbtn" href="${e.geojson.url}" download>GeoJSON</a>
-      </span></div>`).join('')}</div>
+    <button class="dlbtn" id="surveydl-export" type="button">エクスポート</button>
   </div>`
 }
 
@@ -1073,16 +1131,8 @@ export function renderControls(
         <div id="areagroup" ${areaFlood.length ? '' : 'hidden'}>
           <div class="subhead-row">
             <p class="subhead" data-tip="いまの潮位・モデルで浸水する建物を、国勢調査の小地域（町丁・字等）ごとに集計。浸水棟数の多い順">地域別の浸水建物</p>
-            <span class="dlgroup">
-              <button class="dlbtn" id="areaflood-dl-csv" type="button"
-                      data-tip="いま画面に出ている集計をそのまま CSV でダウンロード">CSV</button>
-              <button class="dlbtn" id="areaflood-dl-geojson" type="button"
-                      ${catalog.small_areas ? '' : 'disabled'}
-                      data-tip="${catalog.small_areas
-                        ? 'いま画面に出ている集計を、小地域ポリゴン付きの GeoJSON でダウンロード'
-                        : 'この配信物には小地域ポリゴンが無いので GeoJSON は出せない（CSV は出せる）'}"
-                      >GeoJSON</button>
-            </span>
+            <button class="dlbtn" id="areaflood-export" type="button"
+                    data-tip="いま画面に出ている集計を CSV / GeoJSON でダウンロード">エクスポート</button>
           </div>
           <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
         </div>
@@ -1145,9 +1195,13 @@ export function renderControls(
     const b = (e.target as HTMLElement).closest('button')
     if (b) store.set({ waterLevel: Number(b.dataset.h) })
   })
-  el.querySelector('#areaflood-dl-csv')?.addEventListener('click', () => downloadAreaFloodCsv(el))
-  el.querySelector('#areaflood-dl-geojson')?.addEventListener('click', () => {
-    void downloadAreaFloodGeoJson(el)
+  el.querySelector('#areaflood-export')?.addEventListener('click', () => {
+    openAreaFloodExportModal(el, !!catalog.small_areas)
+  })
+  el.querySelector('#surveydl-export')?.addEventListener('click', () => {
+    if (catalog.survey_targets && catalog.survey_targets.length > 0) {
+      openSurveyTargetsExportModal(catalog.survey_targets)
+    }
   })
   el.querySelector('#tpaint')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest('button')
