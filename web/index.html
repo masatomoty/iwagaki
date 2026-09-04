@@ -255,6 +255,9 @@
     cursor: pointer; white-space: nowrap; }
   .dlbtn:hover:not(:disabled) { color: var(--fg); border-color: var(--accent); }
   .dlbtn:disabled { opacity: .4; cursor: default; }
+  /* エクスポート失敗時の一行メッセージ（小地域ポリゴンの取得失敗など）。
+     `.pb-forecast-msg.err` と同じ色で「取得に失敗した」を沈黙させない */
+  .exporterr { margin: 2px 0 6px; font-size: 11.5px; line-height: 1.5; color: #f28b82; }
   .seg button:disabled { opacity: .38; cursor: default; }
   .seg button:hover:not(:disabled):not([aria-pressed="true"]) { border-color: var(--accent); }
 

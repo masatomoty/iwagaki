@@ -539,15 +539,32 @@ function downloadAreaFloodCsv(el: HTMLElement): void {
   triggerDownload(`${areaFloodFileBase(d.ctx)}.csv`, areaFloodToCsv(d.rows, d.ctx), 'text/csv')
 }
 
+/** `#areaflood-export-err` にエラー文言を出す／消す。fetch 失敗を無言で握りつぶさない */
+function setAreaFloodExportError(el: HTMLElement, message: string | undefined): void {
+  const err = el.querySelector<HTMLElement>('#areaflood-export-err')
+  if (!err) return
+  err.hidden = !message
+  err.textContent = message ?? ''
+}
+
 async function downloadAreaFloodGeoJson(el: HTMLElement): Promise<void> {
   const d = DOWNLOAD_CTX.get(el)
   if (!d || d.rows.length === 0 || !d.smallAreasUrl) return
-  if (smallAreasCache?.url !== d.smallAreasUrl) {
-    const data = await fetch(d.smallAreasUrl).then((r) => r.json() as Promise<SmallAreaFeatureCollection>)
-    smallAreasCache = { url: d.smallAreasUrl, data }
+  setAreaFloodExportError(el, undefined)
+  try {
+    if (smallAreasCache?.url !== d.smallAreasUrl) {
+      const res = await fetch(d.smallAreasUrl)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      smallAreasCache = { url: d.smallAreasUrl, data: await res.json() as SmallAreaFeatureCollection }
+    }
+    triggerDownload(`${areaFloodFileBase(d.ctx)}.geojson`,
+      JSON.stringify(areaFloodToGeoJson(d.rows, smallAreasCache.data, d.ctx)), 'application/geo+json')
+  } catch (e) {
+    smallAreasCache = undefined
+    setAreaFloodExportError(el,
+      `小地域ポリゴンの取得に失敗しました（${e instanceof Error ? e.message : String(e)}）。`
+      + '通信環境を確認してもう一度お試しください。')
   }
-  triggerDownload(`${areaFloodFileBase(d.ctx)}.geojson`,
-    JSON.stringify(areaFloodToGeoJson(d.rows, smallAreasCache.data, d.ctx)), 'application/geo+json')
 }
 
 /**
@@ -1134,6 +1151,7 @@ export function renderControls(
             <button class="dlbtn" id="areaflood-export" type="button"
                     data-tip="いま画面に出ている集計を CSV / GeoJSON でダウンロード">エクスポート</button>
           </div>
+          <p class="exporterr" id="areaflood-export-err" hidden></p>
           <div id="areaflood">${areaFloodHtml(areaFlood)}</div>
         </div>
       </div>
