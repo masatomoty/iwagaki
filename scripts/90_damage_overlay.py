@@ -43,7 +43,8 @@ from shapely.geometry import Polygon, mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import CRS_ANALYSIS, CRS_LONLAT, OUT, ROOT
+from iwagaki.config import CRS_ANALYSIS, CRS_LONLAT, H_STEP, OUT, ROOT
+from iwagaki.flood import reached
 from iwagaki.raster import read
 
 # OCR の x,y は画像左上原点に直し、ラベル中心にしてある。
@@ -119,8 +120,10 @@ def main() -> int:
 
     dem, grid, nodata = read(OUT / "dtm_highres_050.tif")
     dem[dem == nodata] = np.nan
-    s1, _, _ = read(OUT / "h_conn_highres.tif")
-    s2, _, _ = read(OUT / "h_conn_drainage_S2.tif")
+    s1, _, nd1 = read(OUT / "h_conn_highres.tif")
+    s2, _, nd2 = read(OUT / "h_conn_drainage_S2.tif")
+    s1[s1 == nd1] = np.nan          # 未到達セルは nodata（-9999）。連結扱いにしない
+    s2[s2 == nd2] = np.nan
     ext = plotting_extent(dem, grid.transform)
 
     # 描画範囲は被害面の外接矩形 + 100 m 余白
@@ -134,8 +137,8 @@ def main() -> int:
     for ax, ev in zip(axes, EVENTS):
         H = ev["H"]
         below = dem <= H
-        m1 = np.isfinite(s1) & (s1 <= H)
-        m2 = np.isfinite(s2) & (s2 <= H) & ~m1
+        m1 = reached(s1, H, H_STEP)
+        m2 = reached(s2, H, H_STEP) & ~m1
         below_only = below & ~m1 & ~m2
 
         def show(mask, color, label):

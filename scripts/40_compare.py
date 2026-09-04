@@ -18,8 +18,9 @@ from shapely.geometry import shape
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from iwagaki.config import (AOI, OUT, REPRESENTATIVE_H, RES_COARSE,
+from iwagaki.config import (AOI, H_STEP, OUT, REPRESENTATIVE_H, RES_COARSE,
                             RES_HIGHRES, CRS_ANALYSIS)
+from iwagaki.flood import reached
 from iwagaki.raster import Grid, read, upsample_nearest, write
 
 PAIRS = [("baseline", "highres"), ("control", "highres"), ("baseline", "control"),
@@ -94,8 +95,10 @@ def main() -> int:
             "levels": {},
         }
         for h in REPRESENTATIVE_H:
-            wa = (ha <= h) & land
-            wb = (hb <= h) & land
+            # h_conn ラスタは float32。刻みの段を厳密に比べるため `reached` を使う
+            # （素の `ha <= h` は float32 の丸めで段のセルを取りこぼしうる）
+            wa = reached(ha, h, H_STEP) & land
+            wb = reached(hb, h, H_STEP) & land
             newly_wet = wb & ~wa
             newly_dry = wa & ~wb
             da = np.where(wa, h - ea, 0.0)
