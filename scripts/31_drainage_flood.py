@@ -32,6 +32,7 @@ from iwagaki.config import (
 from iwagaki.flood import (
     compute_h_conn_with_inland_outfalls,
     find_open_water,
+    reached,
 )
 from iwagaki.raster import Grid, read, write
 
@@ -161,7 +162,7 @@ def main() -> int:
         # 単調性（仕様 §9-2）はこの場で見ておく。1 ケースでも崩れたら
         # 「潮位を上げたのに浸水域が減る」絵になり、スライダの意味が壊れる
         wet_ha = {
-            f"{h:.2f}": round(float((land & (hc <= h)).sum()) * cell_ha, 2)
+            f"{h:.2f}": round(float((land & reached(hc, h, H_STEP)).sum()) * cell_ha, 2)
             for h in args.check_levels
         }
         areas = [wet_ha[f"{h:.2f}"] for h in args.check_levels]

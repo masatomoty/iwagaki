@@ -62,5 +62,6 @@ def test_reached_keeps_sub_step_reference_tides_strict():
 
 
 def test_reached_marks_unreached_cells_false():
-    hc = np.array([np.inf, np.nan, 0.30])
-    assert list(reached(hc, 1.0, STEP)) == [False, False, True]
+    # +inf / nan / 負の nodata 番兵（-9999）はいずれも到達していない
+    hc = np.array([np.inf, np.nan, -9999.0, 0.30])
+    assert list(reached(hc, 1.0, STEP)) == [False, False, False, True]
