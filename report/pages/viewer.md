@@ -4,7 +4,7 @@ title: viewer の操作
 
 # 2. viewer の操作
 
-公開先: **<https://iwagaki-viewer.tonbo.workers.dev>**
+公開先: **<https://maizuru.oniyanma.jp>**
 
 ブラウザで開くだけで動く。インストールやログインは不要。この章は、初めて開いた方が
 順に操作する流れをまとめる。表示された数字の読み方は [3. 表示の解釈](./interpretation) を参照。
@@ -52,7 +52,7 @@ title: viewer の操作
 
 ::: tip 条件選択画面をもう一度出すには
 「次回から表示しない」にチェックした後で戻したいときは、URL に `?intro=1` を付けて開く
-（例：<https://iwagaki-viewer.tonbo.workers.dev/?intro=1>）。なお、地域・モデル・潮位は
+（例：<https://maizuru.oniyanma.jp/?intro=1>）。なお、地域・モデル・潮位は
 すべて操作パネルからいつでも変更できる。
 :::
 

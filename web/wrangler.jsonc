@@ -36,7 +36,13 @@
 	"observability": {
 		"enabled": true
 	},
-	// 独自ドメインに載せる時はここを使う（Range も transferSize も同一オリジンのままで済む）
-	// "routes": [{ "pattern": "iwagaki.example.jp", "custom_domain": true }]
+	// 独自ドメイン（Range も transferSize も同一オリジンのままで済む）。
+	// custom_domain は wrangler が proxied DNS レコードとエッジ証明書まで作る。
+	// oniyanma.jp は Cloudflare 上のゾーンである必要がある。
+	"routes": [
+		{ "pattern": "maizuru.oniyanma.jp", "custom_domain": true }
+	],
+	// workers.dev の URL も当面は開けておく（証明書発行待ちのフォールバック）。
+	// 完全に独自ドメインへ寄せるなら false にする。
 	"workers_dev": true
 }

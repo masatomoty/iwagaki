@@ -4,7 +4,7 @@
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const LEVELS = [0.2, 1.0, 2.0, 3.0]
 
 const b = await chromium.launch({ headless: false, args: ['--ignore-certificate-errors'] })

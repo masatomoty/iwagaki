@@ -42,7 +42,7 @@ if [ "$BUILD" -eq 1 ]; then
   pnpm build
 
   # 市向け示唆レポート（VitePress）を同一オリジンのサブパスに載せる。
-  #   iwagaki-viewer.tonbo.workers.dev/report/
+  #   maizuru.oniyanma.jp/report/
   # vite build が dist/ を空にするので、**必ず vite build の後**に置く。
   # VitePress は base: '/report/' でビルドし、成果を dist/report/ に複製する
   # （Worker 側は run_worker_first に載っていない /report/* を Workers Assets が返す）。

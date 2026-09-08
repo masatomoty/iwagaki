@@ -1,7 +1,7 @@
 // 断面が出るか、水位を変えたときに水位線と塗りが動くかを撮って確かめる。
 import { chromium } from '@playwright/test'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 // 吉原入江を横断する測線（護岸をまたぐ向き）
 const FROM = [135.3255, 35.4570]
 const TO = [135.3320, 35.4548]

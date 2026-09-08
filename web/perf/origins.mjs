@@ -4,7 +4,7 @@
 // 「抜けている分がどれだけあるか」を CDP の実測で押さえるための道具。
 import { chromium } from '@playwright/test'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const WAIT_MS = Number(process.env.WAIT_MS ?? 20000)
 
 const b = await chromium.launch({ headless: false, args: ['--ignore-certificate-errors'] })

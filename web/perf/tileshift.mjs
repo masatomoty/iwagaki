@@ -6,7 +6,7 @@
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const OUT = 'perf/shots'
 
 const b = await chromium.launch({ headless: false, args: ['--ignore-certificate-errors'] })

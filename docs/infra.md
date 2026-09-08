@@ -67,8 +67,8 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 
 | | |
 |---|---|
-| 作る | viewer + 生成済みアセットの配信、COPC の Range 配信、配信条件の検証手段 |
-| 作らない | LAS アップロード、D1、Queues、external compute、独自ドメイン、認証 |
+| 作る | viewer + 生成済みアセットの配信、COPC の Range 配信、配信条件の検証手段、独自ドメイン（`maizuru.oniyanma.jp`） |
+| 作らない | LAS アップロード、D1、Queues、external compute、認証 |
 
 ---
 
@@ -76,7 +76,7 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 
 | 種別 | 名前 | 備考 |
 |---|---|---|
-| Worker | `iwagaki-viewer` | `workers_dev: true`。既定で `*.workers.dev` に出る |
+| Worker | `iwagaki-viewer` | 配信は `https://maizuru.oniyanma.jp`（`routes` の `custom_domain`）。`workers_dev: true` なので `*.workers.dev` も当面開く |
 | R2 バケット | `iwagaki-assets` | location hint `apac` |
 | R2 キー空間 | `data/pointcloud/*.copc.laz` | **URL パスと 1:1**（先頭の `/` を落としただけ） |
 | 〃（将来） | `raw/las/*` | アップロードされた原データ置き場。**今回は作らない**（下記「まだ作らないもの」） |
@@ -91,7 +91,7 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 | `web/deploy/_headers` | Workers Assets のキャッシュ制御（deploy 時に `dist/_headers` へコピー） |
 | `web/deploy/assetsignore` | COPC をアセットとしてアップロードしない（→ `dist/.assetsignore`） |
 | `web/deploy/deploy.sh` | build（viewer → `report/` VitePress → `dist/report/`）→ R2 へ COPC → `wrangler deploy` |
-| `report/` | 市向け示唆レポート（VitePress、`base: '/report/'`）。`iwagaki-viewer.<subdomain>.workers.dev/report/` |
+| `report/` | 市向け示唆レポート（VitePress、`base: '/report/'`）。`https://maizuru.oniyanma.jp/report/` |
 | `web/deploy/r2put.sh` | 315 MB 超を S3 API の multipart で R2 に置く |
 | `web/deploy/check.mjs` | デプロイ後に配信条件を実測して合否を出す |
 
@@ -107,8 +107,12 @@ cd web
 pnpm exec wrangler login          # 初回のみ（ブラウザ認証）
 pnpm run deploy:dry          # 設定と bundle の検証だけ。Cloudflare に何も作らない
 pnpm run deploy              # build → R2 へ COPC → wrangler deploy
-pnpm run deploy:check https://iwagaki-viewer.<subdomain>.workers.dev
+pnpm run deploy:check https://maizuru.oniyanma.jp
 ```
+
+初回の独自ドメイン設定は `wrangler deploy` が自動でやる（`oniyanma.jp` が Cloudflare 上の
+ゾーンで、同一アカウントであること。`maizuru` の DNS レコードが既にあると衝突するので先に消す）。
+proxied な DNS レコードとエッジ証明書を wrangler が作り、証明書の発行に数分かかる。
 
 | オプション | 効果 |
 |---|---|

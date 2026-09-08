@@ -3,7 +3,7 @@
 舞鶴市 **吉原**地区を対象に、**同じ高潮水位に対して、地形データを変えると浸水判定が
 どこで変わるか**を地物単位で示すプロトタイプ。
 
-公開 viewer: **https://iwagaki-viewer.tonbo.workers.dev**
+公開 viewer: **https://maizuru.oniyanma.jp**
 
 ![H=1.0m での比較](docs/images/flood_compare_H1.0.png)
 
@@ -91,7 +91,7 @@ viewer の水位スライダはこの性質の上に載っている。
 
 ## viewer で何ができるか
 
-公開先は **https://iwagaki-viewer.tonbo.workers.dev**。
+公開先は **https://maizuru.oniyanma.jp**。
 
 | | |
 |---|---|

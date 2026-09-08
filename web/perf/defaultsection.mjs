@@ -1,7 +1,7 @@
 // 起動時に既定の断面（天端を横切る線）が出るか、水位で追従するかを確かめる。
 import { chromium } from '@playwright/test'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const b = await chromium.launch({ headless: false, args: ['--ignore-certificate-errors'] })
 const ctx = await b.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1400, height: 900 } })
 const p = await ctx.newPage()

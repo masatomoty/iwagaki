@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test'
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const b = await chromium.launch({ headless: false, args: ['--ignore-certificate-errors'] })
 const ctx = await b.newContext({ ignoreHTTPSErrors: true, viewport: { width: 900, height: 700 } })
 const p = await ctx.newPage()
