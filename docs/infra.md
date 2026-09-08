@@ -76,7 +76,7 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 
 | 種別 | 名前 | 備考 |
 |---|---|---|
-| Worker | `iwagaki-viewer` | 配信は `https://maizuru.oniyanma.jp`（`routes` の `custom_domain`）。`workers_dev: true` なので `*.workers.dev` も当面開く |
+| Worker | `iwagaki-viewer` | 配信は `https://maizuru.oniyanma.jp`（`routes` の `custom_domain`）。`workers_dev: true` なので旧 `https://iwagaki-viewer.tonbo.workers.dev` も当面開く |
 | R2 バケット | `iwagaki-assets` | location hint `apac` |
 | R2 キー空間 | `data/pointcloud/*.copc.laz` | **URL パスと 1:1**（先頭の `/` を落としただけ） |
 | 〃（将来） | `raw/las/*` | アップロードされた原データ置き場。**今回は作らない**（下記「まだ作らないもの」） |
