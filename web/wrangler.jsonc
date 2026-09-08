@@ -12,12 +12,13 @@
 	"compatibility_date": "2026-08-01",
 	"assets": {
 		"directory": "./dist",
-		// COPC・潮位予測 API のパスだけは「アセットが無いから Worker に落ちてきた」
-		// ではなく「最初から Worker が処理する」を明示する。取りこぼしを設定で防ぐ。
-		"run_worker_first": [
-			"/data/pointcloud/*",
-			"/api/tide/maizuru"
-		]
+		// 全リクエストを Worker 先行にする。理由は 2 つ:
+		//   - 旧 *.workers.dev で来たアクセスを正規ドメインへ 301 で寄せる（deploy/worker.js）
+		//   - COPC・潮位予測 API を「アセットが無いから落ちてきた」ではなく最初から Worker が処理する
+		// COPC・潮位 API 以外は deploy/worker.js が env.ASSETS.fetch() で Workers Assets に
+		// そのまま委譲するので、静的配信物の扱い（_headers・圧縮・キャッシュ）は変わらない。
+		"binding": "ASSETS",
+		"run_worker_first": true
 	},
 	// raw LAS（将来）と COPC を同じバケットに置く。キー空間は URL パスと一致させる:
 	//   data/pointcloud/*.copc.laz   配信対象（= https://<host>/data/pointcloud/...）
@@ -36,7 +37,14 @@
 	"observability": {
 		"enabled": true
 	},
-	// 独自ドメインに載せる時はここを使う（Range も transferSize も同一オリジンのままで済む）
-	// "routes": [{ "pattern": "iwagaki.example.jp", "custom_domain": true }]
+	// 独自ドメイン（Range も transferSize も同一オリジンのままで済む）。
+	// custom_domain は wrangler が proxied DNS レコードとエッジ証明書まで作る。
+	// oniyanma.jp は Cloudflare 上のゾーンである必要がある。
+	"routes": [
+		{ "pattern": "maizuru.oniyanma.jp", "custom_domain": true }
+	],
+	// workers.dev の URL は開けたままにする。deploy/worker.js が *.workers.dev への
+	// アクセスを正規ドメインへ 301 で寄せるので、旧 URL のブックマーク・共有リンクが
+	// 生き続ける。証明書発行待ちの退避先も兼ねる。完全に畳むなら false にする。
 	"workers_dev": true
 }

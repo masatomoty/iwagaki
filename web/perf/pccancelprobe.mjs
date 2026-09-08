@@ -6,7 +6,7 @@
 // wanted と inFlight を時系列で見れば区別できる。
 import { chromium } from '@playwright/test'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const PC_CENTER = [135.328894, 35.456748]
 const AOI_SW = [135.323041, 35.453227]
 

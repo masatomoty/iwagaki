@@ -2,7 +2,7 @@
 
 `docs/web_design.md` の設計を実装し、**実配信（Cloudflare）に対して cold cache で計測**した結果。
 
-- 配信先: `https://iwagaki-viewer.tonbo.workers.dev`
+- 計測先: `https://iwagaki-viewer.tonbo.workers.dev`（当時の公開先。現在は `https://maizuru.oniyanma.jp`）
 - 再現: `cd web && BASE=<URL> node perf/run.mjs`
 - 生データ: `web/perf/results/*.json`（git 管理外）
 - 環境: macOS / Chromium (Playwright, **headed**) / ビューポート 1100×750 / HTTP/2

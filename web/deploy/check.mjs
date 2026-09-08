@@ -8,7 +8,7 @@
 //   2. Workers Assets が Range をどう扱うか（206 か 200 か。docs では [未確認] のまま）
 //   3. 圧縮とキャッシュ制御が意図どおりか（geojson が br で来るか、immutable が付くか）
 //
-//   node deploy/check.mjs https://iwagaki-viewer.<subdomain>.workers.dev
+//   node deploy/check.mjs https://maizuru.oniyanma.jp
 //
 // MUST が 1 つでも落ちたら exit 1。RECORD は測って出すだけ（合否判定しない）。
 import { readFile, stat } from 'node:fs/promises'

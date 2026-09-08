@@ -3,7 +3,7 @@
 // 「終わっているのに指標が立たない」のかを切り分ける。
 import { chromium } from '@playwright/test'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const PC = process.env.PC ?? '1'
 // headless では rAF が絞られ、deck.gl の tileset traversal がほとんど進まない。
 // 既定は headed。HEADED=0 で headless にして比較できる

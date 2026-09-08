@@ -13,7 +13,7 @@ export default defineConfig({
   cleanUrls: true,
   // 付録 F の分析手法で数式を使う（markdown-it-mathjax3）
   markdown: { math: true },
-  // viewer と同一オリジンのサブパスに載せる: iwagaki-viewer.tonbo.workers.dev/report/
+  // viewer と同一オリジンのサブパスに載せる: maizuru.oniyanma.jp/report/
   // ビルド成果は web/deploy/deploy.sh が web/dist/report/ にコピーして
   // Workers Assets からそのまま配信する（Worker 側のコード変更は不要）。
   base: '/report/',
@@ -54,7 +54,7 @@ export default defineConfig({
       { text: '背景と目的', link: '/' },
       { text: '分析結果', link: '/pages/results' },
       { text: '考察と提言', link: '/pages/discussion' },
-      { text: 'viewer を開く', link: 'https://iwagaki-viewer.tonbo.workers.dev' },
+      { text: 'viewer を開く', link: 'https://maizuru.oniyanma.jp' },
     ],
 
     sidebar: [

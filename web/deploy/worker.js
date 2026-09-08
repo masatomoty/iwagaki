@@ -1,15 +1,16 @@
-// COPC だけを R2 から Range 配信する Worker。
+// 配信のエントリ Worker（wrangler.jsonc は run_worker_first: true で全リクエストを通す）。
 //
-// なぜ必要か（docs/platform.md）:
-//   COPC は「必要なノードのバイト範囲だけ取る」ことが前提のフォーマットで、
-//   Range に 200 を返す配信に置くと 1 ノードごとに 14 MB 全体が落ちてくる。
-//   つまり COPC を採用した意味が消える。R2 は 206 を返すので、
-//   そのパスだけ Worker から R2 binding を読む。
+//   1. 旧 *.workers.dev で来たアクセスは正規ドメイン（maizuru.oniyanma.jp）へ 301。
+//      パスとクエリは保つ。localhost（wrangler dev / deploy/check.mjs）は対象外。
+//   2. COPC（/data/pointcloud/*）は R2 から Range 配信する。
+//      なぜ Worker 経由か（docs/platform.md）:
+//        COPC は「必要なノードのバイト範囲だけ取る」前提のフォーマットで、Range に 200 を
+//        返す配信に置くと 1 ノードごとに 14 MB 全体が落ちてくる。R2 は 206 を返す。
+//   3. 潮位予測 API（/api/tide/maizuru）は気象庁を同一オリジンで中継する（ファイル下部）。
+//   4. それ以外（html / js / wasm / catalog / タイル / 3D Tiles / geojson）は
+//      env.ASSETS.fetch() で Workers Assets に委譲する。_headers・圧縮・キャッシュは変わらない。
 //
-// 他のアセット（html / js / wasm / catalog / タイル / 3D Tiles / geojson）は
-// Workers Assets が直接返す。ここには来ない（wrangler.jsonc の run_worker_first を参照）。
-//
-// ローカルの web/serve.mjs と振る舞いを揃える:
+// R2 配信をローカルの web/serve.mjs と揃える:
 //   - 単一 Range に 206 + Content-Range
 //   - 範囲外は 416 + `Content-Range: bytes */size`
 //   - マルチレンジ（`bytes=a-b, c-d`）は 400。R2 の S3 API と同じで対応しない（同 §4.4）
@@ -18,30 +19,35 @@
 const R2_PREFIX = '/data/pointcloud/'
 const TIDE_FORECAST_PATH = '/api/tide/maizuru'
 const IMMUTABLE = 'public, max-age=31536000, immutable'
+// 正規ドメイン。旧 iwagaki-viewer.tonbo.workers.dev などの *.workers.dev はここへ寄せる
+const CANONICAL_HOST = 'maizuru.oniyanma.jp'
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
+
+    if (url.hostname.endsWith('.workers.dev')) {
+      return Response.redirect(`https://${CANONICAL_HOST}${url.pathname}${url.search}`, 301)
+    }
 
     if (url.pathname === TIDE_FORECAST_PATH) {
       if (request.method !== 'GET') return text(405, 'method not allowed', { allow: 'GET' })
       return handleTideForecast()
     }
 
-    if (!url.pathname.startsWith(R2_PREFIX)) {
-      // run_worker_first に載っていないパスは Asset Worker が先に処理する。
-      // ここに来るのは「一致するアセットが無かった」場合だけ。
-      return text(404, 'not found')
-    }
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return text(405, 'method not allowed', { allow: 'GET, HEAD' })
+    if (url.pathname.startsWith(R2_PREFIX)) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return text(405, 'method not allowed', { allow: 'GET, HEAD' })
+      }
+      // キーは URL パスと 1:1（先頭の / を落とすだけ）。デプロイ手順もこの規則で put する。
+      const key = url.pathname.slice(1)
+      if (key.includes('..')) return text(400, 'bad path')
+      return serve(request, env.BUCKET, key)
     }
 
-    // キーは URL パスと 1:1（先頭の / を落とすだけ）。デプロイ手順もこの規則で put する。
-    const key = url.pathname.slice(1)
-    if (key.includes('..')) return text(400, 'bad path')
-
-    return serve(request, env.BUCKET, key)
+    // 静的配信物は Workers Assets にそのまま委譲する（run_worker_first: true なので
+    // ここを通る）。ヘッダ・圧縮・404 の扱いは Workers Assets が直接返すのと同じ。
+    return env.ASSETS.fetch(request)
   },
 }
 

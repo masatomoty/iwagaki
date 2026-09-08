@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const ROUNDS = Number(process.env.ROUNDS ?? 3)
 const PROFILES = process.env.PROFILES ?? 'normal,fast4g,fatpipe-highrtt'
 const KEYS = ['first_meaningful_render', 'time_to_first_useful_pc', 'time_to_pc_refined']

@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-const BASE = process.env.BASE ?? 'https://iwagaki-viewer.tonbo.workers.dev'
+const BASE = process.env.BASE ?? 'https://maizuru.oniyanma.jp'
 const ROUNDS = Number(process.env.ROUNDS ?? 3)
 const FLAG = process.env.FLAG ?? 'defer'
 const KEYS = (process.env.KEYS ?? 'first_meaningful_render,time_to_terrain,time_to_plateau,'

@@ -21,29 +21,32 @@
   ┌───────────────────────┐          ┌─────────────────────────────┐
   │  Workers Assets       │          │  R2  iwagaki-assets          │
   │  （dist/ をそのまま）  │          │  data/pointcloud/*.copc.laz  │
-  │                       │          │  ※ 315 MB 超は S3 API 経由   │
+  │  ASSETS binding 経由   │          │  ※ 315 MB 超は S3 API 経由   │
   │  html / js / css      │          └──────────────┬──────────────┘
-  │  tiles / 3dtiles      │                         │ R2 binding
-  │  objects.geojson      │                         │
-  │  catalog.json         │          ┌──────────────▼──────────────┐
-  └───────────┬───────────┘          │  Worker  iwagaki-viewer      │
-              │                      │  deploy/worker.js            │
-              │                      │  /data/pointcloud/* だけ担当  │
-              │                      │  Range → 206 Partial Content │
-              │                      └──────────────┬──────────────┘
-              │                                     │
-              └──────────────┬──────────────────────┘
-                             │  同一オリジン
-                             ▼
-                    ┌─────────────────┐
-                    │     Browser     │
-                    │  catalog.json   │──▶ 以降のすべての URL はここから
-                    └─────────────────┘
+  │  tiles / 3dtiles      │                         │ BUCKET binding
+  │  objects.geojson      │  ASSETS binding         │
+  │  catalog.json         │◀──────────┐             │
+  └───────────────────────┘           │             │
+                            ┌─────────┴─────────────▼──────────┐
+                            │  Worker  iwagaki-viewer          │
+                            │  deploy/worker.js                │
+                            │  run_worker_first: true（全部通す）│
+                            │   ・*.workers.dev → 正規ドメイン 301│
+                            │   ・/data/pointcloud/* → R2 Range  │
+                            │   ・/api/tide/maizuru → 気象庁中継 │
+                            │   ・それ以外 → ASSETS へ委譲       │
+                            └────────────────┬─────────────────┘
+                                             │  同一オリジン
+                                             ▼
+                                    ┌─────────────────┐
+                                    │     Browser     │
+                                    │  catalog.json   │──▶ 以降のすべての URL はここから
+                                    └─────────────────┘
 ```
 
-Worker は 1 本（`iwagaki-viewer`）。**静的アセットと COPC を同一オリジンに載せる。**
-分けているのは配信経路だけで URL 空間は分けていないので、
-`catalog.json` の url は全て相対のままでよく、アプリ側に分岐は無い。
+Worker は 1 本（`iwagaki-viewer`）。全リクエストが Worker を通り、静的配信物は
+`env.ASSETS.fetch()` で Workers Assets に委譲する。**静的アセットと COPC を同一オリジンに載せる。**
+URL 空間は分けていないので、`catalog.json` の url は全て相対のままでよく、アプリ側に分岐は無い。
 
 同一オリジンに揃える理由は 2 つある。`PerformanceResourceTiming.transferSize` は
 クロスオリジンだと 0 になり転送量が測れなくなること（`docs/web_design.md`「収集する量」）と、
@@ -56,8 +59,8 @@ CORS の設定が 1 つ増えると静かに壊れる箇所が 1 つ増えるこ
 
 `report/`（VitePress、`base: '/report/'`）を**同じ Worker のサブパス**として配信する。
 `deploy/deploy.sh` が vite build の直後に VitePress をビルドし、成果を `dist/report/` に複製する。
-`/report/*` は `wrangler.jsonc` の `run_worker_first` に載っていないので Workers Assets が直接返し、
-`deploy/worker.js` は関与しない（新規パスの登録も不要）。同一オリジンなので transferSize も
+`/report/*` は `deploy/worker.js` が `env.ASSETS.fetch()` で Workers Assets に委譲する
+（COPC・潮位 API 以外はすべてこの経路。新規パスの登録は不要）。同一オリジンなので transferSize も
 CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`docs/results.md`）の報告用まとめで、
 `docs/*.md` の内部作業ノートとは別物。
 
@@ -67,8 +70,8 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 
 | | |
 |---|---|
-| 作る | viewer + 生成済みアセットの配信、COPC の Range 配信、配信条件の検証手段 |
-| 作らない | LAS アップロード、D1、Queues、external compute、独自ドメイン、認証 |
+| 作る | viewer + 生成済みアセットの配信、COPC の Range 配信、配信条件の検証手段、独自ドメイン（`maizuru.oniyanma.jp`） |
+| 作らない | LAS アップロード、D1、Queues、external compute、認証 |
 
 ---
 
@@ -76,7 +79,7 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 
 | 種別 | 名前 | 備考 |
 |---|---|---|
-| Worker | `iwagaki-viewer` | `workers_dev: true`。既定で `*.workers.dev` に出る |
+| Worker | `iwagaki-viewer` | 配信は `https://maizuru.oniyanma.jp`（`routes` の `custom_domain`）。旧 `https://iwagaki-viewer.tonbo.workers.dev`（`workers_dev: true`）は `worker.js` が同じパスへ 301 リダイレクト |
 | R2 バケット | `iwagaki-assets` | location hint `apac` |
 | R2 キー空間 | `data/pointcloud/*.copc.laz` | **URL パスと 1:1**（先頭の `/` を落としただけ） |
 | 〃（将来） | `raw/las/*` | アップロードされた原データ置き場。**今回は作らない**（下記「まだ作らないもの」） |
@@ -86,12 +89,12 @@ CORS も既存の viewer と同じ扱いのまま。内容は解析結果（`doc
 
 | ファイル | 役割 |
 |---|---|
-| `web/wrangler.jsonc` | Worker 名 / assets ディレクトリ / R2 binding / Worker が先に取るパス |
-| `web/deploy/worker.js` | COPC の Range 配信のみ。他のパスには関与しない |
+| `web/wrangler.jsonc` | Worker 名 / assets ディレクトリ・ASSETS binding / R2 binding / routes（独自ドメイン）/ `run_worker_first: true` |
+| `web/deploy/worker.js` | エントリ。`*.workers.dev` の 301・COPC の Range 配信・潮位 API 中継、それ以外は `env.ASSETS.fetch()` へ委譲 |
 | `web/deploy/_headers` | Workers Assets のキャッシュ制御（deploy 時に `dist/_headers` へコピー） |
 | `web/deploy/assetsignore` | COPC をアセットとしてアップロードしない（→ `dist/.assetsignore`） |
 | `web/deploy/deploy.sh` | build（viewer → `report/` VitePress → `dist/report/`）→ R2 へ COPC → `wrangler deploy` |
-| `report/` | 市向け示唆レポート（VitePress、`base: '/report/'`）。`iwagaki-viewer.<subdomain>.workers.dev/report/` |
+| `report/` | 市向け示唆レポート（VitePress、`base: '/report/'`）。`https://maizuru.oniyanma.jp/report/` |
 | `web/deploy/r2put.sh` | 315 MB 超を S3 API の multipart で R2 に置く |
 | `web/deploy/check.mjs` | デプロイ後に配信条件を実測して合否を出す |
 
@@ -107,8 +110,12 @@ cd web
 pnpm exec wrangler login          # 初回のみ（ブラウザ認証）
 pnpm run deploy:dry          # 設定と bundle の検証だけ。Cloudflare に何も作らない
 pnpm run deploy              # build → R2 へ COPC → wrangler deploy
-pnpm run deploy:check https://iwagaki-viewer.<subdomain>.workers.dev
+pnpm run deploy:check https://maizuru.oniyanma.jp
 ```
+
+初回の独自ドメイン設定は `wrangler deploy` が自動でやる（`oniyanma.jp` が Cloudflare 上の
+ゾーンで、同一アカウントであること。`maizuru` の DNS レコードが既にあると衝突するので先に消す）。
+proxied な DNS レコードとエッジ証明書を wrangler が作り、証明書の発行に数分かかる。
 
 | オプション | 効果 |
 |---|---|
