@@ -117,6 +117,11 @@ pnpm run deploy:check https://maizuru.oniyanma.jp
 ゾーンで、同一アカウントであること。`maizuru` の DNS レコードが既にあると衝突するので先に消す）。
 proxied な DNS レコードとエッジ証明書を wrangler が作り、証明書の発行に数分かかる。
 
+`oniyanma.jp` ゾーンは Web Analytics の自動計測が有効で、`maizuru.oniyanma.jp` の HTML にも
+`static.cloudflareinsights.com/beacon.min.js` がエッジで注入される（workers.dev では起きない）。
+これは残す判断（アクセス解析）。`deploy/check.mjs` はこの 1 件だけ `ALLOWED_FOREIGN` で許容する。
+経緯と影響は `docs/web_design.md`「収集する量」。
+
 | オプション | 効果 |
 |---|---|
 | `deploy/deploy.sh --no-build` | `dist/` を作り直さない |

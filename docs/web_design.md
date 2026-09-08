@@ -1729,6 +1729,16 @@ Cloudflare は br 応答に `content-length` を付けない（`docs/platform.md
 「外部オリジンへのリクエストが 0 件」がここを守る（ブラウザを立てて数える。
 `fetch` では分からない）。
 
+**例外は Cloudflare Web Analytics の beacon 1 つ**
+（`static.cloudflareinsights.com/beacon.min.js`）。独自ドメイン `maizuru.oniyanma.jp`
+（`oniyanma.jp` ゾーンの Web Analytics 自動計測）へ移す際に、アクセス解析を入れる
+判断をした。`check.mjs` は `ALLOWED_FOREIGN` でこの 1 件だけ許容する。
+影響は 2 つ、いずれも許容範囲:
+- beacon スクリプトの取得（数 KB）は wire 計測に映らない。shell/data の内訳には
+  効かない大きさだが、「外部オリジン 0 件」ではなくなった点は明記しておく。
+- beacon は非同期・非ブロッキングで、送信先（`/cdn-cgi/rum`）は同一オリジン。
+  スクリプト取得が失敗しても viewer は動くので「外部に出られない回線」の性質は残る。
+
 ### 正しさを守るテスト
 
 性能とは別に、**画面に出ている値が解析と一致するか**を検査する。

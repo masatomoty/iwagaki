@@ -369,6 +369,11 @@ worker は `@loaders.gl/draco/draco-worker.js?url` でバンドルに同梱す�
 動き出してからで、しかも Worker の中から出る）。playwright が無い環境では
 **通過にせず MUST を落とす** — 「測っていない」を「通った」と読ませないため。
 
+2026-09-08、独自ドメイン `maizuru.oniyanma.jp` へ移した際に Cloudflare Web Analytics の
+beacon（`static.cloudflareinsights.com/beacon.min.js`）が入った。アクセス解析を入れる
+判断で、`check.mjs` は `ALLOWED_FOREIGN` にこの 1 件だけ許容する（他の外部先は従来どおり
+MUST 落ち）。詳細と影響は `docs/web_design.md`「収集する量」。
+
 #### バンドルに残る `unpkg.com` の文字列は発火しない **[実測]**
 
 Draco を自オリジン配信に直したあとも `dist/assets/plateauTiles-*.js` に
