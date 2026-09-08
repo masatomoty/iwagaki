@@ -161,7 +161,7 @@ if (!copcUrl) {
   must('存在しない COPC -> 404', res.status === 404, String(res.status))
 }
 
-// ---- 5. 外部への通信を 1 件も出さない ---------------------------------------
+// ---- 5. 外部への通信を 1 件も出さない（許可した先を除く）--------------------
 //
 // **ここだけブラウザを立てる。** fetch では分からない: 外部を叩くのは
 // ライブラリが動き出してからで、しかも Worker の中から出ることがある。
@@ -169,7 +169,16 @@ if (!copcUrl) {
 // 計 1.15 MB あった（docs/web_results.md）。
 //
 // クロスオリジンでは `transferSize` も `encodedBodySize` も 0 になるので、
-// **こちらの転送量計測には最後まで映らない**。だから MUST で塞ぐ。
+// **こちらの転送量計測には最後まで映らない**。だから既定は MUST で塞ぐ。
+//
+// 例外は `ALLOWED_FOREIGN` に明記した先だけ。いまは Cloudflare Web Analytics の
+// beacon（`static.cloudflareinsights.com/beacon.min.js`）。独自ドメイン
+// `maizuru.oniyanma.jp` へ移す際にアクセス解析を入れる判断をした
+// （`docs/web_design.md`「収集する量」）。beacon は非同期・非ブロッキングなので
+// 「外部に出られない回線でも動く」性質は保たれる。計測ノイズは docs で明記する。
+const ALLOWED_FOREIGN = [
+  /^https:\/\/static\.cloudflareinsights\.com\//,
+]
 await sameOriginOnly()
 
 summary()
@@ -191,18 +200,22 @@ async function sameOriginOnly() {
       viewport: { width: 1100, height: 750 } })
     const page = await ctx.newPage()
     const foreign = new Map()
+    const allowed = new Map()
     page.on('request', (r) => {
       const u = r.url()
       if (/^(blob:|data:|about:)/.test(u) || u.startsWith(origin)) return
       const k = u.split('?')[0]
-      foreign.set(k, (foreign.get(k) ?? 0) + 1)
+      const bucket = ALLOWED_FOREIGN.some((re) => re.test(u)) ? allowed : foreign
+      bucket.set(k, (bucket.get(k) ?? 0) + 1)
     })
     // 点群も PLATEAU も動かす。外部を叩くのは大抵この 2 つの module
     await page.goto(`${base}/?pc=1`, { waitUntil: 'commit' })
     await page.waitForTimeout(15_000)
     const list = [...foreign].map(([u, n]) => `${n}x ${u}`).join(' / ')
-    must('外部オリジンへのリクエストが 0 件', foreign.size === 0,
-      foreign.size === 0 ? `${origin} 以外へ 0 件` : list.slice(0, 400))
+    const allowList = [...allowed].map(([u, n]) => `${n}x ${u}`).join(' / ')
+    must('外部オリジンへのリクエストが 0 件（許可先を除く）', foreign.size === 0,
+      (foreign.size === 0 ? `${origin} 以外へ 0 件` : list.slice(0, 400))
+      + (allowed.size ? `  ／ 許可先: ${allowList}` : ''))
     await ctx.close()
   } finally {
     await browser.close()
