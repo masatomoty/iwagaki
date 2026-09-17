@@ -814,6 +814,18 @@ function topbarHtml(
   const condSel = `<label class="tbsel" data-tip="${escAttr(condMenuTip(catalog))}">地形データ<select id="cond" aria-label="地形データ">${
     conditionsOf(catalog).map((c) =>
       `<option value="${c.id}" ${cond === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>`
+  // 標高基準（測地成果2011／2024）の表示切替。現在値と選択肢が同時に分かる select にする
+  // （舞鶴市要望、2026-09。`domain/elevationDatum.ts`）。配信物に変換量
+  // （`vertical.jgd2011_to_jgd2024_shift_m`）が無い古い catalog では「新」を
+  // 選べないようにする（無いまま選ぶと、変換されない値を「新」のラベルで出してしまう）。
+  // 地形データの基準に対する表示切替なので、地形データの右に置く
+  const hasDatumShift = catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
+  const datumSel = `<label class="tbsel" data-tip="${escAttr(hasDatumShift ? DATUM_TIP
+      : 'この配信物には測地成果2024への変換量が無いので、旧(2011)のみ')}">標高基準`
+    + `<select id="tb-datum" aria-label="標高基準" ${hasDatumShift ? '' : 'disabled'}`
+    + `><option value="jgd2024" ${datum === 'jgd2024' ? 'selected' : ''}>気象庁基準 新(2024)</option>`
+    + `<option value="jgd2011" ${datum === 'jgd2011' ? 'selected' : ''}>解析基準 旧(2011)</option>`
+    + '</select></label>'
   // いま解いている潮位。**このアプリの主変数**なので、タブを開いていなくても
   // トップバーに出す。値は `syncTopbar` が refresh ごとに書き換える。
   // ← → キーで動かせることはキー操作案内にも足す（刻みの詳細は data-tip に）
@@ -826,17 +838,6 @@ function topbarHtml(
   // 人によってドラッグの感じ方が逆なので、画面上部からいつでも開けるようにした（2026-09 要望）
   const opset = '<button id="tb-opset" type="button" class="tb-btn"'
     + ' data-tip="ドラッグでの回転・パンの向きや感度を設定する">操作設定</button>'
-  // 標高基準（測地成果2011／2024）の表示切替。現在値と選択肢が同時に分かる select にする
-  // （舞鶴市要望、2026-09。`domain/elevationDatum.ts`）。配信物に変換量
-  // （`vertical.jgd2011_to_jgd2024_shift_m`）が無い古い catalog では「新」を
-  // 選べないようにする（無いまま選ぶと、変換されない値を「新」のラベルで出してしまう）
-  const hasDatumShift = catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
-  const datumSel = `<label class="tbsel" data-tip="${escAttr(hasDatumShift ? DATUM_TIP
-      : 'この配信物には測地成果2024への変換量が無いので、旧(2011)のみ')}">標高基準`
-    + `<select id="tb-datum" aria-label="標高基準" ${hasDatumShift ? '' : 'disabled'}`
-    + `><option value="jgd2024" ${datum === 'jgd2024' ? 'selected' : ''}>気象庁基準 新(2024)</option>`
-    + `<option value="jgd2011" ${datum === 'jgd2011' ? 'selected' : ''}>解析基準 旧(2011)</option>`
-    + '</select></label>'
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
     + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
@@ -851,7 +852,7 @@ function topbarHtml(
   const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
     + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${datumSel}${keys}${doc}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${datumSel}${wlv}${opset}${keys}${doc}${src}`
 }
 
 /**
