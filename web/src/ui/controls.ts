@@ -70,6 +70,16 @@ const shiftOf = (catalog: Catalog): number => catalog.vertical.jgd2011_to_jgd202
 const dtp = (s: Store['state'], v: number): number =>
   toDisplayTp(v, s.elevationDatum, shiftOf(s.catalog))
 
+/** 潮位は基準切替で「別の海面になった」と見えないよう、新旧を必ず併記する。 */
+function tideDisplayPair(
+  internalJgd2011: number, datum: ElevationDatum, shiftM: number,
+): { primary: number; primaryLabel: string; secondary: number; secondaryLabel: string } {
+  const jgd2024 = toDisplayTp(internalJgd2011, 'jgd2024', shiftM)
+  return datum === 'jgd2024'
+    ? { primary: jgd2024, primaryLabel: '新(2024)', secondary: internalJgd2011, secondaryLabel: '旧(2011)' }
+    : { primary: internalJgd2011, primaryLabel: '旧(2011)', secondary: jgd2024, secondaryLabel: '新(2024)' }
+}
+
 /**
  * メニュー全体の説明ツールチップ。**`<select>`（現在値）ではなくメニュー名に張る。**
  * 選択肢を変えないと中身が分からないのを避けたいので、選べるもの全部を 1 行ずつ挙げる
@@ -784,14 +794,9 @@ export interface AreaChoice {
  * どのタブを開いていても、サイドバーをスクロールしても常に見える（2026-09）。
  * 1 範囲だけの配信物では対象範囲は消え、地形データだけが残る。
  */
-/** `#tb-datum` に出す文言。ボタンそのものがいまの選択を示す（開いて選ぶ形にしない） */
-function datumButtonLabel(datum: ElevationDatum): string {
-  return datum === 'jgd2024' ? '新(2024)' : '旧(2011)'
-}
-
 const DATUM_TIP = '画面の m T.P. 表示の基準。新(測地成果2024)は気象庁の公表値と同じ基準、'
   + '旧(測地成果2011)は地形データ（PLATEAU・点群・京都府 DEM）の基準。'
-  + '押すと切り替わる。判定・地形には効かない（表示だけ）'
+  + '同じ高さに付く数字だけが変わり、判定・地形には効かない。潮位は新旧を併記する'
 
 function topbarHtml(
   a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
@@ -812,22 +817,26 @@ function topbarHtml(
   // いま解いている潮位。**このアプリの主変数**なので、タブを開いていなくても
   // トップバーに出す。値は `syncTopbar` が refresh ごとに書き換える。
   // ← → キーで動かせることはキー操作案内にも足す（刻みの詳細は data-tip に）
+  const tide = tideDisplayPair(waterLevel, datum, shiftOf(catalog))
   const wlv = `<span class="tb-wl" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位`
-    + ` <b id="tb-wl-v">${waterLevel.toFixed(2)}</b> m<span class="tb-wl-u"> T.P.</span></span>`
+    + ` <b id="tb-wl-v">${tide.primary.toFixed(2)}</b> m`
+    + `<span id="tb-wl-basis">${tide.primaryLabel}</span>`
+    + `<span class="tb-wl-u" id="tb-wl-equiv">（${tide.secondaryLabel} ${tide.secondary.toFixed(2)} m） T.P.</span></span>`
   // ドラッグの回転方向・役割・感度の設定（`ui/operationSettingsModal.ts`）。
   // 人によってドラッグの感じ方が逆なので、画面上部からいつでも開けるようにした（2026-09 要望）
   const opset = '<button id="tb-opset" type="button" class="tb-btn"'
     + ' data-tip="ドラッグでの回転・パンの向きや感度を設定する">操作設定</button>'
-  // 標高基準（測地成果2011／2024）の表示切替。押すたびに旧⇄新をトグルする
+  // 標高基準（測地成果2011／2024）の表示切替。現在値と選択肢が同時に分かる select にする
   // （舞鶴市要望、2026-09。`domain/elevationDatum.ts`）。配信物に変換量
   // （`vertical.jgd2011_to_jgd2024_shift_m`）が無い古い catalog では「新」を
   // 選べないようにする（無いまま選ぶと、変換されない値を「新」のラベルで出してしまう）
   const hasDatumShift = catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
-  const datumBtn = `<button id="tb-datum" type="button" class="tb-btn"`
-    + ` aria-pressed="${datum === 'jgd2024'}" ${hasDatumShift ? '' : 'disabled'}`
-    + ` data-tip="${escAttr(hasDatumShift ? DATUM_TIP
-        : 'この配信物には測地成果2024への変換量が無いので、旧(2011)のみ')}"`
-    + `>標高基準 <b id="tb-datum-v">${datumButtonLabel(datum)}</b></button>`
+  const datumSel = `<label class="tbsel" data-tip="${escAttr(hasDatumShift ? DATUM_TIP
+      : 'この配信物には測地成果2024への変換量が無いので、旧(2011)のみ')}">標高基準`
+    + `<select id="tb-datum" aria-label="標高基準" ${hasDatumShift ? '' : 'disabled'}`
+    + `><option value="jgd2024" ${datum === 'jgd2024' ? 'selected' : ''}>気象庁基準 新(2024)</option>`
+    + `<option value="jgd2011" ${datum === 'jgd2011' ? 'selected' : ''}>解析基準 旧(2011)</option>`
+    + '</select></label>'
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
     + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
@@ -842,7 +851,7 @@ function topbarHtml(
   const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
     + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${datumBtn}${keys}${doc}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${datumSel}${keys}${doc}${src}`
 }
 
 /**
@@ -880,20 +889,23 @@ function syncTopbar(
     if (sel && sel.value !== cond) sel.value = cond
     const ar = topbar.querySelector<HTMLSelectElement>('#area')
     if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
+    const tide = tideDisplayPair(
+      store.state.waterLevel, store.state.elevationDatum, shiftOf(catalog))
     const wlv = topbar.querySelector<HTMLElement>('#tb-wl-v')
-    const wlText = dtp(store.state, store.state.waterLevel).toFixed(2)
+    const wlText = tide.primary.toFixed(2)
     if (wlv && wlv.textContent !== wlText) wlv.textContent = wlText
-    const datumBtn = topbar.querySelector<HTMLButtonElement>('#tb-datum')
-    if (datumBtn) {
-      datumBtn.setAttribute('aria-pressed', String(store.state.elevationDatum === 'jgd2024'))
-      const v = datumBtn.querySelector('#tb-datum-v')
-      const label = datumButtonLabel(store.state.elevationDatum)
-      if (v && v.textContent !== label) v.textContent = label
+    const basis = topbar.querySelector<HTMLElement>('#tb-wl-basis')
+    if (basis) basis.textContent = tide.primaryLabel
+    const equiv = topbar.querySelector<HTMLElement>('#tb-wl-equiv')
+    if (equiv) equiv.textContent = `（${tide.secondaryLabel} ${tide.secondary.toFixed(2)} m） T.P.`
+    const datumSel = topbar.querySelector<HTMLSelectElement>('#tb-datum')
+    if (datumSel && datumSel.value !== store.state.elevationDatum) {
+      datumSel.value = store.state.elevationDatum
     }
     return
   }
   topbar.innerHTML = topbarHtml(
-    area, catalog, cond, dtp(store.state, store.state.waterLevel), store.state.elevationDatum)
+    area, catalog, cond, store.state.waterLevel, store.state.elevationDatum)
   topbar.dataset.built = '1'
   topbar.querySelector('#area')?.addEventListener('change', (e) => {
     // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す
@@ -907,8 +919,8 @@ function syncTopbar(
     const next = isDiff(store.state.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
     store.set({ surface: next })
   })
-  topbar.querySelector('#tb-datum')!.addEventListener('click', () => {
-    const next: ElevationDatum = store.state.elevationDatum === 'jgd2024' ? 'jgd2011' : 'jgd2024'
+  topbar.querySelector('#tb-datum')!.addEventListener('change', (e) => {
+    const next = (e.target as HTMLSelectElement).value as ElevationDatum
     saveElevationDatum(next)
     store.set({ elevationDatum: next })
   })
@@ -980,8 +992,11 @@ export function renderControls(
   }
 
   if (el.dataset.built === '1') {
+    const tide = tideDisplayPair(s.waterLevel, s.elevationDatum, shiftOf(catalog))
     const v = el.querySelector<HTMLElement>('#wlv')
-    if (v) v.textContent = `${dtp(s, s.waterLevel).toFixed(2)} m`
+    if (v) v.textContent = `${tide.primary.toFixed(2)} m`
+    const basis = el.querySelector<HTMLElement>('#wlbasis')
+    if (basis) basis.textContent = `${tide.primaryLabel}（${tide.secondaryLabel} ${tide.secondary.toFixed(2)} m） T.P.`
     const range = el.querySelector<HTMLInputElement>('#wl')
     if (range && document.activeElement !== range && range.value !== String(s.waterLevel)) {
       range.value = String(s.waterLevel)
@@ -1117,6 +1132,7 @@ export function renderControls(
   const refs = Object.entries(catalog.water_level.reference_levels_m_tp)
     .sort((a, b) => a[1] - b[1])
   const shift = shiftOf(catalog)
+  const tideInitial = tideDisplayPair(s.waterLevel, s.elevationDatum, shift)
 
   el.innerHTML = `
     <!-- サイドバーは 2 枚のパネルに分ける。1 枚目＝地形の色（今どの面を見ているか）
@@ -1216,7 +1232,7 @@ export function renderControls(
         ${rainfallControlsHtml(s)}
 
         <p class="grouplabel" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位</p>
-        <div class="wl"><b id="wlv">${dtp(s, s.waterLevel).toFixed(2)} m</b><span class="sub">T.P.</span></div>
+        <div class="wl"><b id="wlv">${tideInitial.primary.toFixed(2)} m</b><span class="sub" id="wlbasis">${tideInitial.primaryLabel}（${tideInitial.secondaryLabel} ${tideInitial.secondary.toFixed(2)} m） T.P.</span></div>
         <div class="wlrow" data-tip="${escAttr(WATER_LEVEL_TIP)}">
           <button class="stepbtn" id="wl-down" type="button"
                   aria-label="潮位を ${wl.step} m 下げる">−</button>
