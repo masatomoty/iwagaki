@@ -70,9 +70,9 @@
     color: var(--fg); text-decoration: underline dotted; text-underline-offset: 3px; outline: none; }
   /* #topbar は折り返さない 1 行の flex なので、幅が足りないと右側（操作設定・マニュアル・出典）が
      画面の外へ押し出されて届かなくなる。ヒントに過ぎないキー操作案内を先に落として
-     幅を空ける（実測: フル項目で約 1065px が必要、キー案内を落とせば約 810px で収まる。
-     マニュアルを足したぶん閾値を 1000→1080px に上げた） */
-  @media (max-width: 1080px) {
+     幅を空ける。標高基準 select と潮位の新旧併記を足したぶん、以前の 1080px より
+     早めに落として右端のマニュアル・出典を守る。 */
+  @media (max-width: 1280px) {
     #topbar .tb-keys { display: none; }
   }
   /* さらに狭いと、キー案内を落としても約 810px 要って右端が切れる。

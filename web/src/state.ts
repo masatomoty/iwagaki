@@ -159,7 +159,7 @@ export interface AppState {
    * 画面の m T.P. 表示の基準（測地成果2011／2024。`domain/elevationDatum.ts`）。
    * **表示だけ**を変える個人の好み設定で、判定・地形には一切効かない
    * （地形は 2011 側でしか作られていない）。`localStorage` にも持ち、
-   * ページを開き直しても引き継ぐ（トップバー「標高基準」ボタン）。
+   * ページを開き直しても引き継ぐ（トップバー「標高基準」プルダウン）。
    */
   elevationDatum: ElevationDatum
 }
@@ -213,7 +213,7 @@ export function initialState(catalog: Catalog): AppState {
     // 配信物が変換量（`vertical.jgd2011_to_jgd2024_shift_m`）を持たない古いものなら、
     // 保存済みの好みが「新」でも強制的に「旧」にする。持たないまま「新」を名乗ると、
     // 変換されない（=旧成果のままの）値を「新(2024)」のラベルで出してしまう
-    // （`ui/controls.ts` の `datumBtn` も同じ判定で選択肢自体を封じる）
+    // （`ui/controls.ts` の標高基準 select も同じ判定で選択自体を封じる）
     elevationDatum: catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
       ? loadElevationDatum() : 'jgd2011',
   }
