@@ -210,7 +210,12 @@ export function initialState(catalog: Catalog): AppState {
     terrainPaint: 'flood',
     // 既定は「雨量なし」。雨量リスクを選んでいない起動時の見え方は変わらない
     rainfall: initialRainfallState(),
-    elevationDatum: loadElevationDatum(),
+    // 配信物が変換量（`vertical.jgd2011_to_jgd2024_shift_m`）を持たない古いものなら、
+    // 保存済みの好みが「新」でも強制的に「旧」にする。持たないまま「新」を名乗ると、
+    // 変換されない（=旧成果のままの）値を「新(2024)」のラベルで出してしまう
+    // （`ui/controls.ts` の `datumBtn` も同じ判定で選択肢自体を封じる）
+    elevationDatum: catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
+      ? loadElevationDatum() : 'jgd2011',
   }
 }
 

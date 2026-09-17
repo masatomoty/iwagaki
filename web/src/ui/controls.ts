@@ -391,7 +391,8 @@ function legendHtml(
   if (s.terrainPaint === 'elevation') {
     rows.push('<div><i style="width:36px;background:'
       + 'linear-gradient(90deg,#2f6fa3,#4da66f 33%,#f0d34f 66%,#a86632)'
-      + '"></i>地盤高<span class="sub"> 0 m 〜 3 m ／ それ以上は灰</span></div>',
+      + `"></i>地盤高<span class="sub"> ${dtp(s, 0).toFixed(2)} 〜 ${dtp(s, 3).toFixed(2)} m`
+      + ' ／ それ以上は灰</span></div>',
       '<div><i style="background:#ffffff"></i>いまの潮位の等高線'
       + `<span class="sub"> ${dtp(s, s.waterLevel).toFixed(2)} m T.P.</span></div>`)
     // 浸水を読む画面ではないので、以降の浸水系の行は足さずに返す
@@ -818,9 +819,14 @@ function topbarHtml(
   const opset = '<button id="tb-opset" type="button" class="tb-btn"'
     + ' data-tip="ドラッグでの回転・パンの向きや感度を設定する">操作設定</button>'
   // 標高基準（測地成果2011／2024）の表示切替。押すたびに旧⇄新をトグルする
-  // （舞鶴市要望、2026-09。`domain/elevationDatum.ts`）
+  // （舞鶴市要望、2026-09。`domain/elevationDatum.ts`）。配信物に変換量
+  // （`vertical.jgd2011_to_jgd2024_shift_m`）が無い古い catalog では「新」を
+  // 選べないようにする（無いまま選ぶと、変換されない値を「新」のラベルで出してしまう）
+  const hasDatumShift = catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
   const datumBtn = `<button id="tb-datum" type="button" class="tb-btn"`
-    + ` aria-pressed="${datum === 'jgd2024'}" data-tip="${escAttr(DATUM_TIP)}"`
+    + ` aria-pressed="${datum === 'jgd2024'}" ${hasDatumShift ? '' : 'disabled'}`
+    + ` data-tip="${escAttr(hasDatumShift ? DATUM_TIP
+        : 'この配信物には測地成果2024への変換量が無いので、旧(2011)のみ')}"`
     + `>標高基準 <b id="tb-datum-v">${datumButtonLabel(datum)}</b></button>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'

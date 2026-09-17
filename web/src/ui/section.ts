@@ -87,11 +87,14 @@ export function drawSection(
    */
   reveal = 1,
   /**
-   * 標高基準の表示変換（`domain/elevationDatum.ts`）。**ここは文字ラベルにだけ効く。**
-   * 縦軸の位置計算・浸水域の塗り分けは常に内部値（測地成果2011）のままで、
-   * 目盛りと「H =」の文字だけ選んだ基準に変換して出す
+   * 標高基準の表示変換（`domain/elevationDatum.ts`）。**ここは文字ラベルと目盛りの
+   * 刻み方にだけ効く。** 縦軸の位置計算・浸水域の塗り分けは常に内部値（測地成果2011）
+   * のままで、目盛りは**選んだ基準側できりのいい値**を選んでから内部値に逆変換して
+   * 置く（内部値側できりのいい整数を選ぶと、小数第1位までしか出さない目盛りでは
+   * 0.19 m のずれが四捨五入で消えて「切り替えても目盛りが変わらない」ように見える）
    */
   toDisplay: (v: number) => number = (v) => v,
+  fromDisplay: (v: number) => number = (v) => v,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -142,13 +145,17 @@ export function drawSection(
   ctx.fillStyle = 'rgba(148,163,184,.75)'
   ctx.font = FONT.axis
   ctx.lineWidth = 1
+  // 刻み幅は基準を変えても同じ（アフィン変換なので区間の長さは動かない）。
+  // **きりのいい値を選ぶのは表示側の座標で**、それを内部値に戻して Y() に渡す
   const zStep = niceStep(zHi - zLo)
+  const dLo = toDisplay(zLo)
+  const dHi = toDisplay(zHi)
   ctx.textAlign = 'right'
   ctx.textBaseline = 'middle'
-  for (let z = Math.ceil(zLo / zStep) * zStep; z <= zHi; z += zStep) {
-    const y = Y(z)
+  for (let dz = Math.ceil(dLo / zStep) * zStep; dz <= dHi; dz += zStep) {
+    const y = Y(fromDisplay(dz))
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(w - PAD.right, y); ctx.stroke()
-    ctx.fillText(zStep < 1 ? toDisplay(z).toFixed(1) : toDisplay(z).toFixed(0), PAD.left - 6, y)
+    ctx.fillText(zStep < 1 ? dz.toFixed(1) : dz.toFixed(0), PAD.left - 6, y)
   }
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'

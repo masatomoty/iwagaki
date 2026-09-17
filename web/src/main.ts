@@ -13,7 +13,7 @@ import { type CameraDescription, eyeInLocal, visibleBoxLocal,
          visiblePolygonLocal } from './domain/camera'
 import { floorCounts, perAreaFloodCounts, regulatedRoadCount } from './domain/flood'
 import type { Catalog } from './domain/catalog'
-import { displayTpFormatter } from './domain/elevationDatum'
+import { displayTpFormatter, fromDisplayTp } from './domain/elevationDatum'
 import {
   failTideForecastFetch, initialTideForecastState, parseTideForecastResponse,
   startTideForecastFetch, succeedTideForecastFetch, type TideForecastState,
@@ -802,10 +802,11 @@ async function boot() {
     const cur = resolveSurface(catalog.terrain, store.state.surface)?.condition ?? 'highres'
     const ordered = [...secSeries].sort((a, b) =>
       (a.condition === cur ? -1 : 0) - (b.condition === cur ? -1 : 0))
-    const toDisplay = displayTpFormatter(
-      store.state.elevationDatum, catalog.vertical.jgd2011_to_jgd2024_shift_m ?? 0)
+    const shiftM = catalog.vertical.jgd2011_to_jgd2024_shift_m ?? 0
+    const toDisplay = displayTpFormatter(store.state.elevationDatum, shiftM)
+    const fromDisplay = (v: number) => fromDisplayTp(v, store.state.elevationDatum, shiftM)
     drawSection(secCanvas, ordered, store.state.waterLevel, secFit, store.state.floodModel,
-      reveal, toDisplay)
+      reveal, toDisplay, fromDisplay)
   }
 
   /**
