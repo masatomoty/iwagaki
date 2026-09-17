@@ -86,6 +86,12 @@ export function drawSection(
    * 動かさない**（読む足場なので即座に出す）。1 = 通常の即時描画。
    */
   reveal = 1,
+  /**
+   * 標高基準の表示変換（`domain/elevationDatum.ts`）。**ここは文字ラベルにだけ効く。**
+   * 縦軸の位置計算・浸水域の塗り分けは常に内部値（測地成果2011）のままで、
+   * 目盛りと「H =」の文字だけ選んだ基準に変換して出す
+   */
+  toDisplay: (v: number) => number = (v) => v,
 ) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
@@ -114,7 +120,7 @@ export function drawSection(
     ctx.fillStyle = 'rgba(96,165,250,.95)'
     ctx.font = FONT.legend
     ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'
-    ctx.fillText(`H = ${waterLevel.toFixed(2)} m T.P.`, PAD.left + 4, yW - 3)
+    ctx.fillText(`H = ${toDisplay(waterLevel).toFixed(2)} m T.P.`, PAD.left + 4, yW - 3)
     ctx.fillStyle = 'rgba(226,232,240,.6)'
     ctx.font = FONT.axis
     ctx.textAlign = 'center'; ctx.textBaseline = 'top'
@@ -142,7 +148,7 @@ export function drawSection(
   for (let z = Math.ceil(zLo / zStep) * zStep; z <= zHi; z += zStep) {
     const y = Y(z)
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(w - PAD.right, y); ctx.stroke()
-    ctx.fillText(zStep < 1 ? z.toFixed(1) : z.toFixed(0), PAD.left - 6, y)
+    ctx.fillText(zStep < 1 ? toDisplay(z).toFixed(1) : toDisplay(z).toFixed(0), PAD.left - 6, y)
   }
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
@@ -202,7 +208,7 @@ export function drawSection(
   ctx.textAlign = 'left'
   ctx.textBaseline = 'bottom'
   ctx.font = FONT.legend
-  ctx.fillText(`H = ${waterLevel.toFixed(2)} m T.P.`, PAD.left + 4, Y(waterLevel) - 3)
+  ctx.fillText(`H = ${toDisplay(waterLevel).toFixed(2)} m T.P.`, PAD.left + 4, Y(waterLevel) - 3)
 
   // 地形。条件ごとに 1 本
   for (const s of withData) {

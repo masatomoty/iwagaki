@@ -222,6 +222,12 @@ export function mountStartupModal(opts: MountOpts): void {
   const picked = allRefs.filter(([k]) => STARTUP_TIDE_KEYS.includes(k))
   const refs = picked.length ? picked : allRefs
   const defaultTide = pickStartupTide(refs, PREFERRED_TIDE_KEYS, store.state.waterLevel)
+  // `toDisplayTp`（`domain/elevationDatum.ts`）と同じ式をここでは展開して書く。
+  // 値 import すると、この関数だけを素の TS のまま読む `startupModal.test.mjs`
+  // （拡張子なしの相対 import は Node の型除去では解決できない。`domain/waterLevel.ts`
+  // が `import type` しか使わないのと同じ理由）が壊れる
+  const datumShiftM = catalog.vertical.jgd2011_to_jgd2024_shift_m ?? 0
+  const toDisplay = (v: number) => (store.state.elevationDatum === 'jgd2024' ? v + datumShiftM : v)
 
   const areaField = showArea ? `
     <fieldset>
@@ -256,7 +262,7 @@ export function mountStartupModal(opts: MountOpts): void {
             <input type="radio" name="intro-tide" value="${v}"
                    ${v === defaultTide ? 'checked' : ''}/>
             <span class="opt-t">${esc(REF_ALIAS[k] ?? k)}${v === defaultTide ? PICK_BADGE : ''}</span>
-            <span class="opt-v">${v.toFixed(2)} m</span>
+            <span class="opt-v">${toDisplay(v).toFixed(2)} m</span>
           </label>`).join('')}
       </div>
     </fieldset>` : ''

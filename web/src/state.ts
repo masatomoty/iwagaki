@@ -1,4 +1,5 @@
 import type { Catalog } from './domain/catalog'
+import { loadElevationDatum, type ElevationDatum } from './domain/elevationDatum'
 import { initialRainfallState, type RainfallState } from './domain/rainfall'
 import type { BuildingColorMode, FeatureAssertion, FloodModel, RoadColorMode,
               SurfaceMode, TerrainPaint } from './domain/types'
@@ -154,6 +155,13 @@ export interface AppState {
    * 未選択（`undefined`）なら 0 番目を既定にする（`main.ts`）。
    */
   walkIsochroneIndex?: number
+  /**
+   * 画面の m T.P. 表示の基準（測地成果2011／2024。`domain/elevationDatum.ts`）。
+   * **表示だけ**を変える個人の好み設定で、判定・地形には一切効かない
+   * （地形は 2011 側でしか作られていない）。`localStorage` にも持ち、
+   * ページを開き直しても引き継ぐ（トップバー「標高基準」ボタン）。
+   */
+  elevationDatum: ElevationDatum
 }
 
 export function initialState(catalog: Catalog): AppState {
@@ -202,6 +210,7 @@ export function initialState(catalog: Catalog): AppState {
     terrainPaint: 'flood',
     // 既定は「雨量なし」。雨量リスクを選んでいない起動時の見え方は変わらない
     rainfall: initialRainfallState(),
+    elevationDatum: loadElevationDatum(),
   }
 }
 

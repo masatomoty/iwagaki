@@ -23,7 +23,8 @@ from iwagaki.areas import (BOUNDARY_PATH, assign_centroids, boundary_metadata,
 from iwagaki.config import (AOI, AOI_LABELS, AOIS, ATTRIBUTION_CENSUS,
                             ATTRIBUTION_RAILWAY, asset_name, catalog_name,
                             CRS_ANALYSIS, DEFAULT_AOI, H_MAX, H_MIN, H_STEP, OUT, RAW,
-                            FLOOR_ABOVE_DEPTH, REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
+                            FLOOR_ABOVE_DEPTH, HYOKO_DH_JGD2011_TO_2024,
+                            REPRESENTATIVE_H, ROAD_DEPTH_CLASSES,
                             ROOT, TP_OF_MSL, WEB_FLOW_CONDITIONS,
                             WEB_DATA, ATTRIBUTION)
 from iwagaki.versioning import publish_dir, publish_file
@@ -755,6 +756,11 @@ def main() -> int:
             "geoid_undulation_m": round(n_geoid, 3),
             "geoid_source": "PROJ EPSG:6697 -> EPSG:4979 (GSIGEO2011)",
             "note": "3D Tiles は楕円体高。我々のレイヤは z_render = z_TP + geoid_undulation_m で合わせる",
+            # 地形（PLATEAU・点群・京都府 DEM）は測地成果2011 側でしか作られておらず
+            # （提供元の教示、docs/data.md「標高成果の世代」）、解析・判定は常にこの基準で
+            # 行う。**この値は表示専用**（viewer の「標高基準」トグル）で、
+            # 内部の T.P. 値には一切効かない。測地成果2024 での表示値 = 内部値 + この値
+            "jgd2011_to_jgd2024_shift_m": HYOKO_DH_JGD2011_TO_2024,
         },
         "water_level": {
             "min": H_MIN, "max": H_MAX, "step": H_STEP,

@@ -8,6 +8,7 @@
 // `__iwagaki.store.state.selected` から引ける（画面には出さない）。
 
 import type { Catalog } from '../domain/catalog'
+import { displayTpFormatter } from '../domain/elevationDatum'
 import { changeBand, decisionChanged, featureDepth, featurePonded, roadClass } from '../domain/flood'
 import { comparisonPair } from '../domain/terrain'
 import type { ComparisonPair, FloodModel, TerrainCondition } from '../domain/types'
@@ -45,10 +46,19 @@ const signed = (v: number | undefined) =>
   v === undefined || !Number.isFinite(v) ? '—'
     : `${v > 0 ? '+' : ''}${v.toFixed(2)} m`
 
+/**
+ * `fmt` の絶対標高版。地盤高・h_conn・越流点など、**単独の T.P. 値**を出すところだけで使う。
+ * `浸水深`・`地盤高の差` のような相対値（基準の取り方に依らない）は素の `fmt`/`signed` のまま
+ * （`domain/elevationDatum.ts`：差はシフトで打ち消し合う）。
+ */
+const fmtTp = (v: number | undefined, toDisplay: (v: number) => number, u = ' m') =>
+  v === undefined || !Number.isFinite(v) ? '—' : `${toDisplay(v).toFixed(2)}${u}`
+
 /** いま見ている条件の値。ここが主 */
 function currentTable(
   a: NonNullable<Store['state']['selected']>, pair: ComparisonPair,
   H: number, th: number[], isRoad: boolean, model: FloodModel,
+  toDisplay: (v: number) => number,
 ): string {
   const to = pair.to
   const from = pair.from
@@ -67,24 +77,24 @@ function currentTable(
   const below = pond ? H - a.groundElev[to]! : undefined
   return `
     <table>
-      <tr><td>地盤高</td><td class="num">${fmt(a.groundElev[to])}</td></tr>
+      <tr><td>地盤高</td><td class="num">${fmtTp(a.groundElev[to], toDisplay)}</td></tr>
       ${model === 'connected'
-        ? `<tr><td>h_conn</td><td class="num">${fmt(a.hConn[to])}</td></tr>` : ''}
+        ? `<tr><td>h_conn</td><td class="num">${fmtTp(a.hConn[to], toDisplay)}</td></tr>` : ''}
       <tr><td>浸水深</td><td class="num">${fmt(dTo)}</td></tr>
       ${pond ? `<tr><td>潮位より低い</td><td class="num">${fmt(below)}</td></tr>` : ''}
       ${isRoad ? `<tr><td>通行</td><td class="num">${
         dTo === undefined ? '—' : ROAD_CLASS_LABEL[roadClass(dTo, th)]}</td></tr>` : ''}
     </table>
     ${model === 'simple' && dTo !== undefined && dTo > 0
-      ? `<div class="note">浸水深 = 潮位 ${H.toFixed(2)} − 地盤高
-          ${a.groundElev[to]!.toFixed(2)} = <b>${dTo.toFixed(2)} m</b>。
+      ? `<div class="note">浸水深 = 潮位 ${toDisplay(H).toFixed(2)} − 地盤高
+          ${toDisplay(a.groundElev[to]!).toFixed(2)} = <b>${dTo.toFixed(2)} m</b>。
           <b>連結性は問うていない</b>（排水路などを通じて、潮位より地盤高が低い箇所は
           その差だけ浸水しているという現場の経験則に合わせた。舞鶴市、2026-08）。
-          海側から地表面をたどって到達するのは潮位 ${fmt(a.hConn[to])} から</div>` : ''}
+          海側から地表面をたどって到達するのは潮位 ${fmtTp(a.hConn[to], toDisplay)} から</div>` : ''}
     ${pond ? `<div class="note"><b>窪地。</b>標高は潮位より
       ${below!.toFixed(2)} m 低いが、地表面をたどると海に出ないので
       本モデルでは浸水深 0 になる（海側からつながるのは潮位
-      ${fmt(a.hConn[to])} から）。<b>排水路の吐口にフラップゲートが無い</b>ので、
+      ${fmtTp(a.hConn[to], toDisplay)} から）。<b>排水路の吐口にフラップゲートが無い</b>ので、
       実際には管路を逆流して浸水しうる。逆流は本モデルに含まない</div>` : ''}
     ${same ? '' : `
       <p class="grouplabel">${CONDITION_LABEL[from]} との差</p>
@@ -99,7 +109,10 @@ function currentTable(
  * （`domain/flow.ts` の `catchmentSummary`、`catalog.flow.basins`）。
  * **潮位非依存の別オーバーレイ**で、浸水判定・h_conn とは無関係。
  */
-function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selectedCatchment']>) {
+function renderCatchment(
+  el: HTMLElement, c: NonNullable<Store['state']['selectedCatchment']>,
+  toDisplay: (v: number) => number,
+) {
   const ha = (v: number) => `${v.toFixed(2)} ha`
   // 出すのは**ハイライトしている面の面積**だけ。吐口の D-inf 集水（`maxAccumM2`）は
   // 主 receiver で切った流域境界を跨いで出入りするので面積とは別物になり、数字で
@@ -115,7 +128,7 @@ function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selecte
         <td class="num">${ha(c.areaHa)}</td></tr>
       ${c.pit
         ? `<tr><td>流出先</td><td class="num">海に通じない窪地<br>
-             <span class="sub">越流点 ${c.pit.spillElev.toFixed(2)} m T.P.</span></td></tr>`
+             <span class="sub">越流点 ${toDisplay(c.pit.spillElev).toFixed(2)} m T.P.</span></td></tr>`
         : ''}
     </table>
     ${c.edgeTruncated
@@ -135,9 +148,11 @@ function renderCatchment(el: HTMLElement, c: NonNullable<Store['state']['selecte
  */
 export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog) {
   const a = store.state.selected
+  const toDisplay = displayTpFormatter(
+    store.state.elevationDatum, catalog.vertical.jgd2011_to_jgd2024_shift_m ?? 0)
   if (!a) {
     const c = store.state.selectedCatchment
-    if (c && store.state.terrainPaint === 'catchment') renderCatchment(el, c)
+    if (c && store.state.terrainPaint === 'catchment') renderCatchment(el, c, toDisplay)
     else el.innerHTML = ATTR_EMPTY_HINT
     return
   }
@@ -166,14 +181,14 @@ export function renderInspector(el: HTMLElement, store: Store, catalog: Catalog)
         : `<p><span class="tag ${changed ? 'chg' : 'same'}">${
              changed ? '判定が変わる' : '判定は同じ'}</span><br>
              <span class="sub">${CONDITION_LABEL[pair.from]} → ${CONDITION_LABEL[pair.to]}
-             @ H = ${H.toFixed(2)} m T.P.</span></p>`}
+             @ H = ${toDisplay(H).toFixed(2)} m T.P.</span></p>`}
 
     <p class="grouplabel">${CONDITION_LABEL[pair.to]}${same ? '' : '（いま見ている条件）'}</p>
-    ${currentTable(a, pair, H, th, isRoad, model)}
+    ${currentTable(a, pair, H, th, isRoad, model, toDisplay)}
 
     <table>
       ${band ? `<tr><td>判定が割れる水位帯</td><td class="num">
-        ${band[0].toFixed(2)} 〜 ${band[1].toFixed(2)} m T.P.</td></tr>` : ''}
+        ${toDisplay(band[0]).toFixed(2)} 〜 ${toDisplay(band[1]).toFixed(2)} m T.P.</td></tr>` : ''}
       ${a.areaM2 !== undefined
         ? `<tr><td>面積</td><td class="num">${a.areaM2.toFixed(1)} m²</td></tr>` : ''}
       ${a.sectionTypeLabel
