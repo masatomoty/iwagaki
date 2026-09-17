@@ -121,6 +121,12 @@ export interface Catalog {
     geoid_undulation_m: number
     geoid_source: string
     note: string
+    /**
+     * 測地成果2011 → 2024 の標高補正量 [m]（表示専用。`domain/elevationDatum.ts`）。
+     * 古い配信物には無い。地形・判定は常に 2011 基準のまま — これは
+     * viewer の「標高基準」トグルが m T.P. の表示だけを変えるための値
+     */
+    jgd2011_to_jgd2024_shift_m?: number
   }
   water_level: {
     min: number; max: number; step: number

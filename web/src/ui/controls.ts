@@ -36,6 +36,7 @@ import {
 import { comparisonPair } from '../domain/terrain'
 import type { BuildingColorMode, FloodModel, RoadColorMode, SurfaceMode,
               TerrainCondition, TerrainPaint } from '../domain/types'
+import { saveElevationDatum, toDisplayTp, type ElevationDatum } from '../domain/elevationDatum'
 import { nudgeWaterLevel, waterLevelRange } from '../domain/waterLevel'
 import type { Store } from '../state'
 import {
@@ -58,6 +59,16 @@ export const EXAGGERATIONS = [1, 2, 5, 10, 20] as const
 const escAttr = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
     .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * 標高基準の変換量。古い配信物（`vertical.jgd2011_to_jgd2024_shift_m` が無い）では
+ * 0 にフォールバックする（「新」を選んでも「旧」と同じ値が出るだけで、壊れはしない）。
+ */
+const shiftOf = (catalog: Catalog): number => catalog.vertical.jgd2011_to_jgd2024_shift_m ?? 0
+
+/** 内部値（測地成果2011）を、いま選んでいる標高基準の表示値にする。数字を出す直前だけで使う */
+const dtp = (s: Store['state'], v: number): number =>
+  toDisplayTp(v, s.elevationDatum, shiftOf(s.catalog))
 
 /**
  * メニュー全体の説明ツールチップ。**`<select>`（現在値）ではなくメニュー名に張る。**
@@ -380,9 +391,10 @@ function legendHtml(
   if (s.terrainPaint === 'elevation') {
     rows.push('<div><i style="width:36px;background:'
       + 'linear-gradient(90deg,#2f6fa3,#4da66f 33%,#f0d34f 66%,#a86632)'
-      + '"></i>地盤高<span class="sub"> 0 m 〜 3 m ／ それ以上は灰</span></div>',
+      + `"></i>地盤高<span class="sub"> ${dtp(s, 0).toFixed(2)} 〜 ${dtp(s, 3).toFixed(2)} m`
+      + ' ／ それ以上は灰</span></div>',
       '<div><i style="background:#ffffff"></i>いまの潮位の等高線'
-      + `<span class="sub"> ${s.waterLevel.toFixed(2)} m T.P.</span></div>`)
+      + `<span class="sub"> ${dtp(s, s.waterLevel).toFixed(2)} m T.P.</span></div>`)
     // 浸水を読む画面ではないので、以降の浸水系の行は足さずに返す
     rows.push(roadsLegend(s))
     return `<div class="legend">${rows.join('')}</div>`
@@ -686,13 +698,16 @@ const REF_ALIAS: Record<string, string> = {
  * どこから来た数字なのかを、押す前にツールチップで読めるようにする（U3）。
  * `reference_levels_detail` は古い配信物には無いので、鍵ごとに存在を確かめる。
  */
-function refOriginTip(key: string, detail: unknown): string {
+function refOriginTip(key: string, detail: unknown, datum: ElevationDatum, shiftM: number): string {
   const d = (detail ?? {}) as Record<string, unknown>
   const o = d.official as Record<string, unknown> | undefined
   const r = d.record_high as Record<string, unknown> | undefined
   const a = d.astronomical as Record<string, unknown> | undefined
   if (key === '高潮想定の基準潮位' && o) {
-    return `\n＝朔望平均満潮位 ${o.spring_high_water_m_tp} m ＋ 異常潮位 ${o.anomaly_m} m。`
+    // 朔望平均満潮位は絶対標高なので基準に合わせて変換する。異常潮位（潮位偏差）は
+    // 差なので変換しない（`domain/elevationDatum.ts` のとおり、差は基準の取り方に依らない）
+    const sh = toDisplayTp(Number(o.spring_high_water_m_tp), datum, shiftM)
+    return `\n＝朔望平均満潮位 ${sh.toFixed(3)} m ＋ 異常潮位 ${o.anomaly_m} m。`
       + `京都府の高潮浸水想定はここに潮位偏差を足す。想定台風は ${o.assumed_typhoon}`
   }
   if (key === '既往最高潮位' && r) {
@@ -712,11 +727,22 @@ function refOriginTip(key: string, detail: unknown): string {
  * 出典と既知の限界の文章は画面に出さない（`README.md` / `docs/results.md`）。
  * 出典表記はトップバー右端の「出典」（`topbarHtml`）に畳んである。
  */
-function tideRefListHtml(refs: [string, number][], detail?: unknown): string {
-  return `<div class="reflist" id="refs">${refs.map(([k, v]) =>
-    `<button data-h="${v}" type="button"
-    data-tip="${escAttr(`押すと潮位を ${k}（T.P. ${v.toFixed(3)} m）に合わせる` + refOriginTip(k, detail))}"
-    >${REF_ALIAS[k] ?? k}<b>${v.toFixed(2)}</b></button>`).join('')}</div>`
+function tideRefButtonsHtml(
+  refs: [string, number][], datum: ElevationDatum, shiftM: number, detail?: unknown,
+): string {
+  return refs.map(([k, v]) => {
+    // `data-h` は水位そのもの（内部値、測地成果2011）。クリック時の判定はここが正
+    const dv = toDisplayTp(v, datum, shiftM)
+    return `<button data-h="${v}" type="button"
+    data-tip="${escAttr(`押すと潮位を ${k}（T.P. ${dv.toFixed(3)} m）に合わせる` + refOriginTip(k, detail, datum, shiftM))}"
+    >${REF_ALIAS[k] ?? k}<b>${dv.toFixed(2)}</b></button>`
+  }).join('')
+}
+
+function tideRefListHtml(
+  refs: [string, number][], datum: ElevationDatum, shiftM: number, detail?: unknown,
+): string {
+  return `<div class="reflist" id="refs">${tideRefButtonsHtml(refs, datum, shiftM, detail)}</div>`
 }
 
 /**
@@ -758,9 +784,18 @@ export interface AreaChoice {
  * どのタブを開いていても、サイドバーをスクロールしても常に見える（2026-09）。
  * 1 範囲だけの配信物では対象範囲は消え、地形データだけが残る。
  */
+/** `#tb-datum` に出す文言。ボタンそのものがいまの選択を示す（開いて選ぶ形にしない） */
+function datumButtonLabel(datum: ElevationDatum): string {
+  return datum === 'jgd2024' ? '新(2024)' : '旧(2011)'
+}
+
+const DATUM_TIP = '画面の m T.P. 表示の基準。新(測地成果2024)は気象庁の公表値と同じ基準、'
+  + '旧(測地成果2011)は地形データ（PLATEAU・点群・京都府 DEM）の基準。'
+  + '押すと切り替わる。判定・地形には効かない（表示だけ）'
+
 function topbarHtml(
   a: AreaChoice | undefined, catalog: Catalog, cond: TerrainCondition,
-  waterLevel: number,
+  waterLevel: number, datum: ElevationDatum,
 ): string {
   // **ツールチップは `<select>`（現在値）ではなくメニュー名（label）に張る。**
   // `<option>` には出せないうえ、選択肢を変えないと中身が分からないのは微妙なので、
@@ -783,6 +818,16 @@ function topbarHtml(
   // 人によってドラッグの感じ方が逆なので、画面上部からいつでも開けるようにした（2026-09 要望）
   const opset = '<button id="tb-opset" type="button" class="tb-btn"'
     + ' data-tip="ドラッグでの回転・パンの向きや感度を設定する">操作設定</button>'
+  // 標高基準（測地成果2011／2024）の表示切替。押すたびに旧⇄新をトグルする
+  // （舞鶴市要望、2026-09。`domain/elevationDatum.ts`）。配信物に変換量
+  // （`vertical.jgd2011_to_jgd2024_shift_m`）が無い古い catalog では「新」を
+  // 選べないようにする（無いまま選ぶと、変換されない値を「新」のラベルで出してしまう）
+  const hasDatumShift = catalog.vertical.jgd2011_to_jgd2024_shift_m !== undefined
+  const datumBtn = `<button id="tb-datum" type="button" class="tb-btn"`
+    + ` aria-pressed="${datum === 'jgd2024'}" ${hasDatumShift ? '' : 'disabled'}`
+    + ` data-tip="${escAttr(hasDatumShift ? DATUM_TIP
+        : 'この配信物には測地成果2024への変換量が無いので、旧(2011)のみ')}"`
+    + `>標高基準 <b id="tb-datum-v">${datumButtonLabel(datum)}</b></button>`
   // キー操作案内。右端の「出典」の左に、縦線を挟んで並べる
   const keys = '<span class="tb-keys">潮位 <kbd>←</kbd><kbd>→</kbd>　'
     + '視点 <kbd>0</kbd><kbd>1–6</kbd>　計測パネル <kbd>P</kbd></span>'
@@ -797,7 +842,7 @@ function topbarHtml(
   const src = `<span class="tb-src" tabindex="0" role="button" aria-label="出典を表示">`
     + `<span class="tb-src-lbl">出典</span>`
     + `<span class="tb-src-pop">${catalog.attribution.join(' ／ ')}</span></span>`
-  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${keys}${doc}${src}`
+  return `<h1>舞鶴 高潮浸水</h1>${areaSel}${condSel}${wlv}${opset}${datumBtn}${keys}${doc}${src}`
 }
 
 /**
@@ -836,11 +881,19 @@ function syncTopbar(
     const ar = topbar.querySelector<HTMLSelectElement>('#area')
     if (ar && area && ar.value !== area.current.id) ar.value = area.current.id
     const wlv = topbar.querySelector<HTMLElement>('#tb-wl-v')
-    const wlText = store.state.waterLevel.toFixed(2)
+    const wlText = dtp(store.state, store.state.waterLevel).toFixed(2)
     if (wlv && wlv.textContent !== wlText) wlv.textContent = wlText
+    const datumBtn = topbar.querySelector<HTMLButtonElement>('#tb-datum')
+    if (datumBtn) {
+      datumBtn.setAttribute('aria-pressed', String(store.state.elevationDatum === 'jgd2024'))
+      const v = datumBtn.querySelector('#tb-datum-v')
+      const label = datumButtonLabel(store.state.elevationDatum)
+      if (v && v.textContent !== label) v.textContent = label
+    }
     return
   }
-  topbar.innerHTML = topbarHtml(area, catalog, cond, store.state.waterLevel)
+  topbar.innerHTML = topbarHtml(
+    area, catalog, cond, dtp(store.state, store.state.waterLevel), store.state.elevationDatum)
   topbar.dataset.built = '1'
   topbar.querySelector('#area')?.addEventListener('change', (e) => {
     // 範囲を替えるとローカル座標系から配信物まで全部変わるので、読み直す
@@ -853,6 +906,11 @@ function syncTopbar(
     // 判定差を見ていたら、条件を替えてもその条件の判定差に移る（見方を保つ）
     const next = isDiff(store.state.surface) && DIFF_OF[c] ? DIFF_OF[c]! : (c as SurfaceMode)
     store.set({ surface: next })
+  })
+  topbar.querySelector('#tb-datum')!.addEventListener('click', () => {
+    const next: ElevationDatum = store.state.elevationDatum === 'jgd2024' ? 'jgd2011' : 'jgd2024'
+    saveElevationDatum(next)
+    store.set({ elevationDatum: next })
   })
   topbar.querySelector('#tb-opset')!.addEventListener('click', onOpenOperationSettings)
 }
@@ -923,10 +981,38 @@ export function renderControls(
 
   if (el.dataset.built === '1') {
     const v = el.querySelector<HTMLElement>('#wlv')
-    if (v) v.textContent = `${s.waterLevel.toFixed(2)} m`
+    if (v) v.textContent = `${dtp(s, s.waterLevel).toFixed(2)} m`
     const range = el.querySelector<HTMLInputElement>('#wl')
     if (range && document.activeElement !== range && range.value !== String(s.waterLevel)) {
       range.value = String(s.waterLevel)
+    }
+    // 潮位まわりの参照値。**内部値（`<input range>` の値域）は変えず、表示文字列だけ**
+    // 標高基準に合わせて作り直す。頻繁な refresh（潮位ドラッグ）で無駄に書き換えない
+    // よう、直近に描いた基準と変わったときだけ差し替える
+    if (el.dataset.datumRendered !== s.elevationDatum) {
+      el.dataset.datumRendered = s.elevationDatum
+      const wl = waterLevelRange(catalog)
+      const refs = Object.entries(catalog.water_level.reference_levels_m_tp)
+        .sort((a, b) => a[1] - b[1])
+      const shift = shiftOf(catalog)
+      const tickbar = el.querySelector<HTMLElement>('#tickbar')
+      if (tickbar) {
+        tickbar.innerHTML = refs.map(([k, rv]) =>
+          `<i style="left:${((rv - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${
+            toDisplayTp(rv, s.elevationDatum, shift).toFixed(3)} m"></i>`).join('')
+      }
+      const ticks = el.querySelector<HTMLElement>('#ticks')
+      if (ticks) {
+        ticks.innerHTML = `<span>${toDisplayTp(wl.min, s.elevationDatum, shift).toFixed(1)}</span>`
+          + `<span>${toDisplayTp(wl.max, s.elevationDatum, shift).toFixed(1)}</span>`
+      }
+      const refsEl = el.querySelector<HTMLElement>('#refs')
+      if (refsEl) {
+        refsEl.innerHTML = tideRefButtonsHtml(
+          refs, s.elevationDatum, shift, catalog.water_level.reference_levels_detail)
+      }
+      // 潮位再生パネルの「現在」「最高」も選んだ基準に合わせて描き直す
+      getTidePlaybackHandle(el)?.repaint()
     }
     // 判定差は差分タイルがある条件だけ。無い条件では押せないことがそのまま出る
     const diffBtn = el.querySelector<HTMLButtonElement>('#diffbtn')
@@ -1030,6 +1116,7 @@ export function renderControls(
   const wl = waterLevelRange(catalog)
   const refs = Object.entries(catalog.water_level.reference_levels_m_tp)
     .sort((a, b) => a[1] - b[1])
+  const shift = shiftOf(catalog)
 
   el.innerHTML = `
     <!-- サイドバーは 2 枚のパネルに分ける。1 枚目＝地形の色（今どの面を見ているか）
@@ -1129,7 +1216,7 @@ export function renderControls(
         ${rainfallControlsHtml(s)}
 
         <p class="grouplabel" data-tip="${escAttr(WATER_LEVEL_TIP)}">潮位</p>
-        <div class="wl"><b id="wlv">${s.waterLevel.toFixed(2)} m</b><span class="sub">T.P.</span></div>
+        <div class="wl"><b id="wlv">${dtp(s, s.waterLevel).toFixed(2)} m</b><span class="sub">T.P.</span></div>
         <div class="wlrow" data-tip="${escAttr(WATER_LEVEL_TIP)}">
           <button class="stepbtn" id="wl-down" type="button"
                   aria-label="潮位を ${wl.step} m 下げる">−</button>
@@ -1138,12 +1225,14 @@ export function renderControls(
           <button class="stepbtn" id="wl-up" type="button"
                   aria-label="潮位を ${wl.step} m 上げる">＋</button>
         </div>
-        <div class="tickbar">${refs.map(([k, v]) =>
-          `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${v.toFixed(3)} m"></i>`).join('')}</div>
-        <div class="ticks"><span>${wl.min.toFixed(1)}</span><span>${wl.max.toFixed(1)}</span></div>
+        <div class="tickbar" id="tickbar">${refs.map(([k, v]) =>
+          `<i style="left:${((v - wl.min) / (wl.max - wl.min)) * 100}%" title="${k} ${
+            toDisplayTp(v, s.elevationDatum, shift).toFixed(3)} m"></i>`).join('')}</div>
+        <div class="ticks" id="ticks"><span>${toDisplayTp(wl.min, s.elevationDatum, shift).toFixed(1)}</span>
+          <span>${toDisplayTp(wl.max, s.elevationDatum, shift).toFixed(1)}</span></div>
 
         <p class="subhead" data-tip="押すと潮位をその値（平均海面・朔望平均満潮位・高潮想定・既往最高など）に合わせる。高潮想定・既往最高は台風由来（各項目にホバーで内訳）">参照潮位</p>
-        ${tideRefListHtml(refs, catalog.water_level.reference_levels_detail)}
+        ${tideRefListHtml(refs, s.elevationDatum, shift, catalog.water_level.reference_levels_detail)}
 
         <div id="playbackslot">${tideCurves.length ? tidePlaybackHtml(tideCurves,
           catalog.water_level.tide_series?.default ?? tideCurves[0].id, tideForecast) : ''}</div>

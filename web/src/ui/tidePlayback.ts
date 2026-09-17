@@ -2,6 +2,7 @@
 // requestAnimationFrame で曲線の時刻を進め、その時刻の潮位を state.waterLevel に置くだけ。
 // h_conn 評価は定数時間なので、サーバ往復もタイルの作り直しも発生しない。
 
+import { displayTpFormatter } from '../domain/elevationDatum'
 import { FORECAST_SERIES_ID, type TideForecastState } from '../domain/tideForecast'
 import { advancedTime, formatJst, tideAt, timeValue,
          type TidePoint, type TideSeries } from '../domain/tideSeries'
@@ -131,6 +132,12 @@ export interface TidePlaybackHandle {
   upsertCurve(curve: TideSeries, opts?: { selectIt?: boolean }): void
   /** 更新ボタン・状態行の見た目だけを反映する（DOM は作り直さない） */
   setForecastStatus(state: TideForecastState): void
+  /**
+   * 「現在」「最高」の文字だけを描き直す。**標高基準トグルの直後**に呼ぶ
+   * （`ui/controls.ts`）。再生中でなければ `paint()` はここ以外で呼ばれないので、
+   * トグルしても再生パネルの数字が古いままになるのを防ぐ
+   */
+  repaint(): void
 }
 
 const HANDLES = new WeakMap<HTMLElement, TidePlaybackHandle>()
@@ -150,7 +157,7 @@ export function mountTidePlayback(
   const el = parent.querySelector<HTMLElement>('#playback')
   if (!el) {
     // 呼び出し側の防御用。`tidePlaybackHtml` を先に挿入していれば通常ここには来ない
-    return { upsertCurve: () => {}, setForecastStatus: () => {} }
+    return { upsertCurve: () => {}, setForecastStatus: () => {}, repaint: () => {} }
   }
   let curve = curves.find((c) => c.id === selected) ?? curves[0]
   let currentMs = timeValue(curve.points[0].time)
@@ -188,8 +195,13 @@ export function mountTidePlayback(
     const k = end > start ? (currentMs - start) / (end - start) : 0
     const pnow = q('#pnow'); const input = q<HTMLInputElement>('#ptime')
     const peak = q('#ppeak'); const head = q<SVGLineElement>('#playhead')
-    if (pnow) pnow.textContent = `${formatJst(currentMs)}・${value.toFixed(2)} m`
-    if (peak) peak.textContent = `${formatJst(peakMs)}・${curve.peak_value_m_tp.toFixed(2)} m`
+    // 曲線の座標（`projector`）は内部値のまま。文字だけ選んだ標高基準に変換する
+    const toDisplay = displayTpFormatter(
+      store.state.elevationDatum, store.state.catalog.vertical.jgd2011_to_jgd2024_shift_m ?? 0)
+    if (pnow) pnow.textContent = `${formatJst(currentMs)}・${toDisplay(value).toFixed(2)} m`
+    if (peak) {
+      peak.textContent = `${formatJst(peakMs)}・${toDisplay(curve.peak_value_m_tp).toFixed(2)} m`
+    }
     if (input && document.activeElement !== input) input.value = String(Math.round(k * 1000))
     if (head) {
       const x = (k * WIDTH).toFixed(1)
@@ -312,6 +324,7 @@ export function mountTidePlayback(
       lastForecastState = state
       renderForecastBlock()
     },
+    repaint() { paint() },
   }
   HANDLES.set(el, handle)
   return handle
